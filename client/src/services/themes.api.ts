@@ -1,0 +1,108 @@
+import { api } from './api';
+import type { Theme, ApiResponse, CreateThemeForm } from '@/types';
+
+export interface ThemeFilters {
+  specialite_id?: string;
+  type_pfe?: string;
+  statut_validation?: string;
+  is_affecte?: boolean;
+  besoin_encadrant?: boolean;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+export async function getThemes(filters?: ThemeFilters) {
+  const { data } = await api.get<ApiResponse<Theme[]>>('/themes', { params: filters });
+  return data;
+}
+
+export async function getThemeById(id: string) {
+  const { data } = await api.get<ApiResponse<Theme>>(`/themes/${id}`);
+  return data.data!;
+}
+
+export async function createTheme(dto: CreateThemeForm) {
+  const { data } = await api.post<ApiResponse<Theme>>('/themes', dto);
+  return data.data!;
+}
+
+export async function updateTheme(id: string, dto: Partial<CreateThemeForm>) {
+  const { data } = await api.patch<ApiResponse<Theme>>(`/themes/${id}`, dto);
+  return data.data!;
+}
+
+export async function deleteTheme(id: string) {
+  await api.delete(`/themes/${id}`);
+}
+
+export async function validateTheme(id: string, action: 'VALIDE' | 'REFUSE', motif?: string) {
+  const { data } = await api.patch<ApiResponse<Theme>>(`/themes/${id}/validate`, { action, motif });
+  return data.data!;
+}
+
+export async function markAsSoutenu(id: string) {
+  const { data } = await api.patch<ApiResponse<Theme>>(`/themes/${id}/soutenu`);
+  return data.data!;
+}
+
+export async function createThemeAsAdmin(dto: CreateThemeForm & { propose_par_id: string }) {
+  const { data } = await api.post<ApiResponse<Theme>>('/themes/admin', dto);
+  return data.data!;
+}
+
+export interface RespFiliereInfo {
+  id: string;
+  nom: string;
+  prenom: string;
+  email: string;
+}
+
+export async function getMyThemes(filters?: Omit<ThemeFilters, 'enseignant_id'>) {
+  const { data } = await api.get<ApiResponse<Theme[]>>('/themes/my', { params: filters });
+  return data;
+}
+
+export async function getRespFiliereInfo(): Promise<RespFiliereInfo[]> {
+  const { data } = await api.get<ApiResponse<RespFiliereInfo[]>>('/themes/resp-filiere-info');
+  return data.data ?? [];
+}
+
+export interface AnnonceTheme {
+  id: string;
+  titre: string;
+  description: string | null;
+  type_pfe: string;
+  mots_cles: string[];
+  created_at: string;
+  propose_par: {
+    id: string;
+    nom: string;
+    prenom: string;
+    email: string;
+    specialite?: { id: string; nom: string } | null;
+  };
+  theme_specialites: Array<{ specialite: { id: string; nom: string } }>;
+  session: { id: string; type: string; annee_universitaire: string } | null;
+}
+
+export interface AnnoncesResult {
+  data: AnnonceTheme[];
+  meta: { total: number; page: number; limit: number; totalPages: number };
+}
+
+export async function getAnnonces(filters?: { specialite_id?: string }): Promise<AnnoncesResult> {
+  const { data } = await api.get<{ success: boolean } & AnnoncesResult>('/annonces', { params: filters });
+  return { data: data.data, meta: data.meta };
+}
+
+export async function exportThemes(
+  format: 'excel' | 'pdf',
+  filters?: Omit<ThemeFilters, 'page' | 'limit'>,
+): Promise<Blob> {
+  const response = await api.get(`/themes/export/${format}`, {
+    params: filters,
+    responseType: 'blob',
+  });
+  return response.data as Blob;
+}

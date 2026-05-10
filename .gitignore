@@ -1,0 +1,16 @@
+CLAUDE.md
+node_modules/
+dist/
+build/
+.env
+.env.local
+.env.production
+uploads/*
+!uploads/.gitkeep
+*.log
+.DS_Store
+Thumbs.db
+coverage/
+.nyc_output/
+prisma/migrations/dev.db
+*.db

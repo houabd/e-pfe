@@ -1,0 +1,320 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ─────────────────────────────────────────────────────────────────
+
+enum Role {
+  CHEF_DEPT
+  CHEF_EQUIPE
+  RESP_FILIERE
+  RESP_SPECIALITE
+  TECHNICIEN
+  ENSEIGNANT
+  ETUDIANT
+}
+
+enum SessionType {
+  CHOIX
+  AFFECTATION
+}
+
+enum ThemeType {
+  CLASSIQUE
+  STARTUP
+}
+
+enum SousTypeTheme {
+  RECHERCHE
+  PROFESSIONNEL
+  LES_DEUX
+}
+
+enum StatutValidation {
+  NON_VALIDE
+  VALIDE
+}
+
+enum StatutChoix {
+  PENDING
+  ACCEPTED
+  REFUSED
+}
+
+enum StatutBinome {
+  PENDING
+  ACCEPTED
+  REFUSED
+}
+
+enum TypeAffectation {
+  LIBRE
+  AUTO
+}
+
+enum RoleJury {
+  PRESIDENT
+  EXAMINATEUR
+}
+
+enum TypeNotification {
+  BINOME_REQUEST
+  BINOME_RESPONSE
+  THEME_CHOSEN
+  THEME_RESPONSE
+  AFFECTATION
+  THEME_VALIDATED
+  SOUTENANCE_PLANIFIEE
+  NEW_DOCUMENT
+  SESSION_UPDATE
+}
+
+// ─── Models ────────────────────────────────────────────────────────────────
+
+model Specialite {
+  id         String   @id @default(cuid())
+  nom        String   @unique
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  users            User[]
+  theme_specialites ThemeSpecialite[]
+
+  @@map("specialites")
+}
+
+model Session {
+  id                  String      @id @default(cuid())
+  type                SessionType
+  date_debut          DateTime
+  date_fin            DateTime
+  annee_universitaire String
+  is_active           Boolean     @default(true)
+  created_at          DateTime    @default(now())
+  updated_at          DateTime    @updatedAt
+
+  themes       Theme[]
+  affectations Affectation[]
+
+  @@map("sessions")
+}
+
+model User {
+  id                  String   @id @default(cuid())
+  email               String   @unique
+  password_hash       String
+  nom                 String
+  prenom              String
+  role                Role
+  specialite_id       String?
+  date_naissance      DateTime
+  matricule           String?  @unique
+  is_active           Boolean  @default(true)
+  annee_universitaire String?
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  specialite Specialite? @relation(fields: [specialite_id], references: [id])
+
+  themes_proposes    Theme[]        @relation("ThemeProposeePar")
+  themes_encadres    Theme[]        @relation("ThemeEncadrant")
+  binomes_comme_etud1 Binome[]      @relation("BinomeEtud1")
+  binomes_comme_etud2 Binome[]      @relation("BinomeEtud2")
+  choix_themes       ThemeChoix[]
+  affectations_etudiant AffectationEtudiant[]
+  startup_membres    StartupMembre[]
+  soutenances_jury   SoutenanceJury[]
+  affectations_encadrant Affectation[] @relation("AffectationEncadrant")
+  affectations_par   Affectation[] @relation("AffectationPar")
+  notifications      Notification[]
+
+  @@index([specialite_id])
+  @@index([role])
+  @@index([is_active])
+  @@map("users")
+}
+
+model Theme {
+  id                 String           @id @default(cuid())
+  titre              String
+  description        String
+  mots_cles          String[]
+  necessite_stage    Boolean          @default(false)
+  type_pfe           ThemeType
+  sous_types         SousTypeTheme[]
+  propose_par_id     String
+  encadrant_id       String?
+  encadrant_externe  Json?
+  besoin_encadrant   Boolean          @default(false)
+  cherche_binome     Boolean          @default(false)
+  statut_validation  StatutValidation @default(NON_VALIDE)
+  is_affecte         Boolean          @default(false)
+  is_soutenu         Boolean          @default(false)
+  session_id         String
+  created_at         DateTime         @default(now())
+  updated_at         DateTime         @updatedAt
+
+  propose_par       User              @relation("ThemeProposeePar", fields: [propose_par_id], references: [id])
+  encadrant         User?             @relation("ThemeEncadrant", fields: [encadrant_id], references: [id])
+  session           Session           @relation(fields: [session_id], references: [id])
+  theme_specialites ThemeSpecialite[]
+  choix             ThemeChoix[]
+  affectation       Affectation?
+  soutenance        Soutenance?
+
+  @@index([session_id])
+  @@index([statut_validation])
+  @@index([is_affecte])
+  @@index([type_pfe])
+  @@map("themes")
+}
+
+model ThemeSpecialite {
+  theme_id      String
+  specialite_id String
+
+  theme      Theme      @relation(fields: [theme_id], references: [id], onDelete: Cascade)
+  specialite Specialite @relation(fields: [specialite_id], references: [id], onDelete: Cascade)
+
+  @@id([theme_id, specialite_id])
+  @@map("theme_specialites")
+}
+
+model Binome {
+  id         String       @id @default(cuid())
+  etud1_id   String
+  etud2_id   String
+  statut     StatutBinome @default(PENDING)
+  created_at DateTime     @default(now())
+  updated_at DateTime     @updatedAt
+
+  etud1  User         @relation("BinomeEtud1", fields: [etud1_id], references: [id])
+  etud2  User         @relation("BinomeEtud2", fields: [etud2_id], references: [id])
+  choix  ThemeChoix[]
+  affectation_etudiants AffectationEtudiant[]
+
+  @@index([etud1_id])
+  @@index([etud2_id])
+  @@map("binomes")
+}
+
+model ThemeChoix {
+  id           String      @id @default(cuid())
+  etudiant_id  String
+  binome_id    String?
+  theme_id     String
+  ordre        Int
+  statut       StatutChoix @default(PENDING)
+  created_at   DateTime    @default(now())
+  updated_at   DateTime    @updatedAt
+
+  etudiant User   @relation(fields: [etudiant_id], references: [id])
+  binome   Binome? @relation(fields: [binome_id], references: [id])
+  theme    Theme  @relation(fields: [theme_id], references: [id])
+
+  @@index([etudiant_id])
+  @@index([theme_id])
+  @@map("theme_choix")
+}
+
+model Affectation {
+  id           String          @id @default(cuid())
+  theme_id     String?         @unique
+  encadrant_id String?
+  session_id   String
+  affecte_par  String
+  type         TypeAffectation @default(LIBRE)
+  created_at   DateTime        @default(now())
+  updated_at   DateTime        @updatedAt
+
+  theme     Theme?              @relation(fields: [theme_id], references: [id])
+  encadrant User?               @relation("AffectationEncadrant", fields: [encadrant_id], references: [id])
+  session   Session             @relation(fields: [session_id], references: [id])
+  par       User                @relation("AffectationPar", fields: [affecte_par], references: [id])
+  etudiants AffectationEtudiant[]
+  startup_membres StartupMembre[]
+
+  @@index([session_id])
+  @@index([encadrant_id])
+  @@map("affectations")
+}
+
+model AffectationEtudiant {
+  id             String @id @default(cuid())
+  affectation_id String
+  etudiant_id    String
+  binome_id      String?
+
+  affectation Affectation @relation(fields: [affectation_id], references: [id], onDelete: Cascade)
+  etudiant    User        @relation(fields: [etudiant_id], references: [id])
+  binome      Binome?     @relation(fields: [binome_id], references: [id])
+
+  @@index([affectation_id])
+  @@index([etudiant_id])
+  @@map("affectation_etudiants")
+}
+
+model StartupMembre {
+  id             String @id @default(cuid())
+  affectation_id String
+  etudiant_id    String
+  role_equipe    String?
+
+  affectation Affectation @relation(fields: [affectation_id], references: [id], onDelete: Cascade)
+  etudiant    User        @relation(fields: [etudiant_id], references: [id])
+
+  @@index([affectation_id])
+  @@map("startup_membres")
+}
+
+model Soutenance {
+  id                  String   @id @default(cuid())
+  theme_id            String   @unique
+  date_soutenance     DateTime
+  heure               String
+  salle               String
+  annee_universitaire String
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  theme Theme           @relation(fields: [theme_id], references: [id])
+  jury  SoutenanceJury[]
+
+  @@map("soutenances")
+}
+
+model SoutenanceJury {
+  id             String   @id @default(cuid())
+  soutenance_id  String
+  enseignant_id  String
+  role           RoleJury
+
+  soutenance Soutenance @relation(fields: [soutenance_id], references: [id], onDelete: Cascade)
+  enseignant User       @relation(fields: [enseignant_id], references: [id])
+
+  @@index([soutenance_id])
+  @@map("soutenance_jury")
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  user_id    String
+  type       TypeNotification
+  message    String
+  is_read    Boolean          @default(false)
+  metadata   Json?
+  created_at DateTime         @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([is_read])
+  @@map("notifications")
+}
+

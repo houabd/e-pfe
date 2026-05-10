@@ -1,0 +1,34 @@
+version: '3.9'
+
+# docker-compose -f docker-compose.dev.yml up -d
+# Lance uniquement PostgreSQL + Redis pour le développement local
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: epfe_postgres_dev
+    environment:
+      POSTGRES_USER: epfe_user
+      POSTGRES_PASSWORD: epfe_pass
+      POSTGRES_DB: epfe_db
+    ports:
+      - '5433:5432'
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U epfe_user -d epfe_db']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: epfe_redis_dev
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_dev_data:/data
+
+volumes:
+  postgres_dev_data:
+  redis_dev_data:

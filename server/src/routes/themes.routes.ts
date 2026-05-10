@@ -1,0 +1,185 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import { authenticate, requireRole } from '../middleware/auth.middleware';
+import { requireRespFiliere } from '../middleware/rbac.middleware';
+import { requireActiveSession } from '../middleware/session.middleware';
+import { validate } from '../middleware/validation.middleware';
+import * as themeService from '../services/theme.service';
+
+const router = Router();
+
+router.use(authenticate);
+
+const createThemeSchema = z.object({
+  titre: z.string().min(5),
+  description: z.string().min(20),
+  mots_cles: z.array(z.string()).default([]),
+  necessite_stage: z.boolean().default(false),
+  type_pfe: z.enum(['CLASSIQUE', 'STARTUP']),
+  sous_types: z.array(z.enum(['RECHERCHE', 'PROFESSIONNEL', 'LES_DEUX'])).default([]),
+  specialite_ids: z.array(z.string()).min(1),
+  encadrant_id: z.string().optional(),
+  encadrant_externe: z.object({
+    nom: z.string(),
+    prenom: z.string(),
+    email: z.string().email(),
+    institution: z.string(),
+  }).optional(),
+  besoin_encadrant: z.boolean().default(false),
+  cherche_binome: z.boolean().default(false),
+});
+
+const themeFiltersSchema = z.object({
+  specialite_id: z.string().optional(),
+  type_pfe: z.enum(['CLASSIQUE', 'STARTUP']).optional(),
+  statut_validation: z.enum(['NON_VALIDE', 'VALIDE']).optional(),
+  is_affecte: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
+  besoin_encadrant: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
+  session_id: z.string().optional(),
+  enseignant_id: z.string().optional(),
+  annee_universitaire: z.string().optional(),
+  search: z.string().optional(),
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(100).default(20),
+});
+
+const validateActionSchema = z.object({
+  action: z.enum(['VALIDE', 'REFUSE']),
+  motif: z.string().min(1).optional(),
+});
+
+const createThemeAdminSchema = createThemeSchema.extend({
+  propose_par_id: z.string().min(1, 'Enseignant requis'),
+});
+
+// ⚠️ Ces routes statiques doivent être déclarées AVANT /:id
+
+router.get('/export/:format', requireRespFiliere, validate({ query: themeFiltersSchema }), async (req, res, next) => {
+  try {
+    const q = req.query as Record<string, unknown>;
+    const { page: _p, limit: _l, ...filters } = q;
+    await themeService.exportThemes(
+      req.params['format'] as 'excel' | 'pdf',
+      filters as Parameters<typeof themeService.exportThemes>[1],
+      res,
+    );
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/my', validate({ query: themeFiltersSchema }), async (req, res, next) => {
+  try {
+    const result = await themeService.getMyThemes(req.user!.userId, req.query as never);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/resp-filiere-info', async (_req, res, next) => {
+  try {
+    const data = await themeService.getRespFiliereInfo();
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/', validate({ query: themeFiltersSchema }), async (req, res, next) => {
+  try {
+    const result = await themeService.getThemes(req.query as never);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post(
+  '/',
+  requireRole('ENSEIGNANT', 'ETUDIANT', 'RESP_FILIERE', 'CHEF_DEPT'),
+  requireActiveSession('CHOIX'),
+  validate({ body: createThemeSchema }),
+  async (req, res, next) => {
+    try {
+      const theme = await themeService.createTheme(req.body, req.user!);
+      res.status(201).json({ success: true, data: theme });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// Admin : créer un thème pour un enseignant donné (sans session active requise)
+router.post(
+  '/admin',
+  requireRespFiliere,
+  validate({ body: createThemeAdminSchema }),
+  async (req, res, next) => {
+    try {
+      const { propose_par_id, ...dto } = req.body as { propose_par_id: string } & typeof req.body;
+      const theme = await themeService.createThemeAsAdmin(dto, propose_par_id, req.user!);
+      res.status(201).json({ success: true, data: theme });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+router.get('/:id', async (req, res, next) => {
+  try {
+    const theme = await themeService.getThemeById(req.params['id'] as string);
+    res.json({ success: true, data: theme });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/:id', validate({ body: createThemeSchema.partial() }), async (req, res, next) => {
+  try {
+    const theme = await themeService.updateTheme(req.params['id'] as string, req.body, req.user!);
+    res.json({ success: true, data: theme });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/:id', requireRespFiliere, async (req, res, next) => {
+  try {
+    await themeService.deleteTheme(req.params['id'] as string);
+    res.json({ success: true, message: 'Thème supprimé' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch(
+  '/:id/validate',
+  requireRespFiliere,
+  validate({ body: validateActionSchema }),
+  async (req, res, next) => {
+    try {
+      const { action, motif } = req.body as { action: 'VALIDE' | 'REFUSE'; motif?: string };
+      const theme = await themeService.validateTheme(req.params['id'] as string, action, motif);
+      const msg = action === 'VALIDE' ? 'Thème validé' : 'Thème refusé';
+      res.json({ success: true, data: theme, message: msg });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+router.patch(
+  '/:id/soutenu',
+  requireRole('TECHNICIEN', 'CHEF_DEPT', 'RESP_FILIERE'),
+  async (req, res, next) => {
+    try {
+      const theme = await themeService.markAsSoutenu(req.params['id'] as string);
+      res.json({ success: true, data: theme, message: 'Thème marqué soutenu' });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+export default router;
