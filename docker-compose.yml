@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   postgres:
     image: pgvector/pgvector:pg16
@@ -47,18 +45,42 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       CLIENT_URL: ${CLIENT_URL:-http://localhost:5173}
-      LLM_API_KEY: ${LLM_API_KEY:-}
-      LLM_API_URL: ${LLM_API_URL:-}
+      RAG_SERVICE_URL: http://chatbot:8000
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      chatbot:
+        condition: service_started
     volumes:
       - uploads_data:/app/uploads
+    restart: unless-stopped
+
+  chatbot:
+    build: ./chatbot
+    container_name: epfe_chatbot
+    ports:
+      - '8000:8000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - chroma_data:/app/chroma_db
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama
+    container_name: epfe_ollama
+    ports:
+      - '11434:11434'
+    volumes:
+      - ollama_data:/root/.ollama
     restart: unless-stopped
 
 volumes:
   postgres_data:
   redis_data:
   uploads_data:
+  ollama_data:
+  chroma_data:

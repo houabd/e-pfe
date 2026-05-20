@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Search, GraduationCap, User, BookOpen, X, ChevronRight } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -108,7 +108,7 @@ function EnseignantCard({ e, q }: { e: SearchEnseignant; q: string }) {
           {e.specialite && (
             <Badge variant="secondary" className="text-[11px]">{e.specialite.nom}</Badge>
           )}
-          {e.role === 'RESP_FILIERE' && (
+          {e.role === 'CHEF_EQUIPE' && (
             <Badge variant="default" className="text-[11px]">Resp. Filière</Badge>
           )}
         </div>

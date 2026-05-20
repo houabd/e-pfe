@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+﻿import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -32,18 +32,33 @@ async function main() {
     },
   });
 
-  // Responsable de filière
-  const respFiliere = await prisma.user.upsert({
-    where: { email: 'resp.filiere@univ-bejaia.dz' },
+  // Chef d'équipe / Responsable de filière
+  const chefEquipe = await prisma.user.upsert({
+    where: { email: 'chef.equipe@univ-bejaia.dz' },
     update: {},
     create: {
-      email: 'resp.filiere@univ-bejaia.dz',
+      email: 'chef.equipe@univ-bejaia.dz',
       password_hash: hash('15031975'),
       nom: 'Hamdi',
       prenom: 'Fatima',
-      role: 'RESP_FILIERE',
+      role: 'CHEF_EQUIPE',
       specialite_id: specialites[1].id, // IA
       date_naissance: new Date('1975-03-15'),
+    },
+  });
+
+  // Responsable de Spécialité
+  const respSpecialite = await prisma.user.upsert({
+    where: { email: 'resp.specialite@univ-bejaia.dz' },
+    update: {},
+    create: {
+      email: 'resp.specialite@univ-bejaia.dz',
+      password_hash: hash('22071982'),
+      nom: 'Ouali',
+      prenom: 'Djamel',
+      role: 'RESP_SPECIALITE',
+      specialite_id: specialites[0].id, // ASR
+      date_naissance: new Date('1982-07-22'),
     },
   });
 
@@ -123,7 +138,7 @@ async function main() {
     },
   });
 
-  console.log(`✓ Utilisateurs créés : ${[chefDept, respFiliere, tech, ens1, ens2, etud1, etud2].map((u) => u.email).join(', ')}`);
+  console.log(`✓ Utilisateurs créés : ${[chefDept, chefEquipe, respSpecialite, tech, ens1, ens2, etud1, etud2].map((u) => u.email).join(', ')}`);
 
   // Session CHOIX active
   const session = await prisma.session.upsert({
@@ -165,7 +180,8 @@ async function main() {
   console.log('\n Seed terminé avec succès !');
   console.log('\n Comptes de test :');
   console.log('  Chef de département : chef.dept@univ-bejaia.dz / 01011970');
-  console.log('  Resp. filière       : resp.filiere@univ-bejaia.dz / 15031975');
+  console.log('  Chef d\'équipe       : chef.equipe@univ-bejaia.dz / 15031975');
+  console.log('  Resp. spécialité    : resp.specialite@univ-bejaia.dz / 22071982');
   console.log('  Technicien          : technicien@univ-bejaia.dz / 20061985');
   console.log('  Enseignant 1        : ali.boukhalfa@univ-bejaia.dz / 10041980');
   console.log('  Enseignant 2        : sara.messai@univ-bejaia.dz / 05091978');

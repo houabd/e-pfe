@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate, requireRole } from '../middleware/auth.middleware';
 import { requireStaff } from '../middleware/rbac.middleware';
@@ -37,7 +37,7 @@ const exportSchema = baseFilters.extend({
 router.get(
   '/enseignant',
   authenticate,
-  requireRole('ENSEIGNANT', 'RESP_FILIERE', 'CHEF_DEPT'),
+  requireRole('ENSEIGNANT', 'CHEF_EQUIPE', 'CHEF_DEPT'),
   async (req, res, next) => {
     try {
       const stats = await statsService.getEnseignantStats(req.user!.userId);

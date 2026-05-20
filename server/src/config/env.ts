@@ -18,6 +18,9 @@ const envSchema = z.object({
   CLIENT_URL: z.string().url().default('http://localhost:5173'),
 
   DEFAULT_SESSION_YEAR: z.string().default('2025-2026'),
+
+  RAG_SERVICE_URL: z.string().url().default('http://localhost:8000'),
+  UPLOAD_MAX_SIZE_MB: z.coerce.number().default(50),
 });
 
 const parsed = envSchema.safeParse(process.env);

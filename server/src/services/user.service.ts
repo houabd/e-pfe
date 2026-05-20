@@ -1,4 +1,4 @@
-import type { Response } from 'express';
+﻿import type { Response } from 'express';
 import * as xlsx from 'xlsx';
 import PDFDocument from 'pdfkit';
 import { prisma } from '../config/database';
@@ -100,7 +100,7 @@ export async function deleteUser(id: string) {
 
 // ─── Import Excel ─────────────────────────────────────────────────────────────
 
-const VALID_ROLES: Role[] = ['CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_FILIERE', 'RESP_SPECIALITE', 'TECHNICIEN', 'ENSEIGNANT', 'ETUDIANT'];
+const VALID_ROLES: Role[] = ['CHEF_DEPT', 'CHEF_EQUIPE', 'CHEF_EQUIPE', 'RESP_SPECIALITE', 'TECHNICIEN', 'ENSEIGNANT', 'ETUDIANT'];
 
 interface ImportRow {
   email?: unknown;

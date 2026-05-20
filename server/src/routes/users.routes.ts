@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { z } from 'zod';
 import multer from 'multer';
 import { authenticate } from '../middleware/auth.middleware';
@@ -22,7 +22,7 @@ const createUserSchema = z.object({
   email: z.string().email(),
   nom: z.string().min(2),
   prenom: z.string().min(2),
-  role: z.enum(['CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_FILIERE', 'RESP_SPECIALITE', 'TECHNICIEN', 'ENSEIGNANT', 'ETUDIANT']),
+  role: z.enum(['CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_SPECIALITE', 'TECHNICIEN', 'ENSEIGNANT', 'ETUDIANT']),
   specialite_id: z.string().optional(),
   date_naissance: z.coerce.date(),
   matricule: z.string().optional(),
@@ -30,7 +30,7 @@ const createUserSchema = z.object({
 });
 
 const userFiltersSchema = z.object({
-  role: z.enum(['CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_FILIERE', 'RESP_SPECIALITE', 'TECHNICIEN', 'ENSEIGNANT', 'ETUDIANT']).optional(),
+  role: z.enum(['CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_SPECIALITE', 'TECHNICIEN', 'ENSEIGNANT', 'ETUDIANT']).optional(),
   specialite_id: z.string().optional(),
   is_active: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
   search: z.string().optional(),

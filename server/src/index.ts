@@ -25,6 +25,7 @@ import sessionsRoutes from './routes/sessions.routes';
 import specialitesRoutes from './routes/specialites.routes';
 import statsRoutes from './routes/stats.routes';
 import notificationsRoutes from './routes/notifications.routes';
+import chatbotRoutes from './routes/chatbot.routes';
 import searchRoutes from './routes/search.routes';
 import annoncesRoutes from './routes/annonces.routes';
 
@@ -66,6 +67,7 @@ app.use(`${API}/sessions`, sessionsRoutes);
 app.use(`${API}/specialites`, specialitesRoutes);
 app.use(`${API}/stats`, statsRoutes);
 app.use(`${API}/notifications`, notificationsRoutes);
+app.use(`${API}/chatbot`, chatbotRoutes);
 app.use(`${API}/search`, searchRoutes);
 app.use(`${API}/annonces`, annoncesRoutes);
 

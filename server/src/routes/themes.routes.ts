@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate, requireRole } from '../middleware/auth.middleware';
 import { requireRespFiliere } from '../middleware/rbac.middleware';
@@ -97,7 +97,7 @@ router.get('/', validate({ query: themeFiltersSchema }), async (req, res, next) 
 
 router.post(
   '/',
-  requireRole('ENSEIGNANT', 'ETUDIANT', 'RESP_FILIERE', 'CHEF_DEPT'),
+  requireRole('ENSEIGNANT', 'ETUDIANT', 'CHEF_EQUIPE', 'CHEF_DEPT'),
   requireActiveSession('CHOIX'),
   validate({ body: createThemeSchema }),
   async (req, res, next) => {
@@ -171,7 +171,7 @@ router.patch(
 
 router.patch(
   '/:id/soutenu',
-  requireRole('TECHNICIEN', 'CHEF_DEPT', 'RESP_FILIERE'),
+  requireRole('TECHNICIEN', 'CHEF_DEPT', 'CHEF_EQUIPE'),
   async (req, res, next) => {
     try {
       const theme = await themeService.markAsSoutenu(req.params['id'] as string);

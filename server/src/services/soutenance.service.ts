@@ -1,4 +1,4 @@
-import type { Response } from 'express';
+﻿import type { Response } from 'express';
 import PDFDocument from 'pdfkit';
 import * as xlsx from 'xlsx';
 import { prisma } from '../config/database';
@@ -215,7 +215,7 @@ export async function getEnseignantsDisponibles(filters: {
 
   return prisma.user.findMany({
     where: {
-      role: { in: ['ENSEIGNANT', 'RESP_FILIERE'] },
+      role: { in: ['ENSEIGNANT', 'CHEF_EQUIPE'] },
       is_active: true,
       ...(notIn.length > 0 ? { id: { notIn } } : {}),
     },

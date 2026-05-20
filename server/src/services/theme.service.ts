@@ -1,4 +1,4 @@
-import type { Response } from 'express';
+﻿import type { Response } from 'express';
 import * as xlsx from 'xlsx';
 import PDFDocument from 'pdfkit';
 import { prisma } from '../config/database';
@@ -79,7 +79,7 @@ export async function getMyThemes(userId: string, filters: Omit<ThemeFilters, 'e
 
 export async function getRespFiliereInfo() {
   return prisma.user.findMany({
-    where: { role: 'RESP_FILIERE', is_active: true },
+    where: { role: 'CHEF_EQUIPE', is_active: true },
     select: { id: true, nom: true, prenom: true, email: true },
     orderBy: { nom: 'asc' },
   });
@@ -166,7 +166,7 @@ export async function createThemeAsAdmin(
 
   const proposant = await prisma.user.findUnique({ where: { id: proposeParId } });
   if (!proposant) throw new NotFoundError('Enseignant');
-  if (!['ENSEIGNANT', 'RESP_FILIERE', 'CHEF_DEPT'].includes(proposant.role)) {
+  if (!['ENSEIGNANT', 'CHEF_EQUIPE', 'CHEF_DEPT'].includes(proposant.role)) {
     throw new BadRequestError('L\'utilisateur spécifié ne peut pas être proposant de thème');
   }
 
@@ -222,7 +222,7 @@ export async function updateTheme(id: string, dto: Partial<CreateThemeDto>, user
   if (!theme) throw new NotFoundError('Thème');
 
   const isAuthor = theme.propose_par_id === user.userId;
-  const isAdmin = ['RESP_FILIERE', 'CHEF_DEPT'].includes(user.role);
+  const isAdmin = ['CHEF_EQUIPE', 'CHEF_DEPT'].includes(user.role);
 
   if (!isAuthor && !isAdmin) {
     throw new ForbiddenError('Vous ne pouvez pas modifier ce thème');
@@ -274,7 +274,7 @@ export async function updateTheme(id: string, dto: Partial<CreateThemeDto>, user
   });
 }
 
-// ─── Suppression (resp_filiere uniquement) ────────────────────────────────────
+// ─── Suppression (CHEF_EQUIPE uniquement) ────────────────────────────────────
 
 export async function deleteTheme(id: string) {
   const theme = await prisma.theme.findUnique({
@@ -296,7 +296,7 @@ export async function deleteTheme(id: string) {
   await prisma.theme.delete({ where: { id } });
 }
 
-// ─── Validation / Refus (resp_filiere) ───────────────────────────────────────
+// ─── Validation / Refus (CHEF_EQUIPE) ───────────────────────────────────────
 
 export async function validateTheme(id: string, action: 'VALIDE' | 'REFUSE', motif?: string) {
   const theme = await prisma.theme.findUnique({ where: { id } });

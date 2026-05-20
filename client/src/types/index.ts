@@ -1,9 +1,8 @@
-// ─── Enums ─────────────────────────────────────────────────────────────────
+﻿// ─── Enums ─────────────────────────────────────────────────────────────────
 
 export type Role =
   | 'CHEF_DEPT'
   | 'CHEF_EQUIPE'
-  | 'RESP_FILIERE'
   | 'RESP_SPECIALITE'
   | 'TECHNICIEN'
   | 'ENSEIGNANT'

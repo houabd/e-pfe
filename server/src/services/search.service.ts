@@ -1,4 +1,4 @@
-import { prisma } from '../config/database';
+﻿import { prisma } from '../config/database';
 
 export type SuggestionType = 'etudiant' | 'enseignant' | 'theme';
 export interface Suggestion { text: string; type: SuggestionType }
@@ -15,7 +15,7 @@ export async function getSuggestions(q: string): Promise<Suggestion[]> {
       take: 4,
     }),
     prisma.user.findMany({
-      where: { role: { in: ['ENSEIGNANT', 'RESP_FILIERE'] }, is_active: true, OR: [{ nom: starts }, { prenom: starts }] },
+      where: { role: { in: ['ENSEIGNANT', 'CHEF_EQUIPE'] }, is_active: true, OR: [{ nom: starts }, { prenom: starts }] },
       select: { nom: true, prenom: true },
       take: 3,
     }),
@@ -83,7 +83,7 @@ export async function globalSearch({ q, page = 1, limit = 20 }: SearchQuery) {
     // ── Enseignants ────────────────────────────────────────────────────────
     prisma.user.findMany({
       where: {
-        role: { in: ['ENSEIGNANT', 'RESP_FILIERE'] },
+        role: { in: ['ENSEIGNANT', 'CHEF_EQUIPE'] },
         is_active: true,
         OR: [{ nom: searchTerm }, { prenom: searchTerm }, { email: searchTerm }],
       },

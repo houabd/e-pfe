@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+﻿import { useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -15,15 +15,14 @@ import { useActiveSpecialites } from '@/hooks/useSpecialites';
 
 const ROLES = [
   { value: 'CHEF_DEPT', label: 'Chef de Département' },
-  { value: 'CHEF_EQUIPE', label: "Chef d'Équipe" },
-  { value: 'RESP_FILIERE', label: 'Responsable de Filière' },
+  { value: 'CHEF_EQUIPE', label: "Chef d'Équipe / Resp. Filière" },
   { value: 'RESP_SPECIALITE', label: 'Responsable de Spécialité' },
   { value: 'TECHNICIEN', label: 'Technicien' },
   { value: 'ENSEIGNANT', label: 'Enseignant' },
   { value: 'ETUDIANT', label: 'Étudiant (M2)' },
 ];
 
-const ROLES_WITH_SPECIALITE = ['ENSEIGNANT', 'ETUDIANT', 'RESP_SPECIALITE', 'RESP_FILIERE'];
+const ROLES_WITH_SPECIALITE = ['ENSEIGNANT', 'ETUDIANT', 'RESP_SPECIALITE', 'CHEF_EQUIPE'];
 const STUDENT_ROLES = ['ETUDIANT'];
 
 const schema = z.object({

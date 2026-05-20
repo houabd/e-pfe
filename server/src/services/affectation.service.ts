@@ -1,4 +1,4 @@
-import { prisma } from '../config/database';
+﻿import { prisma } from '../config/database';
 import { NotFoundError, BadRequestError } from '../middleware/error.middleware';
 import { notifyUser } from './notification.service';
 import type { CreateAffectationDto, ConfirmerAutoDto } from '../types';
@@ -85,7 +85,7 @@ export async function getMesEtudiants(enseignantId: string) {
 export async function getEnseignantsDisponibles(filters: { specialite_id?: string }) {
   const enseignants = await prisma.user.findMany({
     where: {
-      role: { in: ['ENSEIGNANT', 'RESP_FILIERE'] },
+      role: { in: ['ENSEIGNANT', 'CHEF_EQUIPE'] },
       is_active: true,
       ...(filters.specialite_id ? { specialite_id: filters.specialite_id } : {}),
     },

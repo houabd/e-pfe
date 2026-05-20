@@ -1,4 +1,4 @@
-import type { TypeNotification, Role } from '@/types';
+﻿import type { TypeNotification, Role } from '@/types';
 
 export function getNotificationLink(
   type: TypeNotification,
@@ -21,23 +21,23 @@ export function getNotificationLink(
 
     case 'AFFECTATION':
       if (role === 'ETUDIANT') return '/etudiant';
-      if (role === 'ENSEIGNANT' || role === 'RESP_FILIERE') return '/enseignant/etudiants';
+      if (role === 'ENSEIGNANT' || role === 'RESP_SPECIALITE' || role === 'CHEF_EQUIPE') return '/enseignant/etudiants';
       return null;
 
     case 'THEME_VALIDATED':
       if (role === 'ETUDIANT') return '/etudiant/proposer';
-      if (role === 'ENSEIGNANT' || role === 'RESP_FILIERE') return '/enseignant/themes';
+      if (role === 'ENSEIGNANT' || role === 'RESP_SPECIALITE' || role === 'CHEF_EQUIPE') return '/enseignant/themes';
       return null;
 
     case 'SOUTENANCE_PLANIFIEE':
       if (role === 'ETUDIANT') return '/etudiant';
-      if (role === 'ENSEIGNANT') return '/enseignant';
+      if (role === 'ENSEIGNANT' || role === 'RESP_SPECIALITE') return '/enseignant';
       return '/admin/soutenances';
 
     case 'SESSION_UPDATE': {
-      const adminRoles: Role[] = ['CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_FILIERE', 'RESP_SPECIALITE', 'TECHNICIEN'];
+      const adminRoles: Role[] = ['CHEF_DEPT', 'CHEF_EQUIPE', 'TECHNICIEN'];
       if (role && adminRoles.includes(role)) return '/admin/sessions';
-      if (role === 'ENSEIGNANT') return '/enseignant';
+      if (role === 'ENSEIGNANT' || role === 'RESP_SPECIALITE') return '/enseignant';
       if (role === 'ETUDIANT') return '/etudiant';
       return null;
     }

@@ -1,0 +1,29 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.7.0
+
+# LangChain
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-community>=0.3.0
+langchain-chroma>=0.1.4
+langchain-huggingface>=0.1.0
+langchain-text-splitters>=0.3.0
+langchain-groq>=0.2.0
+
+# LlamaParse + LlamaIndex (parsing PDF)
+llama-parse>=0.5.0
+llama-index-core>=0.11.0
+
+# Vectorstore
+chromadb>=0.5.0
+
+# Embeddings + reranker
+sentence-transformers>=3.0.0
+
+# Hybrid search
+rank_bm25>=0.2.2
+
+# Utilitaires
+python-multipart>=0.0.9
+python-dotenv>=1.0.0

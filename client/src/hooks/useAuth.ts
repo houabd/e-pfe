@@ -1,4 +1,4 @@
-import { useMutation } from '@tanstack/react-query';
+﻿import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/authStore';
@@ -18,8 +18,7 @@ export function useLogin() {
       const redirectMap: Record<Role, string> = {
         CHEF_DEPT: '/admin',
         CHEF_EQUIPE: '/admin',
-        RESP_FILIERE: '/admin',
-        RESP_SPECIALITE: '/responsable',
+        RESP_SPECIALITE: '/enseignant',
         TECHNICIEN: '/admin',
         ENSEIGNANT: '/enseignant',
         ETUDIANT: '/etudiant',

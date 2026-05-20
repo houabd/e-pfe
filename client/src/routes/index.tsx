@@ -1,7 +1,8 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom';
+﻿import { createBrowserRouter } from 'react-router-dom';
 
 import AuthLayout from '@/layouts/AuthLayout';
 import DashboardLayout from '@/layouts/DashboardLayout';
+import PublicLayout from '@/layouts/PublicLayout';
 import ProtectedRoute from './ProtectedRoute';
 import RoleRoute from './RoleRoute';
 
@@ -27,12 +28,15 @@ import PlanificationSoutenances from '@/pages/admin/PlanificationSoutenances';
 import GestionSessions from '@/pages/admin/GestionSessions';
 import GestionSpecialites from '@/pages/admin/GestionSpecialites';
 import Statistiques from '@/pages/admin/Statistiques';
+import GestionDocumentsRAG from '@/pages/admin/GestionDocumentsRAG';
 import StatsSpecialite from '@/pages/responsable/StatsSpecialite';
+import HomePage from '@/pages/public/HomePage';
+import ChatbotPage from '@/pages/shared/ChatbotPage';
 import SearchPage from '@/pages/shared/SearchPage';
 import ProfilePage from '@/pages/shared/ProfilePage';
 import NotificationsPage from '@/pages/shared/NotificationsPage';
 
-const ADMIN_ROLES = ['CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_FILIERE', 'RESP_SPECIALITE', 'TECHNICIEN'] as const;
+const ADMIN_ROLES = ['CHEF_DEPT', 'CHEF_EQUIPE', 'TECHNICIEN'] as const;
 
 export const router = createBrowserRouter([
   // Auth
@@ -43,6 +47,15 @@ export const router = createBrowserRouter([
     ],
   },
 
+  // Public (sans auth)
+  {
+    element: <PublicLayout />,
+    children: [
+      { path: '/', element: <HomePage /> },
+      { path: '/chatbot', element: <ChatbotPage /> },
+    ],
+  },
+
   // Routes protégées
   {
     element: <ProtectedRoute />,
@@ -50,9 +63,6 @@ export const router = createBrowserRouter([
       {
         element: <DashboardLayout />,
         children: [
-          // Redirection racine
-          { path: '/', element: <Navigate to="/connexion" replace /> },
-
           // Étudiant
           {
             element: <RoleRoute roles={['ETUDIANT']} redirectTo="/connexion" />,
@@ -65,9 +75,9 @@ export const router = createBrowserRouter([
             ],
           },
 
-          // Enseignant
+          // Enseignant + Responsable de Spécialité + Chef d'Équipe + Chef de Département
           {
-            element: <RoleRoute roles={['ENSEIGNANT']} redirectTo="/connexion" />,
+            element: <RoleRoute roles={['ENSEIGNANT', 'RESP_SPECIALITE', 'CHEF_EQUIPE', 'CHEF_DEPT']} redirectTo="/connexion" />,
             children: [
               { path: '/enseignant', element: <DashboardEnseignant /> },
               { path: '/enseignant/themes', element: <GestionThemes /> },
@@ -89,6 +99,7 @@ export const router = createBrowserRouter([
               { path: '/admin/sessions', element: <GestionSessions /> },
               { path: '/admin/specialites', element: <GestionSpecialites /> },
               { path: '/admin/statistiques', element: <Statistiques /> },
+              { path: '/admin/chatbot', element: <GestionDocumentsRAG /> },
             ],
           },
 

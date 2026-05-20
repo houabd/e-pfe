@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+﻿import { useState, useCallback } from 'react';
 import {
   Users, UserPlus, Upload, Download, Search, Filter,
   MoreHorizontal, UserCheck, UserX, Trash2, ChevronLeft, ChevronRight,
@@ -32,7 +32,7 @@ import type { UserFilters } from '@/services/users.api';
 const ROLE_LABELS: Record<string, string> = {
   CHEF_DEPT: 'Chef Dept.',
   CHEF_EQUIPE: "Chef Équipe",
-  RESP_FILIERE: 'Resp. Filière',
+  CHEF_EQUIPE: 'Resp. Filière',
   RESP_SPECIALITE: 'Resp. Spécialité',
   TECHNICIEN: 'Technicien',
   ENSEIGNANT: 'Enseignant',
@@ -42,7 +42,7 @@ const ROLE_LABELS: Record<string, string> = {
 const ROLE_VARIANTS: Record<string, 'default' | 'secondary' | 'info' | 'warning' | 'outline'> = {
   CHEF_DEPT: 'default',
   CHEF_EQUIPE: 'info',
-  RESP_FILIERE: 'info',
+  CHEF_EQUIPE: 'info',
   RESP_SPECIALITE: 'secondary',
   TECHNICIEN: 'secondary',
   ENSEIGNANT: 'warning',

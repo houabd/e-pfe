@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate, requireRole } from '../middleware/auth.middleware';
 import { requireRespFiliere } from '../middleware/rbac.middleware';
@@ -44,7 +44,7 @@ const confirmerAutoSchema = z.object({
 
 router.get(
   '/mes-etudiants',
-  requireRole('ENSEIGNANT', 'RESP_FILIERE', 'CHEF_DEPT'),
+  requireRole('ENSEIGNANT', 'CHEF_EQUIPE', 'CHEF_DEPT'),
   async (req, res, next) => {
     try {
       const etudiants = await affectationService.getMesEtudiants(req.user!.userId);
@@ -55,7 +55,7 @@ router.get(
   },
 );
 
-// ─── Routes admin (resp_filiere / chef_dept) ──────────────────────────────────
+// ─── Routes admin (CHEF_EQUIPE / chef_dept) ──────────────────────────────────
 
 router.get(
   '/enseignants-dispo',

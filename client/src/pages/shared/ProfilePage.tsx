@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -15,8 +15,7 @@ import { useChangePassword } from '@/hooks/useAuth';
 
 const ROLE_LABELS: Record<string, string> = {
   CHEF_DEPT: 'Chef de Département',
-  CHEF_EQUIPE: "Chef d'Équipe",
-  RESP_FILIERE: 'Responsable de Filière',
+  CHEF_EQUIPE: "Chef d'Équipe / Resp. Filière",
   RESP_SPECIALITE: 'Responsable de Spécialité',
   TECHNICIEN: 'Technicien',
   ENSEIGNANT: 'Enseignant',
