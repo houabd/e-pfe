@@ -62,6 +62,42 @@ export function useImportUsers() {
   });
 }
 
+export function useHardDeleteUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: usersApi.hardDeleteUser,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['users'] });
+      toast.success('Utilisateur supprimé définitivement');
+    },
+    onError: (e) => toast.error(extractApiError(e)),
+  });
+}
+
+export function useBulkDeleteUsers() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: usersApi.bulkDeleteUsers,
+    onSuccess: (result) => {
+      void qc.invalidateQueries({ queryKey: ['users'] });
+      toast.success(`${result.count} utilisateur(s) désactivé(s)`);
+    },
+    onError: (e) => toast.error(extractApiError(e)),
+  });
+}
+
+export function useBulkHardDeleteUsers() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: usersApi.bulkHardDeleteUsers,
+    onSuccess: (result) => {
+      void qc.invalidateQueries({ queryKey: ['users'] });
+      toast.success(`${result.count} utilisateur(s) supprimé(s) définitivement`);
+    },
+    onError: (e) => toast.error(extractApiError(e)),
+  });
+}
+
 export function useExportUsers() {
   return useMutation({
     mutationFn: ({ format, filters }: { format: 'excel' | 'pdf'; filters?: usersApi.UserFilters }) =>

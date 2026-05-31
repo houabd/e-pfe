@@ -330,7 +330,7 @@ export function GlobalSearchBar() {
   return (
     <div ref={containerRef} className="relative hidden sm:block">
       {/* Input */}
-      <form onSubmit={(e) => { e.preventDefault(); goToSearch(); }}>
+      <form onSubmit={(e) => { e.preventDefault(); goToSearch(); }} className="relative">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground z-10" />
         <Input
           ref={inputRef}
@@ -367,7 +367,7 @@ export function GlobalSearchBar() {
 
       {/* ── Dropdown suggestions (1 caractère) ──────────────────────────────── */}
       {showSuggestions && !showPreview && (
-        <div className="absolute top-full right-0 mt-1.5 w-[320px] rounded-xl border bg-popover shadow-xl z-50 overflow-hidden">
+        <div className="absolute top-full right-0 mt-1.5 w-[320px] rounded-xl border bg-popover shadow-xl z-[200] overflow-hidden">
           {suggestionsLoading && (
             <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -405,7 +405,7 @@ export function GlobalSearchBar() {
 
       {/* ── Dropdown preview complet (2+ caractères) ────────────────────────── */}
       {showPreview && (
-        <div className="absolute top-full right-0 mt-1.5 w-[340px] rounded-xl border bg-popover shadow-xl z-50 overflow-hidden">
+        <div className="absolute top-full right-0 mt-1.5 w-[340px] rounded-xl border bg-popover shadow-xl z-[200] overflow-hidden">
 
           {previewLoading && (
             <div className="flex items-center justify-center gap-2 py-5 text-sm text-muted-foreground">

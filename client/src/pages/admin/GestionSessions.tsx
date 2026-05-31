@@ -168,6 +168,9 @@ const sessionSchema = z.object({
 }).refine((d) => new Date(d.date_fin) > new Date(d.date_debut), {
   message: 'La date de fin doit être après la date de début',
   path: ['date_fin'],
+}).refine((d) => new Date(d.date_fin) >= new Date(new Date().toDateString()), {
+  message: 'La date de fin est déjà passée',
+  path: ['date_fin'],
 });
 
 type SessionForm = z.infer<typeof sessionSchema>;
@@ -214,6 +217,7 @@ function SessionDialog({
     } else {
       createMutation.mutate(payload, { onSuccess: () => onOpenChange(false) });
     }
+
   };
 
   const isPending = createMutation.isPending || updateMutation.isPending;

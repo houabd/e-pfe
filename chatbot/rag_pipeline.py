@@ -9,6 +9,7 @@ from langchain_core.documents import Document
 
 from hybrid_retriever import build_retriever
 from reranker import rerank
+from query_rewriter import rewrite_query
 from prompts import SYSTEM
 from config import LLM_MODEL, GROQ_API_KEY, MAX_TOKENS
 
@@ -19,12 +20,41 @@ NO_INFO = "Je ne trouve pas cette information dans les documents fournis."
 
 
 def _get_llm() -> ChatGroq:
-    # Ne pas passer api_key explicitement : ChatGroq lit GROQ_API_KEY depuis os.environ
-    return ChatGroq(
-        model=LLM_MODEL,
-        temperature=0,
-        max_tokens=MAX_TOKENS,
-    )
+    return ChatGroq(model=LLM_MODEL, temperature=0, max_tokens=MAX_TOKENS)
+
+
+_FALLBACK_SYSTEM = (
+    "Tu es un assistant universitaire algérien spécialisé dans le système LMD "
+    "(Licence Master Doctorat) et les PFE. "
+    "Réponds de manière générale, utile et concise en te basant sur tes connaissances "
+    "du système universitaire algérien. Réponds dans la même langue que la question."
+)
+
+
+def _fallback_response(question: str) -> dict:
+    print(f"[FALLBACK] Groq (connaissance générale) pour : {question}")
+    try:
+        llm = ChatGroq(model=LLM_MODEL, temperature=0.3, max_tokens=MAX_TOKENS)
+        response = llm.invoke([
+            SystemMessage(content=_FALLBACK_SYSTEM),
+            HumanMessage(content=question),
+        ])
+        return {
+            "answer": response.content,
+            "sources": [],
+            "confidence": 0.0,
+            "source_type": "general",
+            "warning": "Cette information ne figure pas dans les documents indexés. Voici une réponse générale :",
+        }
+    except Exception as exc:
+        logger.warning(f"Fallback échoué : {exc}")
+        return {
+            "answer": NO_INFO,
+            "sources": [],
+            "confidence": 0.0,
+            "source_type": None,
+            "warning": None,
+        }
 
 
 def _build_context(reranked: list[tuple[Document, float]]) -> tuple[str, list[str], float]:
@@ -56,11 +86,12 @@ def run_rag(question: str) -> dict:
     if retriever is None:
         return {"answer": NO_DOCS, "sources": [], "confidence": 0.0}
 
-    docs = retriever.invoke(question)
-    reranked = rerank(question, docs)
+    rewritten = rewrite_query(question)
+    docs = retriever.invoke(rewritten)
+    reranked = rerank(rewritten, docs)
 
     if not reranked:
-        return {"answer": NO_INFO, "sources": [], "confidence": 0.0}
+        return _fallback_response(question)
 
     context, sources, confidence = _build_context(reranked)
     logger.info(f"RAG : {len(reranked)} chunks retenus | confiance={confidence:.3f}")
@@ -70,7 +101,13 @@ def run_rag(question: str) -> dict:
         HumanMessage(content=_build_user_message(context, question)),
     ]
     response = _get_llm().invoke(messages)
-    return {"answer": response.content, "sources": sources, "confidence": confidence}
+    return {
+        "answer": response.content,
+        "sources": sources,
+        "confidence": confidence,
+        "source_type": "pdf",
+        "warning": None,
+    }
 
 
 async def stream_rag(question: str) -> AsyncGenerator[str, None]:
@@ -79,11 +116,13 @@ async def stream_rag(question: str) -> AsyncGenerator[str, None]:
         yield f"data: {json.dumps({'type': 'error', 'message': NO_DOCS})}\n\n"
         return
 
-    docs = await asyncio.to_thread(retriever.invoke, question)
-    reranked = await asyncio.to_thread(rerank, question, docs)
+    rewritten = await asyncio.to_thread(rewrite_query, question)
+    docs = await asyncio.to_thread(retriever.invoke, rewritten)
+    reranked = await asyncio.to_thread(rerank, rewritten, docs)
 
     if not reranked:
-        yield f"data: {json.dumps({'type': 'error', 'message': NO_INFO})}\n\n"
+        fallback = await asyncio.to_thread(_fallback_response, question)
+        yield f"data: {json.dumps({'type': 'fallback', 'content': fallback['answer'], 'warning': fallback['warning']})}\n\n"
         return
 
     context, sources, confidence = _build_context(reranked)
@@ -103,4 +142,4 @@ async def stream_rag(question: str) -> AsyncGenerator[str, None]:
         yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
         return
 
-    yield f"data: {json.dumps({'type': 'done', 'sources': sources, 'chunks_used': chunks_used, 'confidence': confidence})}\n\n"
+    yield f"data: {json.dumps({'type': 'done', 'sources': sources, 'chunks_used': chunks_used, 'confidence': confidence, 'source_type': 'pdf'})}\n\n"

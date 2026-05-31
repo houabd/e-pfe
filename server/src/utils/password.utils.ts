@@ -6,8 +6,12 @@ export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, SALT_ROUNDS);
 }
 
+export function normalizePassword(password: string): string {
+  return password.replace(/\//g, '');
+}
+
 export async function comparePassword(password: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(password, hash);
+  return bcrypt.compare(normalizePassword(password), hash);
 }
 
 export function generateInitialPassword(dateNaissance: Date): string {

@@ -15,6 +15,8 @@ interface Message {
   content: string;
   sources?: string[];
   chunks_used?: number;
+  source_type?: 'pdf' | 'general';
+  warning?: string;
 }
 
 const SUGGESTIONS = [
@@ -38,6 +40,12 @@ function AssistantMessage({ msg, isStreaming }: { msg: Message; isStreaming: boo
         <Bot className="size-3.5" />
       </div>
       <div className="flex-1 min-w-0 space-y-2">
+        {!isStreaming && msg.warning && (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-800/30 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+            <span className="shrink-0">⚠️</span>
+            <span>{msg.warning}</span>
+          </div>
+        )}
         <div className="bg-card border rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm text-sm">
           <Response>{msg.content}</Response>
           {isStreaming && msg.content === '' && <Loader size={14} className="mt-0.5" />}
@@ -50,8 +58,11 @@ function AssistantMessage({ msg, isStreaming }: { msg: Message; isStreaming: boo
             </SourcesContent>
           </Sources>
         )}
-        {!isStreaming && msg.chunks_used === 0 && (
-          <p className="text-[10px] text-muted-foreground/60 px-1">Réponse générale</p>
+        {!isStreaming && msg.source_type === 'pdf' && msg.sources && msg.sources.length > 0 && (
+          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium px-1">✅ Source : Guide LMD officiel</p>
+        )}
+        {!isStreaming && msg.source_type === 'general' && (
+          <p className="text-[10px] text-orange-500 font-medium px-1">🤖 Réponse générale (non officielle)</p>
         )}
       </div>
     </div>
@@ -109,10 +120,20 @@ export default function ChatbotPage() {
         });
         setStreamingMsgId((prev) => prev ?? assistantMsgId);
       },
-      onDone: (sources, chunks_used) => {
+      onDone: (sources, chunks_used, source_type) => {
         setMessages((prev) => prev.map((m) =>
-          m.id === assistantMsgId ? { ...m, sources, chunks_used } : m,
+          m.id === assistantMsgId ? { ...m, sources, chunks_used, source_type } : m,
         ));
+        setStreamingMsgId(null);
+        setIsLoading(false);
+        setTimeout(() => textareaRef.current?.focus(), 50);
+      },
+      onFallback: (content, warning) => {
+        setMessages((prev) => {
+          const exists = prev.some((m) => m.id === assistantMsgId);
+          const msg: Message = { id: assistantMsgId, role: 'assistant', content, source_type: 'gemini', warning };
+          return exists ? prev.map((m) => m.id === assistantMsgId ? msg : m) : [...prev, msg];
+        });
         setStreamingMsgId(null);
         setIsLoading(false);
         setTimeout(() => textareaRef.current?.focus(), 50);

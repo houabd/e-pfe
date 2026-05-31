@@ -117,7 +117,7 @@ export default function DashboardLayout() {
         <div className="flex items-center justify-between h-16 px-3 border-b border-sidebar-border">
           {!collapsed && (
             <div className="flex items-center gap-2.5">
-              <div className="size-9 rounded-xl overflow-hidden shrink-0 shadow-sm">
+              <div className="size-9 shrink-0">
                 <AppLogo size={36} />
               </div>
               <span
@@ -129,7 +129,7 @@ export default function DashboardLayout() {
             </div>
           )}
           {collapsed && (
-            <div className="size-9 rounded-xl overflow-hidden mx-auto shadow-sm">
+            <div className="size-9 mx-auto">
               <AppLogo size={36} />
             </div>
           )}
@@ -263,7 +263,7 @@ export default function DashboardLayout() {
       {/* Main content */}
       <div className={cn('flex flex-col flex-1 overflow-hidden transition-all duration-300', collapsed ? 'lg:ml-16' : 'lg:ml-64')}>
         {/* Topbar */}
-        <header className="h-16 flex items-center gap-4 px-6 border-b bg-background/95 backdrop-blur shrink-0">
+        <header className="h-16 flex items-center gap-4 px-6 border-b bg-background/95 backdrop-blur shrink-0 z-40 relative">
           <Button
             variant="ghost"
             size="icon"

@@ -52,6 +52,20 @@ export async function deleteUser(id: string): Promise<void> {
   await api.delete(`/users/${id}`);
 }
 
+export async function hardDeleteUser(id: string): Promise<void> {
+  await api.delete(`/users/${id}/hard`);
+}
+
+export async function bulkDeleteUsers(ids: string[]): Promise<{ count: number }> {
+  const { data } = await api.post<ApiResponse<{ count: number }>>('/users/bulk-delete', { ids, permanent: false });
+  return data.data!;
+}
+
+export async function bulkHardDeleteUsers(ids: string[]): Promise<{ count: number }> {
+  const { data } = await api.post<ApiResponse<{ count: number }>>('/users/bulk-delete', { ids, permanent: true });
+  return data.data!;
+}
+
 export async function importUsers(file: File): Promise<ImportResult> {
   const formData = new FormData();
   formData.append('file', file);

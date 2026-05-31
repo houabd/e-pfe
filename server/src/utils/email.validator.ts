@@ -1,6 +1,6 @@
 import type { Role } from '@prisma/client';
 
-const STUDENT_DOMAIN = '@etu.univ-bejaia.dz';
+const STUDENT_DOMAIN = '@se.univ-bejaia.dz';
 const TEACHER_DOMAIN = '@univ-bejaia.dz';
 
 export function isValidEmailForRole(email: string, role: Role): boolean {

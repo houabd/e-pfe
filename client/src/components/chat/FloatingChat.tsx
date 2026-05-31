@@ -16,6 +16,8 @@ interface Message {
   content: string;
   sources?: string[];
   chunks_used?: number;
+  source_type?: 'pdf' | 'general';
+  warning?: string;
 }
 
 const INITIAL_MSG: Message = {
@@ -61,13 +63,22 @@ export default function FloatingChat() {
         });
         setStreamingMsgId((prev) => prev ?? assistantMsgId);
       },
-      onDone: (sources, chunks_used) => {
+      onDone: (sources, chunks_used, source_type) => {
         setMessages((prev) => prev.map((m) =>
-          m.id === assistantMsgId ? { ...m, sources, chunks_used } : m,
+          m.id === assistantMsgId ? { ...m, sources, chunks_used, source_type } : m,
         ));
         setStreamingMsgId(null);
         setIsLoading(false);
         setTimeout(() => textareaRef.current?.focus(), 50);
+      },
+      onFallback: (content, warning) => {
+        setMessages((prev) => {
+          const exists = prev.some((m) => m.id === assistantMsgId);
+          const msg: Message = { id: assistantMsgId, role: 'assistant', content, source_type: 'gemini', warning };
+          return exists ? prev.map((m) => m.id === assistantMsgId ? msg : m) : [...prev, msg];
+        });
+        setStreamingMsgId(null);
+        setIsLoading(false);
       },
       onError: (message) => {
         setMessages((prev) => {
@@ -147,6 +158,12 @@ export default function FloatingChat() {
                     <ChatbotLogo size={24} />
                   </div>
                   <div className="flex-1 min-w-0 space-y-1.5">
+                    {msg.id !== streamingMsgId && msg.warning && (
+                      <div className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-800/30 px-2 py-1.5 text-[10px] text-amber-700 dark:text-amber-300">
+                        <span className="shrink-0">⚠️</span>
+                        <span>{msg.warning}</span>
+                      </div>
+                    )}
                     <div className="bg-card border rounded-2xl rounded-tl-sm px-3 py-2 shadow-sm text-xs">
                       <Response>{msg.content}</Response>
                       {msg.id === streamingMsgId && msg.content === '' && <Loader size={12} className="mt-0.5" />}
@@ -159,8 +176,11 @@ export default function FloatingChat() {
                         </SourcesContent>
                       </Sources>
                     )}
-                    {msg.id !== streamingMsgId && msg.chunks_used === 0 && (
-                      <p className="text-[10px] text-muted-foreground/60 px-1">Réponse générale</p>
+                    {msg.id !== streamingMsgId && msg.source_type === 'general' && (
+                      <p className="text-[10px] text-orange-500 font-medium px-1">🤖 Réponse générale</p>
+                    )}
+                    {msg.id !== streamingMsgId && msg.source_type === 'pdf' && msg.sources && msg.sources.length > 0 && (
+                      <p className="text-[10px] text-emerald-600 font-medium px-1">✅ Guide LMD officiel</p>
                     )}
                   </div>
                 </div>

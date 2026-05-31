@@ -40,7 +40,7 @@ GROQ_API_KEY       = os.environ.get("GROQ_API_KEY", "")
 
 LLM_MODEL = "llama-3.3-70b-versatile"
 
-RERANKER_THRESHOLD = 0.0
+RERANKER_THRESHOLD = -5.0
 TOP_K_RETRIEVAL    = 8
 TOP_K_RERANKED     = 5
 

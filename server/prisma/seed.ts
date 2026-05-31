@@ -107,10 +107,10 @@ async function main() {
 
   // Étudiants
   const etud1 = await prisma.user.upsert({
-    where: { email: 'amira.bensaid@etu.univ-bejaia.dz' },
+    where: { email: 'amira.bensaid@se.univ-bejaia.dz' },
     update: {},
     create: {
-      email: 'amira.bensaid@etu.univ-bejaia.dz',
+      email: 'amira.bensaid@se.univ-bejaia.dz',
       password_hash: hash('12022002'),
       nom: 'Bensaid',
       prenom: 'Amira',
@@ -123,10 +123,10 @@ async function main() {
   });
 
   const etud2 = await prisma.user.upsert({
-    where: { email: 'karim.hadjadj@etu.univ-bejaia.dz' },
+    where: { email: 'karim.hadjadj@se.univ-bejaia.dz' },
     update: {},
     create: {
-      email: 'karim.hadjadj@etu.univ-bejaia.dz',
+      email: 'karim.hadjadj@se.univ-bejaia.dz',
       password_hash: hash('08112001'),
       nom: 'Hadjadj',
       prenom: 'Karim',
@@ -185,8 +185,8 @@ async function main() {
   console.log('  Technicien          : technicien@univ-bejaia.dz / 20061985');
   console.log('  Enseignant 1        : ali.boukhalfa@univ-bejaia.dz / 10041980');
   console.log('  Enseignant 2        : sara.messai@univ-bejaia.dz / 05091978');
-  console.log('  Étudiant 1          : amira.bensaid@etu.univ-bejaia.dz / 12022002');
-  console.log('  Étudiant 2          : karim.hadjadj@etu.univ-bejaia.dz / 08112001');
+  console.log('  Étudiant 1          : amira.bensaid@se.univ-bejaia.dz / 12022002');
+  console.log('  Étudiant 2          : karim.hadjadj@se.univ-bejaia.dz / 08112001');
 }
 
 main()

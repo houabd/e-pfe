@@ -22,9 +22,7 @@ export default function PublicLayout() {
     <div className="min-h-screen flex flex-col">
       <header className="h-16 border-b flex items-center justify-between px-6 bg-background/95 backdrop-blur shrink-0 sticky top-0 z-40">
         <Link to="/" className="flex items-center gap-2.5 select-none">
-          <div className="size-9 rounded-xl overflow-hidden shrink-0">
-            <AppLogo size={36} />
-          </div>
+          <AppLogo size={36} />
           <span
             className="font-bold text-lg tracking-tight text-foreground"
             style={{ fontFamily: "'Libre Baskerville', Georgia, serif" }}

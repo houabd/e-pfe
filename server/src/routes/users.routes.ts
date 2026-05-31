@@ -78,10 +78,35 @@ router.patch('/:id/toggle-active', requireTechnicien, async (req, res, next) => 
   }
 });
 
+router.post('/bulk-delete', requireChefDept, async (req, res, next) => {
+  try {
+    const schema = z.object({
+      ids: z.array(z.string()).min(1),
+      permanent: z.boolean().default(false),
+    });
+    const { ids, permanent } = schema.parse(req.body);
+    const result = permanent
+      ? await userService.bulkHardDeleteUsers(ids)
+      : await userService.bulkDeleteUsers(ids);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/:id/hard', requireChefDept, async (req, res, next) => {
+  try {
+    await userService.hardDeleteUser(req.params['id'] as string);
+    res.json({ success: true, message: 'Utilisateur supprimé définitivement' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.delete('/:id', requireChefDept, async (req, res, next) => {
   try {
     await userService.deleteUser(req.params['id'] as string);
-    res.json({ success: true, message: 'Utilisateur supprimé' });
+    res.json({ success: true, message: 'Utilisateur désactivé' });
   } catch (err) {
     next(err);
   }

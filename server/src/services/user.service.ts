@@ -62,7 +62,7 @@ export async function getUsers(filters: UserFilters) {
 
 export async function createUser(dto: CreateUserDto) {
   if (!isValidEmailForRole(dto.email, dto.role)) {
-    throw new BadRequestError(`Email invalide pour le rôle ${dto.role}. Domaine attendu : ${dto.role === 'ETUDIANT' ? '@etu.univ-bejaia.dz' : '@univ-bejaia.dz'}`);
+    throw new BadRequestError(`Email invalide pour le rôle ${dto.role}. Domaine attendu : ${dto.role === 'ETUDIANT' ? '@se.univ-bejaia.dz' : '@univ-bejaia.dz'}`);
   }
 
   const exists = await prisma.user.findUnique({ where: { email: dto.email } });
@@ -98,6 +98,58 @@ export async function deleteUser(id: string) {
   await prisma.user.update({ where: { id }, data: { is_active: false } });
 }
 
+export async function hardDeleteUser(id: string) {
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user) throw new NotFoundError('Utilisateur');
+
+  await prisma.$transaction(async (tx) => {
+    // Dissocier les thèmes dont cet utilisateur est encadrant (sans supprimer le thème)
+    await tx.theme.updateMany({ where: { encadrant_id: id }, data: { encadrant_id: null } });
+
+    // Supprimer les enregistrements dépendants
+    await tx.soutenanceJury.deleteMany({ where: { enseignant_id: id } });
+    await tx.startupMembre.deleteMany({ where: { etudiant_id: id } });
+    await tx.affectationEtudiant.deleteMany({ where: { etudiant_id: id } });
+    await tx.themeChoix.deleteMany({ where: { etudiant_id: id } });
+
+    // Supprimer les binômes impliquant cet étudiant
+    const binomes = await tx.binome.findMany({
+      where: { OR: [{ etud1_id: id }, { etud2_id: id }] },
+      select: { id: true },
+    });
+    if (binomes.length > 0) {
+      const binomeIds = binomes.map((b) => b.id);
+      await tx.affectationEtudiant.deleteMany({ where: { binome_id: { in: binomeIds } } });
+      await tx.themeChoix.deleteMany({ where: { binome_id: { in: binomeIds } } });
+      await tx.binome.deleteMany({ where: { id: { in: binomeIds } } });
+    }
+
+    // Supprimer finalement l'utilisateur (notifications et documents_rag cascadent automatiquement)
+    await tx.user.delete({ where: { id } });
+  });
+}
+
+export async function bulkDeleteUsers(ids: string[]) {
+  const result = await prisma.user.updateMany({
+    where: { id: { in: ids } },
+    data: { is_active: false },
+  });
+  return { count: result.count };
+}
+
+export async function bulkHardDeleteUsers(ids: string[]) {
+  let count = 0;
+  for (const id of ids) {
+    try {
+      await hardDeleteUser(id);
+      count++;
+    } catch {
+      // on continue si un utilisateur n'existe plus
+    }
+  }
+  return { count };
+}
+
 // ─── Import Excel ─────────────────────────────────────────────────────────────
 
 const VALID_ROLES: Role[] = ['CHEF_DEPT', 'CHEF_EQUIPE', 'CHEF_EQUIPE', 'RESP_SPECIALITE', 'TECHNICIEN', 'ENSEIGNANT', 'ETUDIANT'];
@@ -123,6 +175,7 @@ export async function importUsers(buffer: Buffer) {
 
   const specialites = await prisma.specialite.findMany({ select: { id: true, nom: true } });
   const specialiteMap = new Map(specialites.map((s) => [s.nom.toLowerCase(), s.id]));
+  const specialiteNames = specialites.map((s) => s.nom).join(', ');
 
   const existingEmails = new Set(
     (await prisma.user.findMany({ select: { email: true } })).map((u) => u.email),
@@ -153,16 +206,23 @@ export async function importUsers(buffer: Buffer) {
     }
     if (existingEmails.has(email)) { errors.push({ row: rowNum, message: `Email déjà utilisé : ${email}` }); continue; }
 
-    let dateNaissance: Date;
+    let dateNaissance: Date | undefined;
     if (dateNaissanceRaw instanceof Date) {
       dateNaissance = dateNaissanceRaw;
     } else {
-      const parsed = new Date(String(dateNaissanceRaw));
-      if (isNaN(parsed.getTime())) {
-        errors.push({ row: rowNum, message: 'Date de naissance invalide (format : YYYY-MM-DD)' });
-        continue;
+      const str = String(dateNaissanceRaw).trim();
+      const ddmmyyyy = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (ddmmyyyy) {
+        const d = new Date(parseInt(ddmmyyyy[3]), parseInt(ddmmyyyy[2]) - 1, parseInt(ddmmyyyy[1]));
+        if (!isNaN(d.getTime())) dateNaissance = d;
+      } else {
+        const d = new Date(str);
+        if (!isNaN(d.getTime())) dateNaissance = d;
       }
-      dateNaissance = parsed;
+    }
+    if (!dateNaissance) {
+      errors.push({ row: rowNum, message: 'Date de naissance invalide (formats acceptés : DD/MM/YYYY ou YYYY-MM-DD)' });
+      continue;
     }
 
     const specialiteNom = (row as Record<string, unknown>)['specialite'];
@@ -170,7 +230,7 @@ export async function importUsers(buffer: Buffer) {
     if (specialiteNom) {
       specialite_id = specialiteMap.get(String(specialiteNom).toLowerCase());
       if (!specialite_id) {
-        errors.push({ row: rowNum, message: `Spécialité introuvable : ${specialiteNom}` });
+        errors.push({ row: rowNum, message: `Spécialité introuvable : "${specialiteNom}". Valeurs disponibles : ${specialiteNames}` });
         continue;
       }
     }

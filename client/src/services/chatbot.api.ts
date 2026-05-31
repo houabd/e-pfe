@@ -47,18 +47,21 @@ export async function deleteRagDocument(id: string): Promise<void> {
 // ─── Streaming ────────────────────────────────────────────────────────────────
 
 interface StreamEvent {
-  type: 'chunk' | 'done' | 'error';
+  type: 'chunk' | 'done' | 'error' | 'fallback';
   content?: string;
   message?: string;
   sources?: string[];
   chunks_used?: number;
+  source_type?: 'pdf' | 'general';
+  warning?: string;
 }
 
 export function askQuestionStream(
   question: string,
   callbacks: {
     onChunk: (content: string) => void;
-    onDone: (sources: string[], chunks_used: number) => void;
+    onDone: (sources: string[], chunks_used: number, source_type?: 'pdf' | 'general') => void;
+    onFallback: (content: string, warning: string) => void;
     onError: (message: string) => void;
   },
 ): AbortController {
@@ -98,7 +101,8 @@ export function askQuestionStream(
           try {
             const event = JSON.parse(trimmed.slice(5).trim()) as StreamEvent;
             if (event.type === 'chunk' && event.content) callbacks.onChunk(event.content);
-            else if (event.type === 'done') callbacks.onDone(event.sources ?? [], event.chunks_used ?? 0);
+            else if (event.type === 'done') callbacks.onDone(event.sources ?? [], event.chunks_used ?? 0, event.source_type);
+            else if (event.type === 'fallback') callbacks.onFallback(event.content ?? '', event.warning ?? '');
             else if (event.type === 'error') callbacks.onError(event.message ?? 'Erreur inconnue.');
           } catch { /* ignore malformed lines */ }
         }

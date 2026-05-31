@@ -26,6 +26,11 @@ export async function createSession(dto: CreateSessionDto) {
     );
   }
 
+  const now = new Date();
+  if (dto.date_fin < now) {
+    throw new BadRequestError('La date de fin est déjà passée. Impossible de créer une session expirée.');
+  }
+
   const session = await prisma.session.create({ data: dto });
 
   const users = await prisma.user.findMany({

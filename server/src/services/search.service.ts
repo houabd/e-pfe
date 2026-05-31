@@ -3,19 +3,45 @@
 export type SuggestionType = 'etudiant' | 'enseignant' | 'theme';
 export interface Suggestion { text: string; type: SuggestionType }
 
+type StringFilter = { contains?: string; startsWith?: string; mode: 'insensitive' };
+type UserWhereOR = { nom?: StringFilter; prenom?: StringFilter; email?: StringFilter; matricule?: StringFilter };
+
+function buildNameOR(term: string, mode: 'startsWith' | 'contains', extraFields: (keyof UserWhereOR)[] = []): UserWhereOR[] {
+  const filter = (t: string): StringFilter => ({ [mode]: t, mode: 'insensitive' });
+  const conditions: UserWhereOR[] = [
+    { nom: filter(term) },
+    { prenom: filter(term) },
+    ...extraFields.map((f) => ({ [f]: { contains: term, mode: 'insensitive' as const } })),
+  ];
+
+  const words = term.trim().split(/\s+/);
+  if (words.length >= 2) {
+    const c = (t: string): StringFilter => ({ contains: t, mode: 'insensitive' });
+    for (let i = 1; i < words.length; i++) {
+      const left = words.slice(0, i).join(' ');
+      const right = words.slice(i).join(' ');
+      conditions.push(
+        { prenom: c(left), nom: c(right) },
+        { prenom: c(right), nom: c(left) },
+      );
+    }
+  }
+
+  return conditions;
+}
+
 export async function getSuggestions(q: string): Promise<Suggestion[]> {
   const term = q.trim();
-  const starts = { startsWith: term, mode: 'insensitive' as const };
   const contains = { contains: term, mode: 'insensitive' as const };
 
   const [etudiants, enseignants, themes] = await Promise.all([
     prisma.user.findMany({
-      where: { role: 'ETUDIANT', is_active: true, OR: [{ nom: starts }, { prenom: starts }] },
+      where: { role: 'ETUDIANT', is_active: true, OR: buildNameOR(term, 'startsWith') },
       select: { nom: true, prenom: true },
       take: 4,
     }),
     prisma.user.findMany({
-      where: { role: { in: ['ENSEIGNANT', 'CHEF_EQUIPE'] }, is_active: true, OR: [{ nom: starts }, { prenom: starts }] },
+      where: { role: { in: ['ENSEIGNANT', 'CHEF_EQUIPE'] }, is_active: true, OR: buildNameOR(term, 'startsWith') },
       select: { nom: true, prenom: true },
       take: 3,
     }),
@@ -50,12 +76,7 @@ export async function globalSearch({ q, page = 1, limit = 20 }: SearchQuery) {
       where: {
         role: 'ETUDIANT',
         is_active: true,
-        OR: [
-          { nom: searchTerm },
-          { prenom: searchTerm },
-          { email: searchTerm },
-          { matricule: searchTerm },
-        ],
+        OR: buildNameOR(q, 'contains', ['email', 'matricule']),
       },
       select: {
         id: true,
@@ -85,7 +106,7 @@ export async function globalSearch({ q, page = 1, limit = 20 }: SearchQuery) {
       where: {
         role: { in: ['ENSEIGNANT', 'CHEF_EQUIPE'] },
         is_active: true,
-        OR: [{ nom: searchTerm }, { prenom: searchTerm }, { email: searchTerm }],
+        OR: buildNameOR(q, 'contains', ['email']),
       },
       select: {
         id: true,

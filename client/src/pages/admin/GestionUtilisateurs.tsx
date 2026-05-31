@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -20,7 +21,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useUsers, useToggleUserActive, useDeleteUser, useExportUsers } from '@/hooks/useUsers';
+import { useUsers, useToggleUserActive, useDeleteUser, useHardDeleteUser, useBulkDeleteUsers, useBulkHardDeleteUsers, useExportUsers } from '@/hooks/useUsers';
 import { useActiveSpecialites } from '@/hooks/useSpecialites';
 import AddUserDialog from '@/components/users/AddUserDialog';
 import ImportUsersDialog from '@/components/users/ImportUsersDialog';
@@ -49,7 +50,7 @@ const ROLE_VARIANTS: Record<string, 'default' | 'secondary' | 'info' | 'warning'
   ETUDIANT: 'outline',
 };
 
-// ─── Composant confirmation suppression ───────────────────────────────────────
+// ─── Dialogue confirmation suppression unique ─────────────────────────────────
 
 function DeleteConfirmDialog({
   user,
@@ -83,21 +84,101 @@ function DeleteConfirmDialog({
   );
 }
 
+// ─── Dialogue confirmation suppression en masse ───────────────────────────────
+
+function BulkDeleteConfirmDialog({
+  count,
+  onConfirm,
+  onCancel,
+  isPending,
+}: {
+  count: number;
+  onConfirm: () => void;
+  onCancel: () => void;
+  isPending: boolean;
+}) {
+  return (
+    <Dialog open onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Désactiver {count} utilisateur(s)</DialogTitle>
+          <DialogDescription>
+            Les <strong>{count}</strong> utilisateurs sélectionnés seront désactivés et ne pourront plus se connecter. Cette action est réversible.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Annuler</Button>
+          <Button variant="destructive" onClick={onConfirm} disabled={isPending}>
+            Désactiver tout
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Dialogue confirmation suppression définitive ─────────────────────────────
+
+function HardDeleteConfirmDialog({
+  user,
+  onConfirm,
+  onCancel,
+  isPending,
+}: {
+  user: User;
+  onConfirm: () => void;
+  onCancel: () => void;
+  isPending: boolean;
+}) {
+  return (
+    <Dialog open onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="text-destructive">Supprimer définitivement</DialogTitle>
+          <DialogDescription>
+            Le compte de <strong>{user.prenom} {user.nom}</strong> ainsi que toutes ses données associées
+            (binômes, choix de thèmes, jury…) seront <strong>supprimés de façon irréversible</strong>.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Annuler</Button>
+          <Button variant="destructive" onClick={onConfirm} disabled={isPending}>
+            Supprimer définitivement
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Ligne de tableau ─────────────────────────────────────────────────────────
 
 function UserRow({
   user,
+  selected,
+  onSelect,
   onToggle,
   onDelete,
+  onHardDelete,
 }: {
   user: User;
+  selected: boolean;
+  onSelect: (id: string, checked: boolean) => void;
   onToggle: (id: string) => void;
   onDelete: (user: User) => void;
+  onHardDelete: (user: User) => void;
 }) {
   const initials = `${user.prenom[0]}${user.nom[0]}`.toUpperCase();
 
   return (
-    <tr className="border-b last:border-0 hover:bg-muted/30 transition-colors group">
+    <tr className={`border-b last:border-0 hover:bg-muted/30 transition-colors group ${selected ? 'bg-primary/5' : ''}`}>
+      <td className="px-3 py-3 w-10">
+        <Checkbox
+          checked={selected}
+          onCheckedChange={(checked) => onSelect(user.id, !!checked)}
+          aria-label={`Sélectionner ${user.prenom} ${user.nom}`}
+        />
+      </td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-3 min-w-0">
           <Avatar className="size-8 shrink-0">
@@ -152,8 +233,15 @@ function UserRow({
               onClick={() => onDelete(user)}
               className="text-destructive focus:text-destructive"
             >
+              <UserX className="size-4 mr-2" />
+              Désactiver
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => onHardDelete(user)}
+              className="text-destructive focus:text-destructive"
+            >
               <Trash2 className="size-4 mr-2" />
-              Supprimer (désactiver)
+              Supprimer définitivement
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -169,6 +257,7 @@ function TableSkeleton() {
     <>
       {Array.from({ length: 8 }).map((_, i) => (
         <tr key={i} className="border-b">
+          <td className="px-3 py-3 w-10"><Skeleton className="size-4" /></td>
           <td className="px-4 py-3">
             <div className="flex items-center gap-3">
               <Skeleton className="size-8 rounded-full" />
@@ -197,28 +286,77 @@ export default function GestionUtilisateurs() {
   const [showAdd, setShowAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
+  const [hardDeleteTarget, setHardDeleteTarget] = useState<User | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false);
+  const [showBulkHardConfirm, setShowBulkHardConfirm] = useState(false);
 
   const { data: response, isLoading } = useUsers(filters);
   const { data: specialites } = useActiveSpecialites();
   const toggleActive = useToggleUserActive();
   const deleteUser = useDeleteUser();
+  const hardDeleteUser = useHardDeleteUser();
+  const bulkDelete = useBulkDeleteUsers();
+  const bulkHardDelete = useBulkHardDeleteUsers();
   const exportUsers = useExportUsers();
 
   const users = response?.data ?? [];
   const meta = response?.meta;
 
+  const allSelected = users.length > 0 && users.every((u) => selectedIds.has(u.id));
+  const someSelected = users.some((u) => selectedIds.has(u.id));
+
+  const handleSelectOne = useCallback((id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) setSelectedIds(new Set(users.map((u) => u.id)));
+    else setSelectedIds(new Set());
+  };
+
   const applyFilter = useCallback((key: keyof UserFilters, value: string | undefined) => {
     setFilters((prev) => ({ ...prev, [key]: value || undefined, page: 1 }));
+    setSelectedIds(new Set());
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setFilters((prev) => ({ ...prev, search: search || undefined, page: 1 }));
+    setSelectedIds(new Set());
   };
 
   const handleDelete = () => {
     if (!deleteTarget) return;
     deleteUser.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) });
+  };
+
+  const handleHardDelete = () => {
+    if (!hardDeleteTarget) return;
+    hardDeleteUser.mutate(hardDeleteTarget.id, { onSuccess: () => setHardDeleteTarget(null) });
+  };
+
+  const handleBulkDelete = () => {
+    bulkDelete.mutate([...selectedIds], {
+      onSuccess: () => {
+        setSelectedIds(new Set());
+        setShowBulkConfirm(false);
+      },
+    });
+  };
+
+  const handleBulkHardDelete = () => {
+    bulkHardDelete.mutate([...selectedIds], {
+      onSuccess: () => {
+        setSelectedIds(new Set());
+        setShowBulkHardConfirm(false);
+      },
+    });
   };
 
   const handleExport = (format: 'excel' | 'pdf') => {
@@ -360,12 +498,50 @@ export default function GestionUtilisateurs() {
         </div>
       </Card>
 
+      {/* Barre d'actions de sélection */}
+      {someSelected && (
+        <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-primary/5 border border-primary/20 rounded-lg">
+          <p className="text-sm font-medium text-primary">
+            {selectedIds.size} utilisateur(s) sélectionné(s)
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setSelectedIds(new Set())}>
+              Tout désélectionner
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setShowBulkConfirm(true)}
+            >
+              <UserX className="size-3.5" />
+              Désactiver la sélection
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setShowBulkHardConfirm(true)}
+            >
+              <Trash2 className="size-3.5" />
+              Supprimer définitivement
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Tableau */}
       <Card className="overflow-hidden p-0 gap-0">
         <div className="overflow-x-auto">
           <table className="w-full" aria-label="Liste des utilisateurs">
             <thead>
               <tr className="border-b bg-muted/40">
+                <th className="px-3 py-3 w-10">
+                  <Checkbox
+                    checked={allSelected}
+                    ref={(el) => { if (el) (el as HTMLButtonElement).dataset.indeterminate = String(someSelected && !allSelected); }}
+                    onCheckedChange={handleSelectAll}
+                    aria-label="Sélectionner tout"
+                  />
+                </th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   Utilisateur
                 </th>
@@ -389,7 +565,7 @@ export default function GestionUtilisateurs() {
                 <TableSkeleton />
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-16 text-center">
+                  <td colSpan={7} className="px-4 py-16 text-center">
                     <Users className="size-10 text-muted-foreground/40 mx-auto mb-3" />
                     <p className="text-sm font-medium text-muted-foreground">Aucun utilisateur trouvé</p>
                     <p className="text-xs text-muted-foreground/60 mt-1">
@@ -402,8 +578,11 @@ export default function GestionUtilisateurs() {
                   <UserRow
                     key={user.id}
                     user={user}
+                    selected={selectedIds.has(user.id)}
+                    onSelect={handleSelectOne}
                     onToggle={(id) => toggleActive.mutate(id)}
                     onDelete={setDeleteTarget}
+                    onHardDelete={setHardDeleteTarget}
                   />
                 ))
               )}
@@ -456,6 +635,41 @@ export default function GestionUtilisateurs() {
           onCancel={() => setDeleteTarget(null)}
           isPending={deleteUser.isPending}
         />
+      )}
+      {showBulkConfirm && (
+        <BulkDeleteConfirmDialog
+          count={selectedIds.size}
+          onConfirm={handleBulkDelete}
+          onCancel={() => setShowBulkConfirm(false)}
+          isPending={bulkDelete.isPending}
+        />
+      )}
+      {hardDeleteTarget && (
+        <HardDeleteConfirmDialog
+          user={hardDeleteTarget}
+          onConfirm={handleHardDelete}
+          onCancel={() => setHardDeleteTarget(null)}
+          isPending={hardDeleteUser.isPending}
+        />
+      )}
+      {showBulkHardConfirm && (
+        <Dialog open onOpenChange={(open) => !open && setShowBulkHardConfirm(false)}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="text-destructive">Supprimer {selectedIds.size} utilisateur(s)</DialogTitle>
+              <DialogDescription>
+                Les <strong>{selectedIds.size}</strong> utilisateurs sélectionnés ainsi que toutes leurs données
+                associées seront <strong>supprimés de façon irréversible</strong>.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowBulkHardConfirm(false)}>Annuler</Button>
+              <Button variant="destructive" onClick={handleBulkHardDelete} disabled={bulkHardDelete.isPending}>
+                Supprimer définitivement
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

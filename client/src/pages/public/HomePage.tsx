@@ -68,48 +68,95 @@ export default function HomePage() {
     <div className="flex flex-col">
 
       {/* ── Hero ────────────────────────────────────────────────────────── */}
-      <section className="brand-gradient-hero relative overflow-hidden py-28 px-6 text-white">
-        <div className="absolute -top-24 -right-24 size-96 rounded-full bg-white/5 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 -left-16 size-72 rounded-full bg-[#00c9a8]/10 blur-3xl pointer-events-none" />
+      <section className="brand-gradient-hero relative overflow-hidden text-white" style={{ minHeight: '60vh' }}>
+        {/* Background orbs */}
+        <div className="absolute -top-32 -right-32 size-[500px] rounded-full bg-white/5 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 -left-24 size-80 rounded-full bg-[#00c9a8]/10 blur-3xl pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-[600px] rounded-full bg-[#1e72d8]/10 blur-3xl pointer-events-none" />
 
-        <div className="relative max-w-3xl mx-auto text-center">
-          <div className="flex justify-center mb-6">
-            <div className="size-20 overflow-hidden shadow-2xl shadow-black/30" style={{ borderRadius: '6px' }}>
-              <AppLogo size={80} />
+        <div className="relative max-w-4xl mx-auto px-6 py-20 flex flex-col items-center text-center">
+
+          {/* Dual logos */}
+          <div className="flex items-center justify-center gap-6 sm:gap-10 mb-8">
+            {/* UB logo */}
+            <div className="flex flex-col items-center gap-2">
+              <div className="size-16 sm:size-20 flex items-center justify-center">
+                <img
+                  src="/ub-logo.svg"
+                  alt="Université de Béjaïa"
+                  width={80}
+                  height={80}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'brightness(0) invert(1)' }}
+                />
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="h-12 w-px bg-white/20" />
+
+            {/* e-PFE logo */}
+            <div className="flex flex-col items-center gap-2">
+              <div className="size-16 sm:size-20 flex items-center justify-center">
+                <img
+                  src="/logo.png"
+                  alt="e-PFE"
+                  width={80}
+                  height={80}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'brightness(0) invert(1)' }}
+                />
+              </div>
             </div>
           </div>
 
-          <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 text-white/90 text-xs font-medium px-3 py-1.5 rounded-full mb-6">
-            Université de Béjaïa — Département Informatique
+          {/* Institution badge */}
+          <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 text-white/90 text-xs font-medium px-4 py-1.5 rounded-full mb-6 tracking-wide">
+            Université de Béjaïa — Faculté des Sciences Exactes — Département Informatique
           </div>
 
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-tight">
-            Gérez vos{' '}
-            <span className="text-[#00c9a8]">Projets de Fin d'Études</span>
-            {' '}en ligne
+          {/* Heading */}
+          <h1
+            className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-tight"
+            style={{ fontFamily: "'Libre Baskerville', Georgia, serif" }}
+          >
+            Plateforme de Gestion des{' '}
+            <span className="text-[#00c9a8]">PFE</span>
           </h1>
 
-          <p className="mt-5 text-lg text-white/70 max-w-xl mx-auto leading-relaxed">
-            e-PFE centralise la proposition de thèmes, la formation de binômes,
-            les affectations et la planification des soutenances pour les étudiants M2.
+          <p className="mt-5 text-base sm:text-lg text-white/70 max-w-2xl mx-auto leading-relaxed">
+            Gérez vos projets de fin d'études de A à Z — propositions de thèmes, formation de binômes,
+            affectations enseignants et planification des soutenances, tout en un.
           </p>
 
-          <div className="mt-9 flex gap-3 flex-wrap justify-center">
+          {/* CTA buttons */}
+          <div className="mt-10 flex gap-3 flex-wrap justify-center">
             {isAuthenticated ? (
               <Link to={dashLink}>
-                <Button size="lg" className="brand-gradient gap-2 shadow-lg">
+                <Button
+                  size="lg"
+                  className="gap-2 bg-white text-[#0d1f70] hover:bg-white/90 font-semibold shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-200"
+                  style={{ borderRadius: '6px' }}
+                >
                   Accéder à mon espace <ArrowRight className="size-4" />
                 </Button>
               </Link>
             ) : (
               <Link to="/connexion">
-                <Button size="lg" className="brand-gradient gap-2 shadow-lg">
+                <Button
+                  size="lg"
+                  className="gap-2 bg-white text-[#0d1f70] hover:bg-white/90 font-semibold shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-200"
+                  style={{ borderRadius: '6px' }}
+                >
                   Se connecter <ArrowRight className="size-4" />
                 </Button>
               </Link>
             )}
             <Link to="/chatbot">
-              <Button size="lg" variant="outline" className="border-white/30 text-white bg-white/10 hover:bg-white/20 backdrop-blur-sm">
+              <Button
+                size="lg"
+                variant="outline"
+                className="border-white/30 text-white bg-white/10 hover:bg-white/20 backdrop-blur-sm hover:scale-[1.02] transition-all duration-200"
+                style={{ borderRadius: '6px' }}
+              >
                 Consulter l'assistant IA
               </Button>
             </Link>

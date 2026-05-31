@@ -59,7 +59,7 @@ export default function AddUserDialog({ open, onOpenChange }: Props) {
   const selectedRole = watch('role');
   const needsSpecialite = ROLES_WITH_SPECIALITE.includes(selectedRole);
   const isStudent = STUDENT_ROLES.includes(selectedRole);
-  const emailDomain = selectedRole === 'ETUDIANT' ? '@etu.univ-bejaia.dz' : '@univ-bejaia.dz';
+  const emailDomain = selectedRole === 'ETUDIANT' ? '@se.univ-bejaia.dz' : '@univ-bejaia.dz';
 
   useEffect(() => {
     if (!open) reset();
