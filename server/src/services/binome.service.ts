@@ -47,6 +47,15 @@ export async function demanderBinome(demandeurId: string, cibleId: string) {
     throw new BadRequestError('Cet étudiant a déjà une demande de binôme en cours ou un binôme actif');
   }
 
+  // Vérifier que la cible n'est pas déjà formellement affectée à un autre thème
+  const [cibleAffectation, cibleStartup] = await Promise.all([
+    prisma.affectationEtudiant.findFirst({ where: { etudiant_id: cibleId }, select: { id: true } }),
+    prisma.startupMembre.findFirst({ where: { etudiant_id: cibleId }, select: { id: true } }),
+  ]);
+  if (cibleAffectation || cibleStartup) {
+    throw new BadRequestError('Cet étudiant est déjà affecté à un thème');
+  }
+
   const binome = await prisma.binome.create({
     data: { etud1_id: demandeurId, etud2_id: cibleId, statut: 'PENDING' },
     include: {
@@ -73,31 +82,199 @@ export async function acceptBinome(binomeId: string, userId: string) {
   if (binome.etud2_id !== userId) throw new ForbiddenError('Cette demande ne vous est pas adressée');
   if (binome.statut !== 'PENDING') throw new BadRequestError('Cette demande n\'est plus en attente');
 
-  // Annuler toutes les autres demandes PENDING reçues par cet étudiant
-  await prisma.binome.updateMany({
-    where: {
-      etud2_id: userId,
-      statut: 'PENDING',
-      id: { not: binomeId },
-    },
-    data: { statut: 'REFUSED' },
+  type EncadrantInfo = {
+    encadrantId: string;
+    encadrantPrenom: string | null;
+    encadrantNom: string | null;
+    theme: { id: string; titre: string } | null;
+    newMemberId: string;
+  } | null;
+
+  const { updated, encadrantInfo } = await prisma.$transaction(async (tx) => {
+    // Annuler toutes les demandes PENDING reçues par etud2 (sauf celle-ci)
+    await tx.binome.updateMany({
+      where: { etud2_id: userId, statut: 'PENDING', id: { not: binomeId } },
+      data: { statut: 'REFUSED' },
+    });
+
+    // Annuler toutes les demandes PENDING envoyées par etud2
+    await tx.binome.updateMany({
+      where: { etud1_id: userId, statut: 'PENDING' },
+      data: { statut: 'REFUSED' },
+    });
+
+    // Annuler toutes les demandes PENDING envoyées par etud1 (sauf celle-ci)
+    await tx.binome.updateMany({
+      where: { etud1_id: binome.etud1_id, statut: 'PENDING', id: { not: binomeId } },
+      data: { statut: 'REFUSED' },
+    });
+
+    // Annuler toutes les demandes PENDING reçues par etud1 (d'autres étudiants)
+    await tx.binome.updateMany({
+      where: { etud2_id: binome.etud1_id, statut: 'PENDING', id: { not: binomeId } },
+      data: { statut: 'REFUSED' },
+    });
+
+    // Retirer le flag "cherche binôme" sur les thèmes proposés par l'un ou l'autre
+    await tx.theme.updateMany({
+      where: {
+        propose_par_id: { in: [binome.etud1_id, userId] },
+        cherche_binome: true,
+      },
+      data: { cherche_binome: false },
+    });
+
+    const result = await tx.binome.update({
+      where: { id: binomeId },
+      data: { statut: 'ACCEPTED' },
+      include: {
+        etud1: { select: ETUDIANT_SELECT },
+        etud2: { select: ETUDIANT_SELECT },
+      },
+    });
+
+    // ── Cas post-affectation : l'un des deux est déjà affecté ────────────────
+    const [affEtud1, affEtud2] = await Promise.all([
+      tx.affectationEtudiant.findFirst({
+        where: { etudiant_id: binome.etud1_id },
+        select: {
+          affectation_id: true,
+          affectation: {
+            select: {
+              encadrant_id: true,
+              encadrant: { select: { prenom: true, nom: true } },
+              theme: { select: { id: true, titre: true } },
+            },
+          },
+        },
+      }),
+      tx.affectationEtudiant.findFirst({
+        where: { etudiant_id: userId },
+        select: {
+          affectation_id: true,
+          affectation: {
+            select: {
+              encadrant_id: true,
+              encadrant: { select: { prenom: true, nom: true } },
+              theme: { select: { id: true, titre: true } },
+            },
+          },
+        },
+      }),
+    ]);
+
+    let encadrantInfo: EncadrantInfo = null;
+
+    async function attachToAffectation(
+      affectationId: string,
+      existingMemberId: string,
+      newMemberId: string,
+      encadrantId: string | null,
+      encadrantPrenom: string | null,
+      encadrantNom: string | null,
+      theme: { id: string; titre: string } | null,
+    ) {
+      // Mettre à jour l'enregistrement existant pour lier le binôme
+      await tx.affectationEtudiant.updateMany({
+        where: { affectation_id: affectationId, etudiant_id: existingMemberId },
+        data: { binome_id: binomeId },
+      });
+      // Ajouter le nouveau membre à la même affectation
+      await tx.affectationEtudiant.create({
+        data: { affectation_id: affectationId, etudiant_id: newMemberId, binome_id: binomeId },
+      });
+      // Nettoyer les données du nouveau membre maintenant affecté
+      await tx.themeChoix.deleteMany({ where: { etudiant_id: newMemberId, statut: 'PENDING' } });
+      await tx.theme.updateMany({
+        where: { propose_par_id: newMemberId, besoin_encadrant: true, is_affecte: false },
+        data: { is_affecte: true, besoin_encadrant: false },
+      });
+      await tx.theme.updateMany({
+        where: { propose_par_id: newMemberId, cherche_binome: true },
+        data: { cherche_binome: false },
+      });
+      if (encadrantId) {
+        encadrantInfo = { encadrantId, encadrantPrenom, encadrantNom, theme, newMemberId };
+      }
+    }
+
+    if (affEtud1 && !affEtud2) {
+      // etud1 est affecté → rattacher etud2 à son affectation
+      await attachToAffectation(
+        affEtud1.affectation_id,
+        binome.etud1_id,
+        userId,
+        affEtud1.affectation.encadrant_id,
+        affEtud1.affectation.encadrant?.prenom ?? null,
+        affEtud1.affectation.encadrant?.nom ?? null,
+        affEtud1.affectation.theme,
+      );
+    } else if (affEtud2 && !affEtud1) {
+      // etud2 est affecté → rattacher etud1 à son affectation
+      await attachToAffectation(
+        affEtud2.affectation_id,
+        userId,
+        binome.etud1_id,
+        affEtud2.affectation.encadrant_id,
+        affEtud2.affectation.encadrant?.prenom ?? null,
+        affEtud2.affectation.encadrant?.nom ?? null,
+        affEtud2.affectation.theme,
+      );
+    }
+    // Si les deux sont affectés (cas rare) : le binôme social est créé mais pas de fusion d'affectation
+
+    return { updated: result, encadrantInfo };
   });
 
-  const updated = await prisma.binome.update({
-    where: { id: binomeId },
-    data: { statut: 'ACCEPTED' },
-    include: {
-      etud1: { select: ETUDIANT_SELECT },
-      etud2: { select: ETUDIANT_SELECT },
-    },
-  });
-
+  // Notifier le demandeur (etud1)
   await notifyUser(
     binome.etud1_id,
     'BINOME_RESPONSE',
     `${updated.etud2.prenom} ${updated.etud2.nom} a accepté votre demande de binôme`,
     { binome_id: binomeId, statut: 'ACCEPTED' },
   );
+
+  // Notifier l'accepteur (etud2)
+  await notifyUser(
+    userId,
+    'BINOME_RESPONSE',
+    `Vous formez maintenant un binôme avec ${updated.etud1.prenom} ${updated.etud1.nom}`,
+    { binome_id: binomeId, statut: 'ACCEPTED' },
+  );
+
+  // Cas post-affectation : notifier le nouveau membre et l'encadrant
+  if (encadrantInfo) {
+    const { encadrantId, encadrantPrenom, encadrantNom, theme, newMemberId } = encadrantInfo as NonNullable<EncadrantInfo>;
+    const newMember = newMemberId === userId ? updated.etud2 : updated.etud1;
+    const existingMember = newMemberId === userId ? updated.etud1 : updated.etud2;
+    const themeTitre = theme?.titre ?? '';
+
+    // Notifier le nouveau membre de son affectation automatique
+    const encadrantLabel = encadrantPrenom && encadrantNom ? ` encadré par ${encadrantPrenom} ${encadrantNom}` : '';
+    await notifyUser(
+      newMemberId,
+      'AFFECTATION',
+      `Vous avez été affecté au thème "${themeTitre}"${encadrantLabel}`,
+      { binome_id: binomeId, ...(theme ? { theme_id: theme.id } : {}) },
+    );
+
+    // Notifier l'encadrant de l'ajout du binôme
+    await notifyUser(
+      encadrantId,
+      'BINOME_AJOUTE',
+      `L'étudiant ${existingMember.prenom} ${existingMember.nom} a ajouté ${newMember.prenom} ${newMember.nom} comme binôme. Ils travaillent maintenant ensemble sur votre thème "${themeTitre}".`,
+      { binome_id: binomeId, ...(theme ? { theme_id: theme.id } : {}) },
+    );
+
+    // Notifier le membre déjà affecté que son binôme l'a rejoint
+    const alreadyAffectedId = newMemberId === userId ? binome.etud1_id : userId;
+    await notifyUser(
+      alreadyAffectedId,
+      'BINOME_RESPONSE',
+      `${newMember.prenom} ${newMember.nom} vous a rejoint dans votre affectation sur le thème "${themeTitre}"`,
+      { binome_id: binomeId, ...(theme ? { theme_id: theme.id } : {}) },
+    );
+  }
 
   return updated;
 }

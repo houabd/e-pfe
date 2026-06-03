@@ -17,15 +17,17 @@ export function useSubmitChoix() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['mes-choix'] });
       void qc.invalidateQueries({ queryKey: ['themes'] });
+      void qc.invalidateQueries({ queryKey: ['demandes-enseignant'] });
     },
     onError: (e) => toast.error(extractApiError(e)),
   });
 }
 
-export function useDemandesEnseignant() {
+export function useDemandesEnseignant(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['demandes-enseignant'],
     queryFn: getDemandesEnseignant,
+    enabled: options?.enabled ?? true,
   });
 }
 
@@ -37,6 +39,7 @@ export function useAcceptChoix() {
       void qc.invalidateQueries({ queryKey: ['demandes-enseignant'] });
       void qc.invalidateQueries({ queryKey: ['themes'] });
       void qc.invalidateQueries({ queryKey: ['stats', 'enseignant'] });
+      void qc.invalidateQueries({ queryKey: ['mes-etudiants'] });
       toast.success('Choix accepté — affectation confirmée');
     },
     onError: (e) => toast.error(extractApiError(e)),

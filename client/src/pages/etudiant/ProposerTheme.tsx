@@ -21,6 +21,8 @@ import { useCreateTheme } from '@/hooks/useThemes';
 import { useActiveSpecialites } from '@/hooks/useSpecialites';
 import { useUsers } from '@/hooks/useUsers';
 import { useActiveSession } from '@/hooks/useSession';
+import { useMonAffectation } from '@/hooks/useAffectations';
+import { CheckCircle2 } from 'lucide-react';
 import type { SousTypeTheme, CreateThemeForm } from '@/types';
 
 // ─── Schéma ───────────────────────────────────────────────────────────────────
@@ -77,10 +79,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export default function ProposerTheme() {
   const navigate = useNavigate();
   const activeSession = useActiveSession();
+  const { data: monAffectation } = useMonAffectation();
   const { data: specialites } = useActiveSpecialites();
   const { data: enseignantsData } = useUsers({ role: 'ENSEIGNANT', limit: 200 });
   const enseignants = enseignantsData?.data ?? [];
   const createTheme = useCreateTheme();
+  const isAffecte = !!monAffectation;
 
   const [motCleInput, setMotCleInput] = useState('');
   const [showExterne, setShowExterne] = useState(false);
@@ -160,8 +164,21 @@ export default function ProposerTheme() {
         </div>
       </div>
 
+      {/* Bannière affecté */}
+      {isAffecte && (
+        <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+          <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-emerald-800">Vous avez déjà un thème affecté</p>
+            <p className="text-sm text-emerald-700 mt-0.5">
+              La proposition de thèmes est désactivée — vous ne pouvez plus soumettre de nouveau thème.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Bannière hors session */}
-      {!isSessionActive && (
+      {!isAffecte && !isSessionActive && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           Aucune session de choix ouverte. La soumission de thèmes est temporairement désactivée.
         </div>
@@ -225,7 +242,6 @@ export default function ProposerTheme() {
                 {([
                   { val: 'RECHERCHE' as const, label: 'Recherche' },
                   { val: 'PROFESSIONNEL' as const, label: 'Professionnel' },
-                  { val: 'LES_DEUX' as const, label: 'Les deux' },
                 ] as const).map(({ val, label }) => (
                   <button
                     key={val}
@@ -241,6 +257,9 @@ export default function ProposerTheme() {
                   </button>
                 ))}
               </div>
+              <Hint>
+                Vous pouvez sélectionner les deux options simultanément si le thème est à la fois de recherche et professionnel.
+              </Hint>
               {errors.sous_types && (
                 <p className="text-xs text-destructive">{errors.sous_types.message as string}</p>
               )}
@@ -618,7 +637,7 @@ export default function ProposerTheme() {
           </Button>
           <Button
             type="submit"
-            disabled={isSubmitting || !isSessionActive}
+            disabled={isSubmitting || !isSessionActive || isAffecte}
             size="lg"
             className="px-8"
           >

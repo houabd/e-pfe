@@ -108,9 +108,6 @@ export async function createSoutenance(dto: CreateSoutenanceDto) {
     include: SOUTENANCE_INCLUDE,
   });
 
-  // Marquer le thème comme soutenu
-  await prisma.theme.update({ where: { id: dto.theme_id }, data: { is_soutenu: true } });
-
   const dateStr = new Date(dto.date_soutenance).toLocaleDateString('fr-FR');
   const baseMsg = `Soutenance planifiée le ${dateStr} à ${dto.heure} — Salle ${dto.salle}`;
 

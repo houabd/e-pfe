@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate } from '../middleware/auth.middleware';
-import { requireManagement } from '../middleware/rbac.middleware';
+import { requireAdmin } from '../middleware/rbac.middleware';
 import { validate } from '../middleware/validation.middleware';
 import * as soutenanceService from '../services/soutenance.service';
 
@@ -67,7 +67,7 @@ router.get(
 
 router.get(
   '/enseignants-disponibles',
-  requireManagement,
+  requireAdmin,
   validate({ query: enseignantsDisponiblesSchema }),
   async (req, res, next) => {
     try {
@@ -88,7 +88,7 @@ router.get('/', validate({ query: soutenanceFiltersSchema }), async (req, res, n
   }
 });
 
-router.post('/', requireManagement, validate({ body: createSoutenanceSchema }), async (req, res, next) => {
+router.post('/', requireAdmin, validate({ body: createSoutenanceSchema }), async (req, res, next) => {
   try {
     const soutenance = await soutenanceService.createSoutenance(req.body);
     res.status(201).json({ success: true, data: soutenance });
@@ -106,7 +106,7 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-router.patch('/:id', requireManagement, validate({ body: createSoutenanceSchema.partial() }), async (req, res, next) => {
+router.patch('/:id', requireAdmin, validate({ body: createSoutenanceSchema.partial() }), async (req, res, next) => {
   try {
     const soutenance = await soutenanceService.updateSoutenance(req.params['id'] as string, req.body);
     res.json({ success: true, data: soutenance });
@@ -114,5 +114,6 @@ router.patch('/:id', requireManagement, validate({ body: createSoutenanceSchema.
     next(err);
   }
 });
+
 
 export default router;

@@ -35,7 +35,7 @@ const userFiltersSchema = z.object({
   is_active: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
   search: z.string().optional(),
   page: z.coerce.number().min(1).default(1),
-  limit: z.coerce.number().min(1).max(100).default(20),
+  limit: z.coerce.number().min(1).max(500).default(20),
 });
 
 router.get('/', validate({ query: userFiltersSchema }), async (req, res, next) => {
@@ -64,6 +64,26 @@ router.post('/import', requireTechnicien, upload.single('file'), async (req, res
     }
     const result = await userService.importUsers(req.file.buffer);
     res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const updateUserSchema = z.object({
+  nom: z.string().min(2).optional(),
+  prenom: z.string().min(2).optional(),
+  email: z.string().email().optional(),
+  role: z.enum(['CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_SPECIALITE', 'TECHNICIEN', 'ENSEIGNANT', 'ETUDIANT']).optional(),
+  specialite_id: z.string().nullable().optional(),
+  matricule: z.string().nullable().optional(),
+  annee_universitaire: z.string().nullable().optional(),
+  date_naissance: z.coerce.date().optional(),
+});
+
+router.patch('/:id', requireTechnicien, validate({ body: updateUserSchema }), async (req, res, next) => {
+  try {
+    const user = await userService.updateUser(req.params['id'] as string, req.body);
+    res.json({ success: true, data: user });
   } catch (err) {
     next(err);
   }

@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, CheckCircle, Clock, Users, Bell, ArrowRight, Rocket, AlertCircle } from 'lucide-react';
+import { BookOpen, CheckCircle, Clock, Users, Bell, ArrowRight, Rocket, AlertCircle, Info } from 'lucide-react';
+import { ThemeDetailDialog } from '@/components/themes/ThemeDetailDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -46,6 +48,7 @@ function StatCard({
 }
 
 export default function DashboardEnseignant() {
+  const [detailThemeId, setDetailThemeId] = useState<string | null>(null);
   const user = useCurrentUser();
   const { data: stats, isLoading } = useEnseignantStats();
   const { data: demandes = [] } = useDemandesEnseignant();
@@ -156,7 +159,11 @@ export default function DashboardEnseignant() {
           ) : (
             <div className="divide-y">
               {demandes.slice(0, 5).map((d) => (
-                <div key={d.id} className="flex items-center justify-between py-3 gap-4">
+                <div
+                  key={d.id}
+                  onClick={() => setDetailThemeId(d.theme.id)}
+                  className="flex items-center justify-between py-3 gap-4 cursor-pointer hover:bg-accent/20 rounded-lg px-2 -mx-2 transition-colors"
+                >
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">
                       {d.etudiant.prenom} {d.etudiant.nom}
@@ -179,6 +186,7 @@ export default function DashboardEnseignant() {
                     <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">
                       En attente
                     </Badge>
+                    <Info className="h-3.5 w-3.5 text-muted-foreground" />
                   </div>
                 </div>
               ))}
@@ -186,6 +194,11 @@ export default function DashboardEnseignant() {
           )}
         </CardContent>
       </Card>
+
+      <ThemeDetailDialog
+        themeId={detailThemeId}
+        onClose={() => setDetailThemeId(null)}
+      />
 
       {/* Actions rapides */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

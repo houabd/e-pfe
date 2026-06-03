@@ -64,10 +64,14 @@ enum RoleJury {
 enum TypeNotification {
   BINOME_REQUEST
   BINOME_RESPONSE
+  BINOME_AJOUTE
   THEME_CHOSEN
+  THEME_CHOSEN_HANDLED
   THEME_RESPONSE
   AFFECTATION
   THEME_VALIDATED
+  ENCADRANT_CONFIRM_REQUEST
+  ENCADRANT_CONFIRM_RESPONSE
   SOUTENANCE_PLANIFIEE
   NEW_DOCUMENT
   SESSION_UPDATE
@@ -121,8 +125,9 @@ model User {
 
   specialite Specialite? @relation(fields: [specialite_id], references: [id])
 
-  themes_proposes    Theme[]        @relation("ThemeProposeePar")
-  themes_encadres    Theme[]        @relation("ThemeEncadrant")
+  themes_proposes      Theme[]        @relation("ThemeProposeePar")
+  themes_encadres      Theme[]        @relation("ThemeEncadrant")
+  themes_co_encadres   Theme[]        @relation("ThemeCoEncadrant")
   binomes_comme_etud1 Binome[]      @relation("BinomeEtud1")
   binomes_comme_etud2 Binome[]      @relation("BinomeEtud2")
   choix_themes       ThemeChoix[]
@@ -150,9 +155,11 @@ model Theme {
   sous_types         SousTypeTheme[]
   propose_par_id     String
   encadrant_id       String?
+  co_encadrant_id    String?
   encadrant_externe  Json?
   besoin_encadrant   Boolean          @default(false)
   cherche_binome     Boolean          @default(false)
+  encadrant_valide   Boolean          @default(true)
   statut_validation  StatutValidation @default(NON_VALIDE)
   is_affecte         Boolean          @default(false)
   is_soutenu         Boolean          @default(false)
@@ -162,12 +169,14 @@ model Theme {
 
   propose_par       User              @relation("ThemeProposeePar", fields: [propose_par_id], references: [id])
   encadrant         User?             @relation("ThemeEncadrant", fields: [encadrant_id], references: [id])
+  co_encadrant      User?             @relation("ThemeCoEncadrant", fields: [co_encadrant_id], references: [id])
   session           Session           @relation(fields: [session_id], references: [id])
   theme_specialites ThemeSpecialite[]
   choix             ThemeChoix[]
   affectation       Affectation?
   soutenance        Soutenance?
 
+  @@unique([titre])
   @@index([session_id])
   @@index([statut_validation])
   @@index([is_affecte])

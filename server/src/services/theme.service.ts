@@ -11,8 +11,9 @@ import type { TokenPayload } from '../utils/token.utils';
 // ─── Sélection commune ─────────────────────────────────────────────────────────
 
 const THEME_INCLUDE = {
-  propose_par: { select: { id: true, nom: true, prenom: true, email: true } },
+  propose_par: { select: { id: true, nom: true, prenom: true, email: true, role: true } },
   encadrant: { select: { id: true, nom: true, prenom: true, email: true } },
+  co_encadrant: { select: { id: true, nom: true, prenom: true, email: true } },
   theme_specialites: { include: { specialite: { select: { id: true, nom: true } } } },
   session: { select: { id: true, type: true, annee_universitaire: true } },
 } as const;
@@ -72,7 +73,52 @@ export async function getThemeById(id: string) {
 }
 
 export async function getMyThemes(userId: string, filters: Omit<ThemeFilters, 'enseignant_id'>) {
-  return getThemes({ ...filters, enseignant_id: userId });
+  const {
+    page = 1, limit = 20,
+    specialite_id, type_pfe, statut_validation,
+    is_affecte, besoin_encadrant, session_id,
+    annee_universitaire, search,
+  } = filters;
+  const skip = (page - 1) * limit;
+
+  const where: Prisma.ThemeWhereInput = {
+    OR: [
+      { propose_par_id: userId },
+      { encadrant_id: userId },
+      { co_encadrant_id: userId },
+    ],
+    ...(type_pfe ? { type_pfe } : {}),
+    ...(statut_validation ? { statut_validation } : {}),
+    ...(is_affecte !== undefined ? { is_affecte } : {}),
+    ...(besoin_encadrant !== undefined ? { besoin_encadrant } : {}),
+    ...(session_id ? { session_id } : {}),
+    ...(specialite_id ? { theme_specialites: { some: { specialite_id } } } : {}),
+    ...(annee_universitaire ? { session: { annee_universitaire } } : {}),
+    ...(search
+      ? {
+          AND: [{
+            OR: [
+              { titre: { contains: search, mode: 'insensitive' as const } },
+              { description: { contains: search, mode: 'insensitive' as const } },
+              { mots_cles: { has: search } },
+            ],
+          }],
+        }
+      : {}),
+  };
+
+  const [total, themes] = await Promise.all([
+    prisma.theme.count({ where }),
+    prisma.theme.findMany({
+      where,
+      skip,
+      take: limit,
+      include: THEME_INCLUDE,
+      orderBy: { created_at: 'desc' },
+    }),
+  ]);
+
+  return { data: themes, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
 }
 
 // ─── Email(s) des responsables de filière ────────────────────────────────────
@@ -100,17 +146,38 @@ function validateThemeType(type_pfe: string, sous_types: string[]) {
   }
 }
 
+const TEACHER_ROLES = ['ENSEIGNANT', 'CHEF_EQUIPE', 'CHEF_DEPT', 'RESP_SPECIALITE'];
+
+async function assertTitreUnique(titre: string, excludeId?: string) {
+  const existing = await prisma.theme.findFirst({
+    where: {
+      titre: { equals: titre, mode: 'insensitive' },
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    },
+    select: { id: true },
+  });
+  if (existing) {
+    throw new BadRequestError(`Un thème avec le titre "${titre}" existe déjà`);
+  }
+}
+
 export async function createTheme(dto: CreateThemeDto, user: TokenPayload) {
   const { specialite_ids, encadrant_externe, ...rest } = dto;
 
   validateThemeType(dto.type_pfe, dto.sous_types ?? []);
+  await assertTitreUnique(dto.titre);
 
   const session = await prisma.session.findFirst({
     where: { type: 'CHOIX', is_active: true, date_debut: { lte: new Date() }, date_fin: { gte: new Date() } },
   });
 
-  // Si besoin_encadrant → pas d'encadrant interne assignable pour l'instant
-  const encadrantId = rest.besoin_encadrant ? null : (rest.encadrant_id ?? null);
+  // Si besoin_encadrant → null. Sinon : encadrant explicite → proposeur enseignant → null
+  const encadrantId = rest.besoin_encadrant
+    ? null
+    : (rest.encadrant_id ?? (TEACHER_ROLES.includes(user.role) ? user.userId : null));
+
+  // Encadrant interne doit confirmer si c'est un étudiant qui propose avec un encadrant désigné
+  const encadrantValide = user.role === 'ETUDIANT' && !!encadrantId ? false : true;
 
   // STARTUP avec encadrant externe fourni → affectation automatique (CLAUDE.md)
   const isAffecteAuto = dto.type_pfe === 'STARTUP' && !!encadrant_externe;
@@ -122,6 +189,7 @@ export async function createTheme(dto: CreateThemeDto, user: TokenPayload) {
         propose_par_id: user.userId,
         session_id: session!.id,
         encadrant_id: encadrantId,
+        encadrant_valide: encadrantValide,
         is_affecte: isAffecteAuto,
         encadrant_externe: encadrant_externe
           ? (encadrant_externe as unknown as Prisma.InputJsonValue)
@@ -150,6 +218,22 @@ export async function createTheme(dto: CreateThemeDto, user: TokenPayload) {
     }
 
     return theme;
+  }).then(async (theme) => {
+    // Notifier l'encadrant désigné par l'étudiant pour qu'il confirme
+    if (!encadrantValide && encadrantId) {
+      const etudiant = await prisma.user.findUnique({
+        where: { id: user.userId },
+        select: { nom: true, prenom: true },
+      });
+      const who = etudiant ? `${etudiant.prenom} ${etudiant.nom}` : 'Un étudiant';
+      await notifyUser(
+        encadrantId,
+        'ENCADRANT_CONFIRM_REQUEST',
+        `${who} vous désigne comme encadrant pour le thème "${theme.titre}". Veuillez confirmer ou refuser.`,
+        { theme_id: theme.id },
+      );
+    }
+    return theme;
   });
 }
 
@@ -163,6 +247,7 @@ export async function createThemeAsAdmin(
   const { specialite_ids, encadrant_externe, ...rest } = dto;
 
   validateThemeType(dto.type_pfe, dto.sous_types ?? []);
+  await assertTitreUnique(dto.titre);
 
   const proposant = await prisma.user.findUnique({ where: { id: proposeParId } });
   if (!proposant) throw new NotFoundError('Enseignant');
@@ -177,7 +262,10 @@ export async function createThemeAsAdmin(
   });
   if (!session) throw new BadRequestError('Aucune session de type CHOIX trouvée');
 
-  const encadrantId = rest.besoin_encadrant ? null : (rest.encadrant_id ?? null);
+  // Si besoin_encadrant → null. Sinon : encadrant explicite → proposeur enseignant → null
+  const encadrantId = rest.besoin_encadrant
+    ? null
+    : (rest.encadrant_id ?? (TEACHER_ROLES.includes(proposant.role) ? proposeParId : null));
   const isAffecteAuto = dto.type_pfe === 'STARTUP' && !!encadrant_externe;
 
   return prisma.$transaction(async (tx) => {
@@ -241,6 +329,9 @@ export async function updateTheme(id: string, dto: Partial<CreateThemeDto>, user
   if (dto.type_pfe && dto.sous_types !== undefined) {
     validateThemeType(dto.type_pfe, dto.sous_types);
   }
+  if (dto.titre !== undefined) {
+    await assertTitreUnique(dto.titre, id);
+  }
 
   const { specialite_ids, encadrant_externe, encadrant_id, ...rest } = dto;
 
@@ -296,6 +387,65 @@ export async function deleteTheme(id: string) {
   await prisma.theme.delete({ where: { id } });
 }
 
+// ─── Confirmation encadrant (pour thèmes proposés par étudiants) ────────────
+
+export async function getThemesAwaitingMyConfirmation(encadrantId: string) {
+  return prisma.theme.findMany({
+    where: {
+      encadrant_id: encadrantId,
+      encadrant_valide: false,
+      propose_par: { role: 'ETUDIANT' },
+    },
+    include: THEME_INCLUDE,
+    orderBy: { created_at: 'desc' },
+  });
+}
+
+export async function confirmEncadrant(themeId: string, encadrantId: string) {
+  const theme = await prisma.theme.findUnique({ where: { id: themeId } });
+  if (!theme) throw new NotFoundError('Thème');
+  if (theme.encadrant_id !== encadrantId) throw new ForbiddenError('Vous n\'êtes pas l\'encadrant désigné pour ce thème');
+  if (theme.encadrant_valide) throw new BadRequestError('Ce thème est déjà confirmé');
+
+  const updated = await prisma.theme.update({
+    where: { id: themeId },
+    data: { encadrant_valide: true },
+    include: THEME_INCLUDE,
+  });
+
+  await notifyUser(
+    theme.propose_par_id,
+    'ENCADRANT_CONFIRM_RESPONSE',
+    `L'encadrant a confirmé sa supervision pour votre thème "${theme.titre}". Il est maintenant en attente de validation par le responsable.`,
+    { theme_id: themeId, confirmed: true },
+  );
+
+  return updated;
+}
+
+export async function refuseEncadrant(themeId: string, encadrantId: string) {
+  const theme = await prisma.theme.findUnique({ where: { id: themeId } });
+  if (!theme) throw new NotFoundError('Thème');
+  if (theme.encadrant_id !== encadrantId) throw new ForbiddenError('Vous n\'êtes pas l\'encadrant désigné pour ce thème');
+  if (theme.encadrant_valide) throw new BadRequestError('Ce thème est déjà confirmé');
+
+  // Retirer l'encadrant → thème cherche maintenant un encadrant
+  const updated = await prisma.theme.update({
+    where: { id: themeId },
+    data: { encadrant_id: null, encadrant_valide: true, besoin_encadrant: true },
+    include: THEME_INCLUDE,
+  });
+
+  await notifyUser(
+    theme.propose_par_id,
+    'ENCADRANT_CONFIRM_RESPONSE',
+    `L'encadrant a refusé de superviser votre thème "${theme.titre}". Votre thème cherche maintenant un encadrant.`,
+    { theme_id: themeId, confirmed: false },
+  );
+
+  return updated;
+}
+
 // ─── Validation / Refus (CHEF_EQUIPE) ───────────────────────────────────────
 
 export async function validateTheme(id: string, action: 'VALIDE' | 'REFUSE', motif?: string) {
@@ -328,12 +478,20 @@ export async function validateTheme(id: string, action: 'VALIDE' | 'REFUSE', mot
 
 // ─── Marquer soutenu (Technicien / Chef Dept) ────────────────────────────────
 
-export async function markAsSoutenu(id: string) {
-  const theme = await prisma.theme.findUnique({ where: { id } });
+export async function markAsSoutenu(themeId: string, isSoutenu: boolean) {
+  const theme = await prisma.theme.findUnique({ where: { id: themeId } });
   if (!theme) throw new NotFoundError('Thème');
-  if (!theme.is_affecte) throw new BadRequestError('Impossible de marquer soutenu un thème non affecté');
-  if (theme.is_soutenu) throw new BadRequestError('Ce thème est déjà marqué soutenu');
-  return prisma.theme.update({ where: { id }, data: { is_soutenu: true }, include: THEME_INCLUDE });
+
+  const soutenance = await prisma.soutenance.findFirst({ where: { theme_id: themeId } });
+  if (!soutenance) {
+    throw new BadRequestError('Ce thème n\'a pas de soutenance planifiée.');
+  }
+
+  return prisma.theme.update({
+    where: { id: themeId },
+    data: { is_soutenu: isSoutenu },
+    include: THEME_INCLUDE,
+  });
 }
 
 // ─── Thèmes cherchant un binôme (annonces) ───────────────────────────────────

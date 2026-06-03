@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef } from 'react';
+import { ThemeDetailDialog } from '@/components/themes/ThemeDetailDialog';
 import { useAnnonces } from '@/hooks/useThemes';
 import { useActiveSpecialites } from '@/hooks/useSpecialites';
 import type { AnnonceTheme } from '@/services/themes.api';
@@ -139,14 +140,15 @@ function ContactDialog({ annonce, onClose }: ContactDialogProps) {
 interface AnnonceCardProps {
   annonce: AnnonceTheme;
   onContact: (a: AnnonceTheme) => void;
+  onView: (id: string) => void;
 }
 
-function AnnonceCard({ annonce, onContact }: AnnonceCardProps) {
+function AnnonceCard({ annonce, onContact, onView }: AnnonceCardProps) {
   const proposant = annonce.propose_par;
   const specialites = annonce.theme_specialites.map((ts) => ts.specialite);
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border bg-card p-5 shadow-sm transition-shadow hover:shadow-md">
+    <div onClick={() => onView(annonce.id)} className="flex flex-col gap-3 rounded-xl border bg-card p-5 shadow-sm transition-shadow hover:shadow-md hover:border-primary/30 cursor-pointer">
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-wrap gap-1.5">
           {specialites.map((s) => (
@@ -198,7 +200,7 @@ function AnnonceCard({ annonce, onContact }: AnnonceCardProps) {
             )}
           </span>
         </div>
-        <Button size="sm" variant="outline" onClick={() => onContact(annonce)}>
+        <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); onContact(annonce); }}>
           <Mail className="mr-1.5 h-3.5 w-3.5" />
           Contacter
         </Button>
@@ -233,6 +235,7 @@ export default function Annonces() {
   const [search, setSearch] = useState('');
   const [selectedSpecialites, setSelectedSpecialites] = useState<string[]>([]);
   const [contactAnnonce, setContactAnnonce] = useState<AnnonceTheme | null>(null);
+  const [detailThemeId, setDetailThemeId] = useState<string | null>(null);
 
   const { data: annoncesResult, isLoading } = useAnnonces();
   const { data: specialites = [] } = useActiveSpecialites();
@@ -329,12 +332,13 @@ export default function Annonces() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((a) => (
-            <AnnonceCard key={a.id} annonce={a} onContact={setContactAnnonce} />
+            <AnnonceCard key={a.id} annonce={a} onContact={setContactAnnonce} onView={setDetailThemeId} />
           ))}
         </div>
       )}
 
       <ContactDialog annonce={contactAnnonce} onClose={() => setContactAnnonce(null)} />
+      <ThemeDetailDialog themeId={detailThemeId} onClose={() => setDetailThemeId(null)} />
     </div>
   );
 }

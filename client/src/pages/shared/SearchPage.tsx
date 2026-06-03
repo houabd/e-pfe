@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Search, GraduationCap, User, BookOpen, X, ChevronRight } from 'lucide-react';
+import { ThemeDetailDialog } from '@/components/themes/ThemeDetailDialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -130,9 +131,9 @@ const STATUT_VARIANTS: Record<string, 'default' | 'secondary' | 'outline'> = {
   VALIDE: 'default', NON_VALIDE: 'outline',
 };
 
-function ThemeCard({ t, q }: { t: SearchTheme; q: string }) {
+function ThemeCard({ t, q, onClick }: { t: SearchTheme; q: string; onClick: () => void }) {
   return (
-    <div className="rounded-lg border bg-card p-4 hover:shadow-sm transition-shadow space-y-2">
+    <div onClick={onClick} className="rounded-lg border bg-card p-4 hover:shadow-sm hover:border-primary/30 transition-shadow space-y-2 cursor-pointer">
       <div className="flex items-start gap-2">
         <p className="font-semibold text-sm flex-1 min-w-0 leading-snug">{highlight(t.titre, q)}</p>
         <div className="flex gap-1 shrink-0">
@@ -189,6 +190,7 @@ function EmptySection({ label }: { label: string }) {
 // ─── Page principale ──────────────────────────────────────────────────────────
 
 export default function SearchPage() {
+  const [detailThemeId, setDetailThemeId] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const qFromUrl = searchParams.get('q') ?? '';
@@ -333,13 +335,18 @@ export default function SearchPage() {
             ) : (
               <div className="space-y-3">
                 {themes.map((t) => (
-                  <ThemeCard key={t.id} t={t} q={qFromUrl} />
+                  <ThemeCard key={t.id} t={t} q={qFromUrl} onClick={() => setDetailThemeId(t.id)} />
                 ))}
               </div>
             )}
           </TabsContent>
         </Tabs>
       )}
+
+      <ThemeDetailDialog
+        themeId={detailThemeId}
+        onClose={() => setDetailThemeId(null)}
+      />
 
       {/* Indicateur de rechargement subtil */}
       {isFetching && !loading && (

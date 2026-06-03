@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Users, Mail, GraduationCap, BookOpen, Copy, Check, X } from 'lucide-react';
+import { Search, Users, Mail, GraduationCap, BookOpen, Rocket, Copy, Check, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -134,19 +134,27 @@ function EtudiantCard({
             {/* Thème */}
             <div className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
               <BookOpen className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-              <span className="line-clamp-2">{affectation.theme.titre}</span>
+              {affectation.theme ? (
+                <span className="line-clamp-2">{affectation.theme.titre}</span>
+              ) : (
+                <span className="italic">Thème à définir par l'enseignant</span>
+              )}
             </div>
 
             <div className="mt-3">
-              <Badge
-                className={`text-xs ${
-                  affectation.theme.type_pfe === 'STARTUP'
-                    ? 'bg-orange-100 text-orange-700 border-orange-200'
-                    : 'bg-blue-100 text-blue-700 border-blue-200'
-                }`}
-              >
-                {affectation.theme.type_pfe}
-              </Badge>
+              {affectation.theme?.type_pfe === 'STARTUP' ? (
+                <Badge className="text-xs bg-orange-100 text-orange-700 border-orange-200 gap-1">
+                  <Rocket className="h-3 w-3" />Startup
+                </Badge>
+              ) : affectation.theme ? (
+                <Badge className="text-xs bg-blue-100 text-blue-700 border-blue-200 gap-1">
+                  <BookOpen className="h-3 w-3" />Classique
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-xs text-muted-foreground">
+                  En attente
+                </Badge>
+              )}
             </div>
           </div>
         </div>
@@ -184,7 +192,7 @@ export default function EtudiantsEncadres() {
       etudiant.nom.toLowerCase().includes(q) ||
       etudiant.prenom.toLowerCase().includes(q) ||
       etudiant.email.toLowerCase().includes(q) ||
-      affectation.theme.titre.toLowerCase().includes(q)
+      (affectation.theme?.titre ?? '').toLowerCase().includes(q)
     );
   });
 
@@ -232,7 +240,7 @@ export default function EtudiantsEncadres() {
           </h3>
           <p className="text-muted-foreground text-sm mt-1 max-w-xs">
             {search
-              ? 'Essayez avec d\'autres termes de recherche.'
+              ? "Essayez avec d'autres termes de recherche."
               : 'Vos étudiants apparaîtront ici une fois les affectations effectuées.'}
           </p>
         </div>

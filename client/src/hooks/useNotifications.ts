@@ -28,8 +28,9 @@ export function useNotifications() {
   useEffect(() => {
     if (!isAuthenticated || !accessToken) return;
 
-    // Évite les connexions multiples si le hook est monté ailleurs
-    if (socket?.connected) return;
+    // Nettoyer l'éventuel socket précédent avant d'en créer un nouveau
+    socket?.disconnect();
+    socket = null;
 
     const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ?? 'http://localhost:3001';
     socket = io(SOCKET_URL, {
@@ -38,14 +39,39 @@ export function useNotifications() {
       reconnectionDelay: 2000,
     });
 
+    socket.on('connect', () => {
+      console.info('[Socket] Connecté — userId dans le token JWT');
+    });
+
     socket.on('notification', (notif: Notification) => {
       addNotification(notif);
       toast.info(notif.message, { duration: 5000 });
       void qc.invalidateQueries({ queryKey: ['notifications'] });
+
+      if (notif.type === 'THEME_CHOSEN') {
+        void qc.invalidateQueries({ queryKey: ['demandes-enseignant'] });
+      }
+      if (notif.type === 'THEME_CHOSEN_HANDLED') {
+        void qc.invalidateQueries({ queryKey: ['demandes-enseignant'] });
+        void qc.invalidateQueries({ queryKey: ['mes-etudiants'] });
+      }
+      if (notif.type === 'ENCADRANT_CONFIRM_REQUEST') {
+        void qc.invalidateQueries({ queryKey: ['themes', 'awaiting-confirmation'] });
+      }
+      // Étudiant affecté (par enseignant ou admin) : mettre à jour son statut immédiatement
+      if (notif.type === 'THEME_RESPONSE' || notif.type === 'AFFECTATION') {
+        void qc.invalidateQueries({ queryKey: ['mon-affectation'] });
+        void qc.invalidateQueries({ queryKey: ['mes-choix'] });
+      }
+      // Encadrant : un binôme vient d'être ajouté ou de nouveaux étudiants sont affectés
+      if (notif.type === 'AFFECTATION' || notif.type === 'BINOME_AJOUTE') {
+        void qc.invalidateQueries({ queryKey: ['mes-etudiants'] });
+        void qc.invalidateQueries({ queryKey: ['stats', 'enseignant'] });
+      }
     });
 
     socket.on('connect_error', (err) => {
-      console.warn('Socket.io connexion échouée :', err.message);
+      console.warn('[Socket] Connexion échouée :', err.message);
     });
 
     return () => {

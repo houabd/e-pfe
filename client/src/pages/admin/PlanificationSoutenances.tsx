@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/select';
 import {
   Calendar, List, Download, Plus, X, ChevronLeft, ChevronRight,
-  GraduationCap, User, Users, Clock, MapPin, BookOpen, Pencil,
+  GraduationCap, User, Users, Clock, MapPin, BookOpen, Pencil, CheckCircle2,
 } from 'lucide-react';
 import { useActiveSpecialites } from '@/hooks/useSpecialites';
 import { useAffectations } from '@/hooks/useAffectations';
@@ -25,6 +25,7 @@ import {
   useSoutenances, useCreateSoutenance, useUpdateSoutenance,
   useEnseignantsDisponibles, useExportSoutenancesPDF, useExportSoutenancesExcel,
 } from '@/hooks/useSoutenances';
+import { useMarkAsSoutenu } from '@/hooks/useThemes';
 import type { AffectationFull } from '@/services/affectations.api';
 import type { SoutenanceFull, EnseignantDispoSoutenance } from '@/services/soutenances.api';
 
@@ -513,9 +514,11 @@ function ThemeAffecteCard({
 function ListePlanning({
   soutenances,
   onEdit,
+  onMarquerSoutenu,
 }: {
   soutenances: SoutenanceFull[];
   onEdit: (s: SoutenanceFull) => void;
+  onMarquerSoutenu: (themeId: string, isSoutenu: boolean) => void;
 }) {
   const byDate = useMemo(() => {
     const map = new Map<string, SoutenanceFull[]>();
@@ -596,9 +599,34 @@ function ListePlanning({
                       </div>
                     </div>
 
-                    <Button size="sm" variant="ghost" onClick={() => onEdit(s)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex items-center gap-1 flex-wrap justify-end">
+                      {s.theme.is_soutenu ? (
+                        <>
+                          <Badge variant="default" className="text-[11px] bg-green-600 hover:bg-green-600 shrink-0">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />Soutenu
+                          </Badge>
+                          <Button
+                            size="sm" variant="ghost"
+                            className="text-xs h-7 text-muted-foreground"
+                            onClick={() => onMarquerSoutenu(s.theme.id, false)}
+                          >
+                            Annuler
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          size="sm" variant="outline"
+                          className="text-xs h-7 border-green-600 text-green-700 hover:bg-green-50 shrink-0"
+                          onClick={() => onMarquerSoutenu(s.theme.id, true)}
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                          Marquer soutenu
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost" onClick={() => onEdit(s)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 );
               })}
@@ -770,10 +798,13 @@ export default function PlanificationSoutenances() {
 
   const { data: soutenancesResult, isLoading: loadingSoutenances } = useSoutenances(soutenanceFilters);
   const { data: affectationsResult, isLoading: loadingAff } = useAffectations(
-    specialiteId !== 'all' ? { specialite_id: specialiteId } : undefined,
+    specialiteId !== 'all'
+      ? { specialite_id: specialiteId, limit: 500 }
+      : { limit: 500 },
   );
   const exportPDF = useExportSoutenancesPDF();
   const exportExcel = useExportSoutenancesExcel();
+  const markAsSoutenuMutation = useMarkAsSoutenu();
 
   const soutenances = soutenancesResult?.data ?? [];
   const affectations = affectationsResult?.data ?? [];
@@ -934,7 +965,13 @@ export default function PlanificationSoutenances() {
                 {[1, 2, 3].map((i) => <Skeleton key={i} className="h-28 w-full" />)}
               </div>
             ) : planningView === 'liste' ? (
-              <ListePlanning soutenances={soutenances} onEdit={handleEdit} />
+              <ListePlanning
+                soutenances={soutenances}
+                onEdit={handleEdit}
+                onMarquerSoutenu={(themeId, isSoutenu) =>
+                  markAsSoutenuMutation.mutate({ id: themeId, isSoutenu })
+                }
+              />
             ) : (
               <CalendrierMensuel soutenances={soutenances} onEdit={handleEdit} />
             )}

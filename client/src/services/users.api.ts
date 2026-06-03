@@ -43,6 +43,22 @@ export async function createUser(dto: CreateUserPayload): Promise<User> {
   return data.data!;
 }
 
+export interface UpdateUserPayload {
+  nom?: string;
+  prenom?: string;
+  email?: string;
+  role?: string;
+  specialite_id?: string | null;
+  matricule?: string | null;
+  annee_universitaire?: string | null;
+  date_naissance?: string | null;
+}
+
+export async function updateUser(id: string, dto: UpdateUserPayload): Promise<User> {
+  const { data } = await api.patch<ApiResponse<User>>(`/users/${id}`, dto);
+  return data.data!;
+}
+
 export async function toggleUserActive(id: string): Promise<User> {
   const { data } = await api.patch<ApiResponse<User>>(`/users/${id}/toggle-active`);
   return data.data!;

@@ -13,7 +13,7 @@ export interface EtudiantEncadre {
     specialite?: { id: string; nom: string };
   };
   affectation: {
-    theme: { id: string; titre: string; type_pfe: string };
+    theme: { id: string; titre: string; type_pfe: string } | null;
   };
 }
 
@@ -30,7 +30,7 @@ export interface EnseignantDispo {
   prenom: string;
   email: string;
   specialite: { id: string; nom: string } | null;
-  nb_affectations: number;
+  nb_etudiants: number;
   sans_proposition: boolean;
   themes_encadres: ThemeDispo[];
 }
@@ -98,6 +98,18 @@ export interface AffectationFull {
 
 // ─── API functions ────────────────────────────────────────────────────────────
 
+export interface MonAffectation {
+  id: string;
+  type: 'LIBRE' | 'AUTO';
+  theme: { id: string; titre: string; type_pfe: string } | null;
+  encadrant: { id: string; nom: string; prenom: string } | null;
+}
+
+export async function getMonAffectation(): Promise<MonAffectation | null> {
+  const { data } = await api.get<ApiResponse<MonAffectation | null>>('/affectations/mon-affectation');
+  return data.data ?? null;
+}
+
 export async function getMesEtudiants(): Promise<EtudiantEncadre[]> {
   const { data } = await api.get<ApiResponse<EtudiantEncadre[]>>('/affectations/mes-etudiants');
   return data.data ?? [];
@@ -117,7 +129,7 @@ export async function getEtudiantsSansTheme(specialite_id?: string): Promise<Etu
   return data.data ?? [];
 }
 
-export async function getAffectations(filters?: { specialite_id?: string; session_id?: string }): Promise<{ data: AffectationFull[]; meta: { total: number } }> {
+export async function getAffectations(filters?: { specialite_id?: string; session_id?: string; limit?: number }): Promise<{ data: AffectationFull[]; meta: { total: number } }> {
   const { data } = await api.get<{ success: boolean; data: AffectationFull[]; meta: { total: number } }>('/affectations', { params: filters });
   return { data: data.data, meta: data.meta };
 }

@@ -65,6 +65,9 @@ export function useAcceptBinome() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['mon-binome'] });
       void qc.invalidateQueries({ queryKey: ['demandes-recues'] });
+      // Le partenaire peut avoir été affecté automatiquement suite à la formation du binôme
+      void qc.invalidateQueries({ queryKey: ['mon-affectation'] });
+      void qc.invalidateQueries({ queryKey: ['mes-choix'] });
       toast.success('Binôme accepté !');
     },
     onError: (e) => toast.error(extractApiError(e)),

@@ -22,6 +22,19 @@ export function useCreateUser() {
   });
 }
 
+export function useUpdateUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: usersApi.UpdateUserPayload }) =>
+      usersApi.updateUser(id, dto),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['users'] });
+      toast.success('Utilisateur mis à jour');
+    },
+    onError: (e) => toast.error(extractApiError(e)),
+  });
+}
+
 export function useToggleUserActive() {
   const qc = useQueryClient();
   return useMutation({

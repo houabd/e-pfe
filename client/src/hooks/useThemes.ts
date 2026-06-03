@@ -62,10 +62,13 @@ export function useValidateTheme() {
 export function useMarkAsSoutenu() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => themesApi.markAsSoutenu(id),
-    onSuccess: () => {
+    mutationFn: ({ id, isSoutenu }: { id: string; isSoutenu: boolean }) =>
+      themesApi.markAsSoutenu(id, isSoutenu),
+    onSuccess: (_, { isSoutenu }) => {
       void qc.invalidateQueries({ queryKey: ['themes'] });
-      toast.success('Thème marqué soutenu');
+      void qc.invalidateQueries({ queryKey: ['soutenances'] });
+      void qc.invalidateQueries({ queryKey: ['stats'] });
+      toast.success(isSoutenu ? 'Thème marqué soutenu' : 'Statut soutenu annulé');
     },
     onError: (e) => toast.error(extractApiError(e)),
   });
@@ -104,6 +107,37 @@ export function useDeleteTheme() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['themes'] });
       toast.success('Thème supprimé');
+    },
+    onError: (e) => toast.error(extractApiError(e)),
+  });
+}
+
+export function useThemesAwaitingConfirmation() {
+  return useQuery({
+    queryKey: ['themes', 'awaiting-confirmation'],
+    queryFn: themesApi.getThemesAwaitingConfirmation,
+  });
+}
+
+export function useConfirmEncadrant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => themesApi.confirmEncadrant(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['themes'] });
+      toast.success('Supervision confirmée');
+    },
+    onError: (e) => toast.error(extractApiError(e)),
+  });
+}
+
+export function useRefuseEncadrant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => themesApi.refuseEncadrant(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['themes'] });
+      toast.success('Supervision refusée — thème remis en attente d\'encadrant');
     },
     onError: (e) => toast.error(extractApiError(e)),
   });

@@ -16,6 +16,8 @@ import { Separator } from '@/components/ui/separator';
 import { useCurrentUser, useUserRole } from '@/stores/authStore';
 import { useLogout } from '@/hooks/useAuth';
 import { useNotifications } from '@/hooks/useNotifications';
+import { useDemandesEnseignant } from '@/hooks/useChoix';
+import { useThemesAwaitingConfirmation } from '@/hooks/useThemes';
 import type { Role } from '@/types';
 
 interface NavItem {
@@ -31,7 +33,7 @@ const COLLAPSIBLE_SECTIONS = new Set(['Espace Enseignant', 'Administration']);
 const NAV_ITEMS: NavItem[] = [
   // Étudiant
   { to: '/etudiant',          label: 'Tableau de bord',   icon: <LayoutDashboard className="size-4" />, roles: ['ETUDIANT'] },
-  { to: '/etudiant/themes',   label: 'Choisir un thème',  icon: <BookOpen className="size-4" />,        roles: ['ETUDIANT'] },
+  { to: '/etudiant/themes',   label: 'Choix thème',       icon: <BookOpen className="size-4" />,        roles: ['ETUDIANT'] },
   { to: '/etudiant/proposer', label: 'Proposer un thème', icon: <Layers className="size-4" />,          roles: ['ETUDIANT'] },
   { to: '/etudiant/binome',   label: 'Mon binôme',        icon: <Users className="size-4" />,           roles: ['ETUDIANT'] },
   { to: '/etudiant/annonces', label: 'Annonces',          icon: <ClipboardList className="size-4" />,   roles: ['ETUDIANT'] },
@@ -67,6 +69,16 @@ const ROLE_LABELS: Record<Role, string> = {
   ETUDIANT:       'Étudiant',
 };
 
+const TEACHER_ROLES: Role[] = ['ENSEIGNANT', 'CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_SPECIALITE'];
+
+function usePendingDemandesCount() {
+  const role = useUserRole();
+  const isTeacher = role ? TEACHER_ROLES.includes(role) : false;
+  const { data: demandes = [] } = useDemandesEnseignant({ enabled: isTeacher });
+  const { data: awaitingConfirmation = [] } = useThemesAwaitingConfirmation();
+  return demandes.length + (isTeacher ? awaitingConfirmation.length : 0);
+}
+
 export default function DashboardLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -76,6 +88,7 @@ export default function DashboardLayout() {
   const role = useUserRole();
   const logout = useLogout();
   useNotifications();
+  const pendingDemandesCount = usePendingDemandesCount();
 
   const filteredNav = role ? NAV_ITEMS.filter((item) => item.roles.includes(role)) : [];
 
@@ -116,22 +129,20 @@ export default function DashboardLayout() {
         {/* Logo */}
         <div className="flex items-center justify-between h-16 px-3 border-b border-sidebar-border">
           {!collapsed && (
-            <div className="flex items-center gap-2.5">
-              <div className="size-9 shrink-0">
-                <AppLogo size={36} />
-              </div>
+            <Link to="/" className="flex items-center gap-2.5 select-none">
+              <img src="/logo/logo1.png" alt="e-PFE" className="h-16 w-auto object-contain shrink-0" />
               <span
                 className="font-bold text-lg tracking-tight text-foreground"
                 style={{ fontFamily: "'Libre Baskerville', Georgia, serif" }}
               >
                 e-PFE
               </span>
-            </div>
+            </Link>
           )}
           {collapsed && (
-            <div className="size-9 mx-auto">
-              <AppLogo size={36} />
-            </div>
+            <Link to="/" className="mx-auto" title="Accueil">
+              <img src="/logo/logo1.png" alt="e-PFE" className="h-10 w-auto object-contain" />
+            </Link>
           )}
           {!collapsed && (
             <Button
@@ -188,6 +199,8 @@ export default function DashboardLayout() {
                   <div className="space-y-0.5">
                     {items.map((item) => {
                       const active = location.pathname === item.to;
+                      const isDemandes = item.to === '/enseignant/demandes';
+                      const badge = isDemandes && pendingDemandesCount > 0 ? pendingDemandesCount : 0;
                       return (
                         <Link
                           key={item.to}
@@ -201,9 +214,21 @@ export default function DashboardLayout() {
                             collapsed && 'justify-center px-0',
                           )}
                         >
-                          {item.icon}
-                          {!collapsed && <span>{item.label}</span>}
-                          {active && !collapsed && (
+                          <span className="relative shrink-0">
+                            {item.icon}
+                            {badge > 0 && collapsed && (
+                              <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white">
+                                {badge > 9 ? '9+' : badge}
+                              </span>
+                            )}
+                          </span>
+                          {!collapsed && <span className="flex-1">{item.label}</span>}
+                          {!collapsed && badge > 0 && (
+                            <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">
+                              {badge > 99 ? '99+' : badge}
+                            </span>
+                          )}
+                          {active && !collapsed && badge === 0 && (
                             <span className="ml-auto size-1.5 rounded-full bg-primary/60" />
                           )}
                         </Link>

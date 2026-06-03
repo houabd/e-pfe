@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   Plus, Search, Pencil, Trash2, CheckCircle2, XCircle,
-  BookOpen, Rocket, Tag, X, ChevronDown, Shield, GraduationCap, Download,
+  BookOpen, Rocket, Tag, X, ChevronDown, Shield, GraduationCap, Download, Info,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,9 +24,12 @@ import {
   useThemes, useValidateTheme, useMarkAsSoutenu,
   useDeleteTheme, useUpdateTheme, useCreateThemeAsAdmin, useExportThemes,
 } from '@/hooks/useThemes';
+import { ThemeDetailDialog } from '@/components/themes/ThemeDetailDialog';
 import { useActiveSpecialites } from '@/hooks/useSpecialites';
-import { useUsers } from '@/hooks/useUsers';
-import type { Theme, SousTypeTheme, CreateThemeForm } from '@/types';
+import { api } from '@/services/api';
+import type { Theme, SousTypeTheme, CreateThemeForm, User } from '@/types';
+
+const SUPERVISOR_ROLES = ['ENSEIGNANT', 'CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_SPECIALITE'];
 
 // ─── Schéma Zod ───────────────────────────────────────────────────────────────
 
@@ -36,7 +39,7 @@ const themeSchema = z.object({
   mots_cles: z.array(z.string()).default([]),
   necessite_stage: z.boolean().default(false),
   type_pfe: z.enum(['CLASSIQUE', 'STARTUP']),
-  sous_types: z.array(z.enum(['RECHERCHE', 'PROFESSIONNEL', 'LES_DEUX'])).default([]),
+  sous_types: z.array(z.enum(['RECHERCHE', 'PROFESSIONNEL'])).default([]),
   specialite_ids: z.array(z.string()).min(1, 'Choisir au moins une spécialité'),
   encadrant_id: z.string().optional(),
   encadrant_externe: z.object({
@@ -264,10 +267,15 @@ function AdminThemeFormDialog({
 }) {
   const isCreate = !editingTheme;
   const { data: specialites } = useActiveSpecialites();
-  const { data: enseignantsData } = useUsers({ role: 'ENSEIGNANT', limit: 200 });
-  const enseignants = enseignantsData?.data ?? [];
+  const [enseignants, setEnseignants] = useState<User[]>([]);
   const [motCleInput, setMotCleInput] = useState('');
   const [showExterne, setShowExterne] = useState(!!editingTheme?.encadrant_externe);
+
+  useEffect(() => {
+    api.get<{ data: User[] }>('/users', { params: { limit: 500 } })
+      .then((res) => setEnseignants(res.data.data.filter((u) => SUPERVISOR_ROLES.includes(u.role))))
+      .catch((err) => console.error('[AdminGestionThemes] Erreur chargement enseignants:', err));
+  }, []);
 
   const createAdmin = useCreateThemeAsAdmin();
   const updateTheme = useUpdateTheme();
@@ -418,7 +426,7 @@ function AdminThemeFormDialog({
             <div className="space-y-2">
               <Label>Sous-type(s) <span className="text-destructive">*</span></Label>
               <div className="flex gap-3 flex-wrap">
-                {(['RECHERCHE', 'PROFESSIONNEL', 'LES_DEUX'] as const).map((st) => (
+                {(['RECHERCHE', 'PROFESSIONNEL'] as const).map((st) => (
                   <button
                     key={st} type="button" onClick={() => toggleSousType(st)}
                     className={`rounded-lg border px-3 py-2 text-sm font-medium transition-all ${
@@ -427,9 +435,12 @@ function AdminThemeFormDialog({
                         : 'border-border hover:border-muted-foreground/40'
                     }`}
                   >
-                    {st === 'RECHERCHE' ? 'Recherche' : st === 'PROFESSIONNEL' ? 'Professionnel' : 'Les deux'}
+                    {st === 'RECHERCHE' ? 'Recherche' : 'Professionnel'}
                   </button>
                 ))}
+                <p className="w-full text-xs text-muted-foreground mt-1">
+                  Vous pouvez sélectionner les deux options simultanément.
+                </p>
               </div>
               {errors.sous_types && <p className="text-xs text-destructive">{errors.sous_types.message as string}</p>}
             </div>
@@ -599,6 +610,7 @@ function ThemeRow({
   onSoutenu,
   onEdit,
   onDelete,
+  onView,
 }: {
   theme: Theme;
   onValidate: (t: Theme) => void;
@@ -606,6 +618,7 @@ function ThemeRow({
   onSoutenu: (t: Theme) => void;
   onEdit: (t: Theme) => void;
   onDelete: (t: Theme) => void;
+  onView: (id: string) => void;
 }) {
   const canValidate = theme.statut_validation === 'NON_VALIDE' && !theme.is_affecte;
   const canSoutenu = theme.statut_validation === 'VALIDE' && theme.is_affecte && !theme.is_soutenu;
@@ -624,13 +637,20 @@ function ThemeRow({
       {/* Contenu principal */}
       <div className="flex-1 min-w-0 space-y-1.5">
         <p className="font-semibold text-sm leading-snug line-clamp-2">{theme.titre}</p>
-        <p className="text-xs text-muted-foreground">
-          {theme.propose_par.prenom} {theme.propose_par.nom}
-          {theme.encadrant && (
-            <span className="ml-2">· Encadrant : {theme.encadrant.prenom} {theme.encadrant.nom}</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground">
+            {theme.propose_par.prenom} {theme.propose_par.nom}
+            {theme.encadrant && (
+              <span className="ml-2">· Encadrant : {theme.encadrant.prenom} {theme.encadrant.nom}</span>
+            )}
+            <span className="ml-2">· {theme.session.annee_universitaire}</span>
+          </span>
+          {theme.propose_par.role === 'ETUDIANT' ? (
+            <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-700">Étudiant</span>
+          ) : (
+            <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-medium text-sky-700">Enseignant</span>
           )}
-          <span className="ml-2">· {theme.session.annee_universitaire}</span>
-        </p>
+        </div>
 
         {/* Spécialités */}
         <div className="flex flex-wrap gap-1 pt-0.5">
@@ -641,7 +661,7 @@ function ThemeRow({
           ))}
           {theme.sous_types.map((st) => (
             <Badge key={st} variant="outline" className="text-xs py-0">
-              {st === 'RECHERCHE' ? 'Recherche' : st === 'PROFESSIONNEL' ? 'Professionnel' : 'Les deux'}
+              {st === 'RECHERCHE' ? 'Recherche' : 'Professionnel'}
             </Badge>
           ))}
         </div>
@@ -691,6 +711,13 @@ function ThemeRow({
           )}
           <Button
             size="sm" variant="outline"
+            className="h-7 px-2.5 text-xs gap-1"
+            onClick={() => onView(theme.id)}
+          >
+            <Info className="h-3.5 w-3.5" />Détails
+          </Button>
+          <Button
+            size="sm" variant="outline"
             className="h-7 px-2.5 text-xs"
             onClick={() => onEdit(theme)}
           >
@@ -736,6 +763,7 @@ export default function GestionThemes() {
   const [refuseTarget, setRefuseTarget] = useState<Theme | null>(null);
   const [soutenanceTarget, setSoutenanceTarget] = useState<Theme | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Theme | null>(null);
+  const [detailThemeId, setDetailThemeId] = useState<string | null>(null);
 
   const { data: specialites } = useActiveSpecialites();
 
@@ -890,6 +918,7 @@ export default function GestionThemes() {
               onSoutenu={setSoutenanceTarget}
               onEdit={setEditingTheme}
               onDelete={setDeleteTarget}
+              onView={setDetailThemeId}
             />
           ))}
         </div>
@@ -921,6 +950,7 @@ export default function GestionThemes() {
       )}
 
       {/* Dialogs */}
+      <ThemeDetailDialog themeId={detailThemeId} onClose={() => setDetailThemeId(null)} />
       {addDialogOpen && (
         <AdminThemeFormDialog open onClose={() => setAddDialogOpen(false)} editingTheme={null} />
       )}

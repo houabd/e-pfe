@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   Bell, BookOpen, Check, ChevronDown, Filter,
-  Mail, Users, X, Rocket, UserPlus, GraduationCap,
+  Mail, Users, X, Rocket, UserPlus, GraduationCap, ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,7 +16,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useDemandesEnseignant, useAcceptChoix, useRefuseChoix } from '@/hooks/useChoix';
-import { useThemes, useUpdateTheme } from '@/hooks/useThemes';
+import { useThemes, useUpdateTheme, useThemesAwaitingConfirmation, useConfirmEncadrant, useRefuseEncadrant } from '@/hooks/useThemes';
 import { useActiveSpecialites } from '@/hooks/useSpecialites';
 import { useCurrentUser } from '@/stores/authStore';
 import type { DemandeEnseignant } from '@/services/choix.api';
@@ -507,6 +507,216 @@ function ThemeEncadrantCard({
   );
 }
 
+// ─── Dialog confirmation encadrant — Tab 3 ───────────────────────────────────
+
+function ConfirmEncadrantDialog({
+  theme,
+  onClose,
+}: {
+  theme: Theme;
+  onClose: () => void;
+}) {
+  const confirm = useConfirmEncadrant();
+  const refuse = useRefuseEncadrant();
+
+  const SOUS_TYPE_LABEL: Record<string, string> = {
+    RECHERCHE: 'Recherche',
+    PROFESSIONNEL: 'Professionnel',
+    LES_DEUX: 'Recherche & Professionnel',
+  };
+
+  async function handleConfirm() {
+    await confirm.mutateAsync(theme.id);
+    onClose();
+  }
+
+  async function handleRefuse() {
+    await refuse.mutateAsync(theme.id);
+    onClose();
+  }
+
+  return (
+    <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="leading-snug text-base">{theme.titre}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-5 py-1">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Un étudiant vous a désigné comme encadrant pour ce thème. Confirmez votre supervision ou refusez — dans ce cas le thème sera remis en attente d'un encadrant.
+          </div>
+
+          {/* Badges */}
+          <div className="flex flex-wrap gap-2">
+            <TypeBadge type={theme.type_pfe} />
+            {theme.sous_types.map((st) => (
+              <Badge key={st} variant="outline" className="text-xs">
+                {SOUS_TYPE_LABEL[st] ?? st}
+              </Badge>
+            ))}
+            {theme.necessite_stage && (
+              <Badge variant="outline" className="text-xs border-amber-300 text-amber-700">
+                Stage requis
+              </Badge>
+            )}
+          </div>
+
+          {/* Proposant */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Proposé par
+            </p>
+            <EtudiantInfo etudiant={theme.propose_par} />
+          </div>
+
+          <Separator />
+
+          {/* Description */}
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Description
+            </p>
+            <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+              {theme.description}
+            </p>
+          </div>
+
+          {/* Spécialités */}
+          {theme.theme_specialites.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Spécialités ciblées
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {theme.theme_specialites.map(({ specialite }) => (
+                  <Badge key={specialite.id} variant="secondary" className="text-xs">
+                    {specialite.nom}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Mots-clés */}
+          {theme.mots_cles.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Mots-clés
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {theme.mots_cles.map((mc) => (
+                  <span key={mc} className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
+                    #{mc}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose}>Fermer</Button>
+          <Button
+            variant="outline"
+            className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+            disabled={refuse.isPending}
+            onClick={handleRefuse}
+          >
+            <X className="h-3.5 w-3.5 mr-1.5" />
+            Refuser
+          </Button>
+          <Button
+            className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+            disabled={confirm.isPending}
+            onClick={handleConfirm}
+          >
+            <ShieldCheck className="h-4 w-4" />
+            Confirmer ma supervision
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Carte thème à confirmer — Tab 3 ─────────────────────────────────────────
+
+function ThemeConfirmationCard({
+  theme,
+  onOpenDetail,
+}: {
+  theme: Theme;
+  onOpenDetail: (t: Theme) => void;
+}) {
+  const confirm = useConfirmEncadrant();
+  const refuse = useRefuseEncadrant();
+
+  return (
+    <Card className="hover:shadow-md transition-shadow border-amber-200">
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold line-clamp-2">{theme.titre}</p>
+            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{theme.description}</p>
+          </div>
+          <TypeBadge type={theme.type_pfe} />
+        </div>
+
+        {/* Proposant */}
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <GraduationCap className="h-3.5 w-3.5 shrink-0" />
+          <span>
+            <strong className="text-foreground">{theme.propose_par.prenom} {theme.propose_par.nom}</strong>
+            {' — '}
+            <a href={`mailto:${theme.propose_par.email}`} className="text-blue-600 hover:underline">
+              {theme.propose_par.email}
+            </a>
+          </span>
+        </div>
+
+        {/* Spécialités */}
+        {theme.theme_specialites.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {theme.theme_specialites.map(({ specialite }) => (
+              <Badge key={specialite.id} variant="outline" className="text-xs">
+                {specialite.nom}
+              </Badge>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between pt-1">
+          <Button size="sm" variant="ghost" className="h-8 text-xs text-muted-foreground" onClick={() => onOpenDetail(theme)}>
+            Voir le détail
+          </Button>
+          <div className="flex gap-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1 border-red-200 text-red-600 hover:bg-red-50"
+              disabled={refuse.isPending}
+              onClick={() => refuse.mutate(theme.id)}
+            >
+              <X className="h-3.5 w-3.5" />
+              Refuser
+            </Button>
+            <Button
+              size="sm"
+              className="h-8 gap-1 bg-emerald-600 hover:bg-emerald-700"
+              disabled={confirm.isPending}
+              onClick={() => confirm.mutate(theme.id)}
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Confirmer
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Page principale ──────────────────────────────────────────────────────────
 
 export default function DemandesEnAttente() {
@@ -514,6 +724,7 @@ export default function DemandesEnAttente() {
   const [specialiteTab2, setSpecialiteTab2] = useState<string | null>(null);
   const [detailDemande, setDetailDemande] = useState<DemandeEnseignant | null>(null);
   const [detailTheme, setDetailTheme] = useState<Theme | null>(null);
+  const [detailConfirmation, setDetailConfirmation] = useState<Theme | null>(null);
 
   // ── Tab 1 data ─────────────────────────────────────────────────────────────
   const { data: demandes = [], isLoading: loadingDemandes } = useDemandesEnseignant();
@@ -559,8 +770,12 @@ export default function DemandesEnAttente() {
 
   const themesCherchandEncadrant: Theme[] = (themesResponse?.data ?? []) as Theme[];
 
+  // ── Tab 3 data ─────────────────────────────────────────────────────────────
+  const { data: themesAConfirmer = [], isLoading: loadingConfirmation } = useThemesAwaitingConfirmation();
+
   const totalDemandes = demandes.length;
   const totalThemes = themesCherchandEncadrant.length;
+  const totalConfirmation = themesAConfirmer.length;
 
   return (
     <div className="space-y-6">
@@ -593,6 +808,15 @@ export default function DemandesEnAttente() {
             {totalThemes > 0 && (
               <Badge variant="secondary" className="text-xs px-1.5 py-0 h-5">
                 {totalThemes}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="confirmation" className="gap-2">
+            <ShieldCheck className="h-4 w-4" />
+            À confirmer
+            {totalConfirmation > 0 && (
+              <Badge className="bg-amber-500 text-white text-xs px-1.5 py-0 h-5 hover:bg-amber-500">
+                {totalConfirmation}
               </Badge>
             )}
           </TabsTrigger>
@@ -670,6 +894,38 @@ export default function DemandesEnAttente() {
             </div>
           )}
         </TabsContent>
+        {/* ── TAB 3 : Thèmes à confirmer ─── */}
+        <TabsContent value="confirmation" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              {totalConfirmation} thème{totalConfirmation !== 1 ? 's' : ''} en attente de votre confirmation d'encadrement
+            </p>
+          </div>
+
+          {loadingConfirmation ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[1, 2].map((i) => <Skeleton key={i} className="h-44 rounded-xl" />)}
+            </div>
+          ) : themesAConfirmer.length === 0 ? (
+            <div className="rounded-xl border border-dashed py-16 text-center">
+              <ShieldCheck className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="font-medium">Aucun thème en attente de confirmation</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Vous n'avez pas été désigné encadrant sur des thèmes étudiants non encore confirmés.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {themesAConfirmer.map((theme) => (
+                <ThemeConfirmationCard
+                  key={theme.id}
+                  theme={theme}
+                  onOpenDetail={setDetailConfirmation}
+                />
+              ))}
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
 
       {/* Dialogs */}
@@ -683,6 +939,12 @@ export default function DemandesEnAttente() {
         <ThemeEncadrantDialog
           theme={detailTheme}
           onClose={() => setDetailTheme(null)}
+        />
+      )}
+      {detailConfirmation && (
+        <ConfirmEncadrantDialog
+          theme={detailConfirmation}
+          onClose={() => setDetailConfirmation(null)}
         />
       )}
     </div>

@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   ArrowLeft, BookOpen, Rocket, Tag, X, ChevronDown,
-  HelpCircle, Users, Briefcase,
+  HelpCircle, Briefcase,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,8 +19,8 @@ import {
 } from '@/components/ui/select';
 import { useCreateTheme } from '@/hooks/useThemes';
 import { useActiveSpecialites } from '@/hooks/useSpecialites';
-import { useUsers } from '@/hooks/useUsers';
-import type { SousTypeTheme, CreateThemeForm } from '@/types';
+import { api } from '@/services/api';
+import type { SousTypeTheme, CreateThemeForm, User } from '@/types';
 
 // ─── Schéma ───────────────────────────────────────────────────────────────────
 
@@ -39,7 +39,6 @@ const schema = z.object({
     email: z.string().email('Email invalide'),
     institution: z.string().min(1, 'Requis'),
   }).optional(),
-  cherche_binome: z.boolean().default(false),
 }).refine(
   (d) => !(d.type_pfe === 'STARTUP' && d.sous_types.length > 0),
   { message: 'Un thème STARTUP ne peut pas avoir de sous-types', path: ['sous_types'] },
@@ -74,15 +73,25 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+const SUPERVISOR_ROLES = ['ENSEIGNANT', 'CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_SPECIALITE'];
+
 export default function ProposeThemePage() {
   const navigate = useNavigate();
   const { data: specialites } = useActiveSpecialites();
-  const { data: enseignantsData } = useUsers({ role: 'ENSEIGNANT', limit: 200 });
-  const enseignants = enseignantsData?.data ?? [];
   const createTheme = useCreateTheme();
 
+  const [enseignants, setEnseignants] = useState<User[]>([]);
   const [motCleInput, setMotCleInput] = useState('');
   const [showExterne, setShowExterne] = useState(false);
+
+  useEffect(() => {
+    api.get<{ data: User[]; meta: unknown }>('/users', { params: { limit: 500 } })
+      .then((res) => {
+        const superviseurs = res.data.data.filter((u) => SUPERVISOR_ROLES.includes(u.role));
+        setEnseignants(superviseurs);
+      })
+      .catch((err) => console.error('[ProposeTheme] Erreur chargement enseignants:', err));
+  }, []);
 
   const {
     register, handleSubmit, control, watch, setValue,
@@ -92,7 +101,6 @@ export default function ProposeThemePage() {
     defaultValues: {
       titre: '', description: '', mots_cles: [], necessite_stage: false,
       type_pfe: 'CLASSIQUE', sous_types: [], specialite_ids: [],
-      cherche_binome: false,
     },
   });
 
@@ -211,7 +219,6 @@ export default function ProposeThemePage() {
                 {([
                   { val: 'RECHERCHE' as const, label: 'Recherche' },
                   { val: 'PROFESSIONNEL' as const, label: 'Professionnel' },
-                  { val: 'LES_DEUX' as const, label: 'Les deux' },
                 ] as const).map(({ val, label }) => (
                   <button
                     key={val}
@@ -227,6 +234,9 @@ export default function ProposeThemePage() {
                   </button>
                 ))}
               </div>
+              <Hint>
+                Vous pouvez sélectionner les deux options simultanément si le thème est à la fois de recherche et professionnel.
+              </Hint>
               {errors.sous_types && (
                 <p className="text-xs text-destructive">{errors.sous_types.message as string}</p>
               )}
@@ -436,32 +446,6 @@ export default function ProposeThemePage() {
               </div>
             </div>
 
-            {/* Cherche binôme */}
-            <div className="flex items-start gap-3 rounded-xl border p-4">
-              <Controller
-                name="cherche_binome"
-                control={control}
-                render={({ field: f }) => (
-                  <Checkbox
-                    id="cherche_binome"
-                    checked={f.value}
-                    onCheckedChange={f.onChange}
-                    className="mt-0.5"
-                  />
-                )}
-              />
-              <div>
-                <Label htmlFor="cherche_binome" className="cursor-pointer flex items-center gap-2">
-                  <Users className="h-4 w-4 text-purple-500" />
-                  Ouvert pour former un binôme
-                </Label>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Une fois ce thème validé par le responsable de filière, il apparaîtra dans la page{' '}
-                  <strong>Annonces</strong> visible par tous les étudiants. Un étudiant sans binôme
-                  pourra demander à rejoindre ce projet.
-                </p>
-              </div>
-            </div>
           </div>
         </Section>
 
@@ -495,7 +479,6 @@ export default function ProposeThemePage() {
                 )}
                 <div className="flex gap-3 text-xs text-muted-foreground flex-wrap">
                   {watch('necessite_stage') && <span className="text-amber-600">● Stage requis</span>}
-                  {watch('cherche_binome') && <span className="text-purple-600">● Ouvert pour binôme</span>}
                 </div>
               </div>
             </Section>

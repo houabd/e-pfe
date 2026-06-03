@@ -3,6 +3,13 @@ import { toast } from 'sonner';
 import * as affApi from '@/services/affectations.api';
 import { extractApiError } from '@/services/api';
 
+export function useMonAffectation() {
+  return useQuery({
+    queryKey: ['mon-affectation'],
+    queryFn: affApi.getMonAffectation,
+  });
+}
+
 export function useMesEtudiants() {
   return useQuery({
     queryKey: ['mes-etudiants'],
@@ -14,7 +21,6 @@ export function useEnseignantsDispo(specialite_id?: string) {
   return useQuery({
     queryKey: ['enseignants-dispo', specialite_id],
     queryFn: () => affApi.getEnseignantsDispo(specialite_id),
-    staleTime: 30 * 1000,
   });
 }
 
@@ -22,11 +28,10 @@ export function useEtudiantsSansTheme(specialite_id?: string) {
   return useQuery({
     queryKey: ['etudiants-sans-theme', specialite_id],
     queryFn: () => affApi.getEtudiantsSansTheme(specialite_id),
-    staleTime: 30 * 1000,
   });
 }
 
-export function useAffectations(filters?: { specialite_id?: string; session_id?: string }) {
+export function useAffectations(filters?: { specialite_id?: string; session_id?: string; limit?: number }) {
   return useQuery({
     queryKey: ['affectations', filters],
     queryFn: () => affApi.getAffectations(filters),

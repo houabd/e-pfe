@@ -69,6 +69,7 @@ export interface CreateThemeDto {
   sous_types?: SousTypeTheme[];
   specialite_ids: string[];
   encadrant_id?: string;
+  co_encadrant_id?: string;
   encadrant_externe?: EncadrantExterne;
   besoin_encadrant?: boolean;
   cherche_binome?: boolean;

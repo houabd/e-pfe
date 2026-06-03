@@ -4,6 +4,7 @@ import {
   BookOpen, Search, Filter, ChevronDown, GripVertical,
   X, Plus, CheckCircle2, AlertCircle, Users, ArrowRight,
   ChevronUp, ChevronDown as ChevronDownIcon, RotateCcw,
+  Rocket, Info,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +27,8 @@ import {
 import { useMesChoix, useSubmitChoix } from '@/hooks/useChoix';
 import { useMonBinome } from '@/hooks/useBinomes';
 import { useThemes } from '@/hooks/useThemes';
+import { useMonAffectation } from '@/hooks/useAffectations';
+import { ThemeDetailDialog } from '@/components/themes/ThemeDetailDialog';
 import { useActiveSession } from '@/hooks/useSession';
 import { useActiveSpecialites } from '@/hooks/useSpecialites';
 import { useCurrentUser } from '@/stores/authStore';
@@ -38,12 +41,12 @@ const MAX_CHOIX = 3;
 
 function TypeBadge({ type }: { type: string }) {
   return type === 'STARTUP' ? (
-    <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100 text-xs">
-      STARTUP
+    <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100 text-xs gap-1">
+      <Rocket className="h-3 w-3" />Startup
     </Badge>
   ) : (
-    <Badge className="bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100 text-xs">
-      CLASSIQUE
+    <Badge className="bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100 text-xs gap-1">
+      <BookOpen className="h-3 w-3" />Classique
     </Badge>
   );
 }
@@ -198,7 +201,7 @@ function SelectionPanier({
       <div className="rounded-lg border-2 border-dashed border-border p-6 text-center">
         <BookOpen className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
         <p className="text-sm text-muted-foreground">
-          Cliquez sur <strong>Ajouter</strong> pour sélectionner des thèmes.
+          Cliquez sur <strong>Ajouter</strong> ou sur un thème pour le sélectionner.
         </p>
         <p className="text-xs text-muted-foreground mt-1">
           Glissez-déposez pour changer l'ordre de préférence.
@@ -276,16 +279,21 @@ function SelectionPanier({
 function ThemeCard({
   theme,
   onAdd,
+  onView,
   disabled,
   disabledReason,
 }: {
   theme: Theme;
   onAdd: () => void;
+  onView: () => void;
   disabled: boolean;
   disabledReason?: string;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-lg border bg-card p-4 hover:bg-accent/20 transition-colors">
+    <div
+      onClick={onView}
+      className="flex items-start gap-3 rounded-lg border bg-card p-4 hover:bg-accent/20 hover:border-primary/30 transition-colors cursor-pointer"
+    >
       <div className="flex-1 min-w-0 space-y-1.5">
         <p className="text-sm font-medium line-clamp-2">{theme.titre}</p>
         {theme.encadrant && (
@@ -305,14 +313,38 @@ function ThemeCard({
             </Badge>
           ))}
         </div>
+        {theme.mots_cles.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {theme.mots_cles.slice(0, 4).map((mc) => (
+              <span key={mc} className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                {mc}
+              </span>
+            ))}
+            {theme.mots_cles.length > 4 && (
+              <span className="text-xs text-muted-foreground self-center">
+                +{theme.mots_cles.length - 4}
+              </span>
+            )}
+          </div>
+        )}
       </div>
-      <div className="shrink-0 pt-0.5">
+      <div className="shrink-0 pt-0.5 flex gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 gap-1.5"
+          onClick={(e) => { e.stopPropagation(); onView(); }}
+          title="Voir les détails"
+        >
+          <Info className="h-3.5 w-3.5" />
+          Détails
+        </Button>
         <Button
           size="sm"
           className="h-8 gap-1.5"
           disabled={disabled}
           title={disabledReason}
-          onClick={onAdd}
+          onClick={(e) => { e.stopPropagation(); onAdd(); }}
         >
           <Plus className="h-3.5 w-3.5" />
           Ajouter
@@ -429,23 +461,26 @@ export default function ChoixThemes() {
   const navigate = useNavigate();
   const activeSession = useActiveSession();
   const { data: mesChoixData, isLoading: loadingChoix } = useMesChoix();
+  const { data: monAffectation } = useMonAffectation();
   const { data: binome } = useMonBinome();
 
   const choix = mesChoixData?.choix ?? [];
   const peutRechoisir = mesChoixData?.peutRechoisir ?? false;
 
-  // Choix non refusés déjà soumis
   const existingActive = useMemo(
     () => choix.filter((c) => c.statut !== 'REFUSED'),
     [choix],
   );
   const acceptedChoix = existingActive.find((c) => c.statut === 'ACCEPTED');
 
+  // Affecté via la procédure admin (aucun ThemeChoix accepté, mais AffectationEtudiant existe)
+  const isAdminAffecte = !acceptedChoix && !!monAffectation;
+  const isAffecte = !!acceptedChoix || !!monAffectation;
+
   const isSessionChoix = !!activeSession && activeSession.type === 'CHOIX';
   const slotsLeft = MAX_CHOIX - existingActive.length;
-  const canAddMore = !acceptedChoix && slotsLeft > 0 && isSessionChoix;
+  const canAddMore = !isAffecte && slotsLeft > 0 && isSessionChoix;
 
-  // Ordres disponibles (ceux non encore pris)
   const usedOrdres = useMemo(
     () => new Set(existingActive.map((c) => c.ordre)),
     [existingActive],
@@ -455,25 +490,21 @@ export default function ChoixThemes() {
     [usedOrdres],
   );
 
-  // Sélection locale (nouveaux thèmes avant soumission)
   const [selectedThemes, setSelectedThemes] = useState<Theme[]>([]);
+  const [detailThemeId, setDetailThemeId] = useState<string | null>(null);
 
-  // Filtres de recherche
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedSpecialites, setSelectedSpecialites] = useState<string[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<Array<'CLASSIQUE' | 'STARTUP'>>([]);
 
-  // Dialog
   const [showConfirm, setShowConfirm] = useState(false);
 
-  // Debounce
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchInput.trim()), 300);
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  // Themes disponibles (VALIDE, non affectés, session actuelle si possible)
   const { data: themesResponse, isLoading: loadingThemes } = useThemes({
     statut_validation: 'VALIDE',
     is_affecte: false,
@@ -483,7 +514,6 @@ export default function ChoixThemes() {
 
   const allThemes: Theme[] = themesResponse?.data ?? [];
 
-  // IDs déjà sélectionnés ou déjà soumis
   const excludedIds = useMemo(() => {
     const ids = new Set<string>();
     existingActive.forEach((c) => ids.add(c.theme.id));
@@ -491,7 +521,6 @@ export default function ChoixThemes() {
     return ids;
   }, [existingActive, selectedThemes]);
 
-  // Filtrage client-side (spécialités + type)
   const filteredThemes = useMemo(() => {
     let list = allThemes.filter((t) => !excludedIds.has(t.id));
 
@@ -506,7 +535,6 @@ export default function ChoixThemes() {
     return list;
   }, [allThemes, excludedIds, selectedSpecialites, selectedTypes]);
 
-  // Mutation submit
   const submitMutation = useSubmitChoix();
 
   async function handleConfirm() {
@@ -521,7 +549,6 @@ export default function ChoixThemes() {
       setSelectedThemes([]);
       setShowConfirm(false);
     } catch {
-      // erreur déjà gérée par le hook
       setShowConfirm(false);
     }
   }
@@ -536,6 +563,8 @@ export default function ChoixThemes() {
       prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type],
     );
   }
+
+  const reachedMax = selectedThemes.length >= slotsLeft;
 
   return (
     <div className="space-y-6">
@@ -563,15 +592,46 @@ export default function ChoixThemes() {
         </div>
       )}
 
-      {/* Thème accepté → état final */}
-      {!loadingChoix && acceptedChoix && (
+      {/* Affecté par admin (sans ThemeChoix accepté) → état final */}
+      {!loadingChoix && isAdminAffecte && monAffectation && (
         <Card className="border-emerald-200 bg-emerald-50">
           <CardContent className="p-5">
             <div className="flex items-start gap-4">
               <div className="rounded-full bg-emerald-100 p-2.5 shrink-0">
                 <CheckCircle2 className="h-5 w-5 text-emerald-600" />
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-emerald-800">Vous avez été affecté par l'administration</p>
+                {monAffectation.theme ? (
+                  <p className="text-sm font-medium text-emerald-900 mt-1">{monAffectation.theme.titre}</p>
+                ) : (
+                  <p className="text-sm text-emerald-700 mt-1">
+                    Le thème sera défini prochainement par votre encadrant.
+                  </p>
+                )}
+                {monAffectation.encadrant && (
+                  <p className="text-xs text-emerald-700 mt-1">
+                    Encadrant : {monAffectation.encadrant.prenom} {monAffectation.encadrant.nom}
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Thème accepté → état final */}
+      {!loadingChoix && acceptedChoix && (
+        <Card
+          className="border-emerald-200 bg-emerald-50 cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => setDetailThemeId(acceptedChoix.theme.id)}
+        >
+          <CardContent className="p-5">
+            <div className="flex items-start gap-4">
+              <div className="rounded-full bg-emerald-100 p-2.5 shrink-0">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div className="flex-1 min-w-0">
                 <p className="font-semibold text-emerald-800">Thème affecté — Choix n°{acceptedChoix.ordre}</p>
                 <p className="text-sm font-medium text-emerald-900 mt-1">{acceptedChoix.theme.titre}</p>
                 {acceptedChoix.theme.encadrant && (
@@ -580,6 +640,7 @@ export default function ChoixThemes() {
                   </p>
                 )}
               </div>
+              <Info className="h-4 w-4 text-emerald-500 shrink-0 mt-1" />
             </div>
           </CardContent>
         </Card>
@@ -595,16 +656,18 @@ export default function ChoixThemes() {
             {existingActive.map((c) => (
               <div
                 key={c.id}
-                className="flex items-center gap-3 rounded-lg border px-4 py-3"
+                onClick={() => setDetailThemeId(c.theme.id)}
+                className="flex items-center gap-3 rounded-lg border px-4 py-3 cursor-pointer hover:bg-accent/20 hover:border-primary/30 transition-colors"
               >
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold">
                   {c.ordre}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{c.theme.titre}</p>
-                  <p className="text-xs text-muted-foreground">{c.theme.type_pfe}</p>
+                  <TypeBadge type={c.theme.type_pfe} />
                 </div>
                 <StatutBadge statut={c.statut} />
+                <Info className="h-4 w-4 text-muted-foreground shrink-0" />
               </div>
             ))}
           </CardContent>
@@ -632,12 +695,96 @@ export default function ChoixThemes() {
             <div className="h-px flex-1 bg-border" />
           </div>
 
+          {/* Filtres + liste thèmes */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Search className="h-4 w-4" />
+                Thèmes disponibles
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Barre de recherche */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  placeholder="Rechercher par titre, description…"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+
+              {/* Type + Spécialité */}
+              <div className="flex flex-wrap gap-2">
+                {(['CLASSIQUE', 'STARTUP'] as const).map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => toggleType(type)}
+                    className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                      selectedTypes.includes(type)
+                        ? type === 'STARTUP'
+                          ? 'border-orange-400 bg-orange-100 text-orange-800'
+                          : 'border-blue-400 bg-blue-100 text-blue-800'
+                        : 'border-border text-muted-foreground hover:border-primary/50'
+                    }`}
+                  >
+                    {type === 'STARTUP' ? 'Startup' : 'Classique'}
+                  </button>
+                ))}
+
+                <SpecialiteFilter
+                  selected={selectedSpecialites}
+                  onChange={setSelectedSpecialites}
+                />
+              </div>
+
+              {/* Liste thèmes */}
+              {loadingThemes ? (
+                <div className="space-y-2">
+                  {[1, 2, 3, 4].map((i) => (
+                    <Skeleton key={i} className="h-24 w-full rounded-lg" />
+                  ))}
+                </div>
+              ) : filteredThemes.length === 0 ? (
+                <div className="py-10 text-center">
+                  <BookOpen className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">
+                    Aucun thème disponible pour cette recherche.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredThemes.map((theme) => (
+                    <ThemeCard
+                      key={theme.id}
+                      theme={theme}
+                      onView={() => setDetailThemeId(theme.id)}
+                      onAdd={() => addTheme(theme)}
+                      disabled={reachedMax}
+                      disabledReason={
+                        reachedMax
+                          ? `Vous avez déjà sélectionné ${slotsLeft} thème(s)`
+                          : undefined
+                      }
+                    />
+                  ))}
+                  {allThemes.length === 50 && (
+                    <p className="text-center text-xs text-muted-foreground pt-1">
+                      Affichage limité à 50 résultats — affinez votre recherche.
+                    </p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Panier de sélection */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center justify-between text-base">
                 <span>
-                  Ma sélection
+                  Choix de thème
                   <span className="ml-2 text-sm font-normal text-muted-foreground">
                     ({selectedThemes.length}/{slotsLeft})
                   </span>
@@ -696,93 +843,6 @@ export default function ChoixThemes() {
               Valider {selectedThemes.length > 0 ? `${selectedThemes.length} choix` : 'mes choix'}
             </Button>
           </div>
-
-          {/* Filtres */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Search className="h-4 w-4" />
-                Thèmes disponibles
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Barre de recherche */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                <Input
-                  placeholder="Rechercher par titre, description…"
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-
-              {/* Type + Spécialité */}
-              <div className="flex flex-wrap gap-2">
-                {/* Type buttons */}
-                {(['CLASSIQUE', 'STARTUP'] as const).map((type) => (
-                  <button
-                    key={type}
-                    onClick={() => toggleType(type)}
-                    className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                      selectedTypes.includes(type)
-                        ? type === 'STARTUP'
-                          ? 'border-orange-400 bg-orange-100 text-orange-800'
-                          : 'border-blue-400 bg-blue-100 text-blue-800'
-                        : 'border-border text-muted-foreground hover:border-primary/50'
-                    }`}
-                  >
-                    {type}
-                  </button>
-                ))}
-
-                <SpecialiteFilter
-                  selected={selectedSpecialites}
-                  onChange={setSelectedSpecialites}
-                />
-              </div>
-
-              {/* Liste thèmes */}
-              {loadingThemes ? (
-                <div className="space-y-2">
-                  {[1, 2, 3, 4].map((i) => (
-                    <Skeleton key={i} className="h-24 w-full rounded-lg" />
-                  ))}
-                </div>
-              ) : filteredThemes.length === 0 ? (
-                <div className="py-10 text-center">
-                  <BookOpen className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-                  <p className="text-sm text-muted-foreground">
-                    Aucun thème disponible pour cette recherche.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {filteredThemes.map((theme) => {
-                    const reachedMax = selectedThemes.length >= slotsLeft;
-                    return (
-                      <ThemeCard
-                        key={theme.id}
-                        theme={theme}
-                        onAdd={() => addTheme(theme)}
-                        disabled={reachedMax}
-                        disabledReason={
-                          reachedMax
-                            ? `Vous avez déjà sélectionné ${slotsLeft} thème(s)`
-                            : undefined
-                        }
-                      />
-                    );
-                  })}
-                  {allThemes.length === 50 && (
-                    <p className="text-center text-xs text-muted-foreground pt-1">
-                      Affichage limité à 50 résultats — affinez votre recherche.
-                    </p>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </>
       )}
 
@@ -814,6 +874,13 @@ export default function ChoixThemes() {
           </p>
         </div>
       )}
+
+      {/* Dialog détails du thème */}
+      <ThemeDetailDialog
+        themeId={detailThemeId}
+        onClose={() => setDetailThemeId(null)}
+        onAdd={(!reachedMax && canAddMore) ? (theme) => addTheme(theme) : undefined}
+      />
 
       {/* Dialog de confirmation */}
       <ConfirmDialog

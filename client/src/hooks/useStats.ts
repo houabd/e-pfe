@@ -99,6 +99,7 @@ export function useAcceptChoix() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['demandes-enseignant'] });
       void qc.invalidateQueries({ queryKey: ['stats', 'enseignant'] });
+      void qc.invalidateQueries({ queryKey: ['mes-etudiants'] });
       toast.success('Demande acceptée');
     },
     onError: (e) => toast.error(extractApiError(e)),

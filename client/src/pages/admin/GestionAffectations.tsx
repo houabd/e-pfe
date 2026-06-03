@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -85,19 +85,43 @@ function AffectationDialog({
   const [selectedEtudiants, setSelectedEtudiants] = useState<EtudiantSansTheme[]>([]);
   const [etudFilter, setEtudFilter] = useState('all');
 
+  const initializedRef = useRef(false);
+
   useEffect(() => {
-    if (open) {
-      setSelectedEnseignant(preselectedEnseignant ?? null);
-      setSelectedTheme(null);
-      setSelectedEtudiants(preselectedEtudiant ? [preselectedEtudiant] : []);
-      setEtudFilter('all');
+    if (!open) {
+      initializedRef.current = false;
+      return;
     }
-  }, [open, preselectedEnseignant, preselectedEtudiant]);
+    // If student has a binôme, wait until allEtudiants is loaded before initializing
+    const needsPartnerLookup = Boolean(preselectedEtudiant?.binome);
+    if (initializedRef.current || (needsPartnerLookup && allEtudiants.length === 0)) return;
+
+    setSelectedEnseignant(preselectedEnseignant ?? null);
+    setSelectedTheme(null);
+    setEtudFilter('all');
+
+    if (preselectedEtudiant) {
+      const initial: EtudiantSansTheme[] = [preselectedEtudiant];
+      if (preselectedEtudiant.binome) {
+        const partner = allEtudiants.find((e) => e.id === preselectedEtudiant.binome!.partenaire.id);
+        if (partner) initial.push(partner);
+      }
+      setSelectedEtudiants(initial);
+    } else {
+      setSelectedEtudiants([]);
+    }
+
+    initializedRef.current = true;
+  }, [open, preselectedEnseignant, preselectedEtudiant, allEtudiants]);
 
   // Reset theme when teacher changes
   useEffect(() => { setSelectedTheme(null); }, [selectedEnseignant]);
 
+  // Par affectation : max 2 étudiants (CLASSIQUE) ou 6 (STARTUP)
   const maxStudents = selectedTheme?.type_pfe === 'STARTUP' ? 6 : 2;
+  // Capacité restante de l'enseignant (total max 4 étudiants encadrés)
+  const placesRestantes = selectedEnseignant ? 4 - selectedEnseignant.nb_etudiants : 4;
+  const capaciteOk = selectedEtudiants.length === 0 || selectedEtudiants.length <= placesRestantes;
 
   const filteredEtudiants = useMemo(() => {
     const selectedIds = new Set(selectedEtudiants.map((e) => e.id));
@@ -112,7 +136,14 @@ function AffectationDialog({
     setSelectedEtudiants((prev) => {
       if (prev.some((x) => x.id === e.id)) return prev.filter((x) => x.id !== e.id);
       if (prev.length >= maxStudents) return prev;
-      return [...prev, e];
+      const toAdd: EtudiantSansTheme[] = [e];
+      if (e.binome && prev.length + 2 <= maxStudents) {
+        const partner = allEtudiants.find((x) => x.id === e.binome!.partenaire.id);
+        if (partner && !prev.some((x) => x.id === partner.id)) {
+          toAdd.push(partner);
+        }
+      }
+      return [...prev, ...toAdd];
     });
   }
 
@@ -124,8 +155,7 @@ function AffectationDialog({
     return undefined;
   }
 
-  // Le thème est optionnel — l'enseignant peut le définir plus tard
-  const canSubmit = selectedEnseignant !== null && selectedEtudiants.length > 0;
+  const canSubmit = selectedEnseignant !== null && selectedEtudiants.length > 0 && capaciteOk;
 
   const isPending = createAffectation.isPending || createStartup.isPending;
 
@@ -172,7 +202,12 @@ function AffectationDialog({
                   <p className="font-medium text-sm">{preselectedEnseignant.prenom} {preselectedEnseignant.nom}</p>
                   <p className="text-xs text-muted-foreground">{preselectedEnseignant.specialite?.nom ?? 'Spécialité non définie'}</p>
                 </div>
-                <Badge variant="outline" className="ml-auto text-xs">{preselectedEnseignant.nb_affectations}/2</Badge>
+                <div className="ml-auto flex flex-col items-end gap-0.5">
+                  <Badge variant="outline" className="text-xs">{preselectedEnseignant.nb_etudiants}/4 étudiants</Badge>
+                  {placesRestantes === 1 && (
+                    <span className="text-[10px] text-amber-600">1 place — solo uniquement</span>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="max-h-44 overflow-y-auto space-y-1.5 rounded-lg border p-2">
@@ -191,7 +226,12 @@ function AffectationDialog({
                       <p className="text-sm font-medium truncate">{e.prenom} {e.nom}</p>
                       <p className="text-xs text-muted-foreground">{e.specialite?.nom ?? '—'}</p>
                     </div>
-                    <Badge variant="secondary" className="text-xs shrink-0">{e.nb_affectations}/2</Badge>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {e.nb_etudiants === 3 && (
+                        <span className="text-[10px] text-amber-600">solo seul.</span>
+                      )}
+                      <Badge variant="secondary" className="text-xs">{e.nb_etudiants}/4</Badge>
+                    </div>
                     {selectedEnseignant?.id === e.id && <Check className="h-4 w-4 text-primary shrink-0" />}
                   </button>
                 ))}
@@ -261,25 +301,42 @@ function AffectationDialog({
                 </h3>
                 <SpecialiteSelect value={etudFilter} onChange={setEtudFilter} />
               </div>
+              {!capaciteOk && (
+                <div className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  Capacité insuffisante : {selectedEnseignant.prenom} {selectedEnseignant.nom} n'a que{' '}
+                  <strong>{placesRestantes} place{placesRestantes !== 1 ? 's' : ''}</strong> disponible{placesRestantes !== 1 ? 's' : ''}, mais {selectedEtudiants.length} étudiant{selectedEtudiants.length !== 1 ? 's' : ''}{' '}
+                  {selectedEtudiants.length !== 1 ? 'sont' : 'est'} sélectionné{selectedEtudiants.length !== 1 ? 's' : ''}.
+                </div>
+              )}
 
               {/* Sélectionnés */}
               {selectedEtudiants.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  {selectedEtudiants.map((e) => (
-                    <div key={e.id} className="flex items-center gap-1.5 rounded-full bg-primary/10 pl-2.5 pr-1.5 py-1 text-xs font-medium">
-                      {e.prenom} {e.nom}
-                      {e.binome?.partenaire.id === selectedEtudiants.find((x) => x.id !== e.id)?.id && (
-                        <Badge variant="secondary" className="text-[10px] py-0">binôme</Badge>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => toggleEtudiant(e)}
-                        className="ml-0.5 rounded-full p-0.5 hover:bg-destructive/20"
+                  {selectedEtudiants.map((e) => {
+                    const isInBinomePair = e.binome != null &&
+                      selectedEtudiants.some((x) => x.id === e.binome!.partenaire.id);
+                    return (
+                      <div
+                        key={e.id}
+                        className={`flex items-center gap-1.5 rounded-full pl-2.5 pr-1.5 py-1 text-xs font-medium ${
+                          isInBinomePair ? 'bg-blue-100 text-blue-800' : 'bg-primary/10'
+                        }`}
                       >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
+                        {e.prenom} {e.nom}
+                        {isInBinomePair && (
+                          <Badge className="bg-blue-200 text-blue-800 hover:bg-blue-200 text-[10px] py-0 border-0">binôme</Badge>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => toggleEtudiant(e)}
+                          className="ml-0.5 rounded-full p-0.5 hover:bg-destructive/20"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
@@ -289,25 +346,32 @@ function AffectationDialog({
                   {filteredEtudiants.length === 0 && (
                     <p className="py-4 text-center text-sm text-muted-foreground">Aucun étudiant disponible</p>
                   )}
-                  {filteredEtudiants.map((e) => (
-                    <button
-                      key={e.id}
-                      type="button"
-                      onClick={() => toggleEtudiant(e)}
-                      className="w-full flex items-center gap-3 rounded-md px-3 py-2 text-left hover:bg-muted transition-colors"
-                    >
-                      <Avatar nom={e.nom} prenom={e.prenom} className="h-7 w-7 text-[10px]" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm truncate">{e.prenom} {e.nom}</p>
-                        <p className="text-xs text-muted-foreground">{e.specialite?.nom ?? '—'} {e.matricule ? `· ${e.matricule}` : ''}</p>
-                      </div>
-                      {e.binome && (
-                        <span className="text-xs text-muted-foreground shrink-0">
-                          binôme avec {e.binome.partenaire.prenom}
-                        </span>
-                      )}
-                    </button>
-                  ))}
+                  {filteredEtudiants.map((e) => {
+                    const partnerAvailable = e.binome
+                      ? allEtudiants.some((x) => x.id === e.binome!.partenaire.id)
+                      : false;
+                    return (
+                      <button
+                        key={e.id}
+                        type="button"
+                        onClick={() => toggleEtudiant(e)}
+                        className="w-full flex items-center gap-3 rounded-md px-3 py-2 text-left hover:bg-muted transition-colors"
+                      >
+                        <Avatar nom={e.nom} prenom={e.prenom} className="h-7 w-7 text-[10px]" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm truncate">{e.prenom} {e.nom}</p>
+                          <p className="text-xs text-muted-foreground">{e.specialite?.nom ?? '—'} {e.matricule ? `· ${e.matricule}` : ''}</p>
+                        </div>
+                        {e.binome && (
+                          <span className={`text-xs shrink-0 ${partnerAvailable ? 'text-blue-600 font-medium' : 'text-muted-foreground'}`}>
+                            {partnerAvailable
+                              ? `+ ${e.binome.partenaire.prenom} ${e.binome.partenaire.nom}`
+                              : `binôme: ${e.binome.partenaire.prenom}`}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </section>
@@ -375,14 +439,14 @@ function VueDisponibilites({
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
                     <div className="flex items-center gap-1">
-                      {[0, 1].map((i) => (
+                      {[0, 1, 2, 3].map((i) => (
                         <div
                           key={i}
-                          className={`h-2 w-2 rounded-full ${i < ens.nb_affectations ? 'bg-primary' : 'bg-muted'}`}
+                          className={`h-2 w-2 rounded-full ${i < ens.nb_etudiants ? 'bg-primary' : 'bg-muted'}`}
                         />
                       ))}
                     </div>
-                    <span className="text-[11px] text-muted-foreground">{ens.nb_affectations}/2</span>
+                    <span className="text-[11px] text-muted-foreground">{ens.nb_etudiants}/4 étud.</span>
                   </div>
                 </div>
 
@@ -521,6 +585,94 @@ function SuggestionCard({
   );
 }
 
+// ─── Étudiants sans correspondance (groupés par spécialité) ──────────────────
+
+type NonAffecte = { id: string; nom: string; prenom: string; email: string; specialite: { id: string; nom: string } | null };
+
+function NonAffectesSection({ etudiants }: { etudiants: NonAffecte[] }) {
+  const grouped = useMemo(() => {
+    const map = new Map<string, { label: string; items: NonAffecte[] }>();
+    for (const e of etudiants) {
+      const key = e.specialite?.id ?? '__sans__';
+      const label = e.specialite?.nom ?? 'Sans spécialité';
+      if (!map.has(key)) map.set(key, { label, items: [] });
+      map.get(key)!.items.push(e);
+    }
+    return [...map.entries()].sort((a, b) => a[1].label.localeCompare(b[1].label));
+  }, [etudiants]);
+
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const toggle = useCallback((key: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }, []);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-amber-700 flex items-center gap-2">
+          <AlertCircle className="h-4 w-4" />
+          Étudiants sans correspondance
+          <Badge className="bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-100">
+            {etudiants.length}
+          </Badge>
+        </h3>
+        <div className="flex gap-1.5">
+          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setCollapsed(new Set())}>
+            Tout ouvrir
+          </Button>
+          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setCollapsed(new Set(grouped.map(([k]) => k)))}>
+            Tout réduire
+          </Button>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Ces étudiants n'ont pu être associés à aucun thème disponible — affectation manuelle recommandée.
+      </p>
+      <div className="space-y-2">
+        {grouped.map(([key, { label, items }]) => {
+          const isOpen = !collapsed.has(key);
+          return (
+            <div key={key} className="rounded-lg border border-amber-200 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => toggle(key)}
+                className="w-full flex items-center justify-between px-4 py-2.5 bg-amber-50 hover:bg-amber-100 transition-colors text-left"
+              >
+                <span className="text-sm font-medium text-amber-800">{label}</span>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-amber-200 text-amber-800 hover:bg-amber-200 border-0 text-xs">
+                    {items.length} étudiant{items.length > 1 ? 's' : ''}
+                  </Badge>
+                  <ChevronRight className={`h-3.5 w-3.5 text-amber-600 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+                </div>
+              </button>
+              {isOpen && (
+                <div className="divide-y divide-amber-100">
+                  {items.map((e) => (
+                    <div key={e.id} className="flex items-center gap-3 px-4 py-2 bg-white">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[10px] font-semibold text-amber-700">
+                        {e.prenom[0]}{e.nom[0]}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{e.prenom} {e.nom}</p>
+                        <p className="text-xs text-muted-foreground truncate">{e.email}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function SemiAutomatique() {
   const preview = useAffectationAutoPreview();
   const confirmer = useConfirmerAffectationsAuto();
@@ -654,23 +806,7 @@ function SemiAutomatique() {
 
           {/* Étudiants non affectés */}
           {result.non_affectes.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="font-semibold text-amber-700 flex items-center gap-2">
-                <AlertCircle className="h-4 w-4" />
-                Étudiants sans correspondance ({result.non_affectes.length})
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Ces étudiants n'ont pu être associés à aucun thème disponible — affectation manuelle recommandée.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {result.non_affectes.map((e) => (
-                  <div key={e.id} className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs">
-                    <span>{e.prenom} {e.nom}</span>
-                    {e.specialite && <span className="text-amber-600">· {e.specialite.nom}</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
+            <NonAffectesSection etudiants={result.non_affectes} />
           )}
 
           {/* Actions */}

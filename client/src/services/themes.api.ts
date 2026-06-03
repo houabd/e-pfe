@@ -41,8 +41,8 @@ export async function validateTheme(id: string, action: 'VALIDE' | 'REFUSE', mot
   return data.data!;
 }
 
-export async function markAsSoutenu(id: string) {
-  const { data } = await api.patch<ApiResponse<Theme>>(`/themes/${id}/soutenu`);
+export async function markAsSoutenu(id: string, isSoutenu: boolean) {
+  const { data } = await api.patch<ApiResponse<Theme>>(`/themes/${id}/soutenu`, { is_soutenu: isSoutenu });
   return data.data!;
 }
 
@@ -105,4 +105,19 @@ export async function exportThemes(
     responseType: 'blob',
   });
   return response.data as Blob;
+}
+
+export async function getThemesAwaitingConfirmation(): Promise<Theme[]> {
+  const { data } = await api.get<ApiResponse<Theme[]>>('/themes/awaiting-confirmation');
+  return data.data ?? [];
+}
+
+export async function confirmEncadrant(id: string): Promise<Theme> {
+  const { data } = await api.patch<ApiResponse<Theme>>(`/themes/${id}/confirm-encadrant`);
+  return data.data!;
+}
+
+export async function refuseEncadrant(id: string): Promise<Theme> {
+  const { data } = await api.patch<ApiResponse<Theme>>(`/themes/${id}/refuse-encadrant`);
+  return data.data!;
 }

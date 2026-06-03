@@ -10,7 +10,11 @@ export function getNotificationLink(
     case 'BINOME_RESPONSE':
       return '/etudiant/binome';
 
+    case 'BINOME_AJOUTE':
+      return '/enseignant/etudiants';
+
     case 'THEME_CHOSEN':
+    case 'THEME_CHOSEN_HANDLED':
       return '/enseignant/demandes';
 
     case 'THEME_RESPONSE':

@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, Search, Pencil, Trash2, CheckCircle, Clock,
-  BookOpen, Rocket, Tag, Mail, X, ChevronDown,
+  BookOpen, Rocket, Tag, Mail, X, ChevronDown, Eye,
 } from 'lucide-react';
+import { ThemeDetailDialog } from '@/components/themes/ThemeDetailDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -24,8 +25,11 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useMyThemes, useCreateTheme, useUpdateTheme, useRespFiliereInfo } from '@/hooks/useThemes';
 import { useActiveSpecialites } from '@/hooks/useSpecialites';
-import { useUsers } from '@/hooks/useUsers';
-import type { Theme, SousTypeTheme, CreateThemeForm } from '@/types';
+import { useCurrentUser } from '@/stores/authStore';
+import { api } from '@/services/api';
+import type { Theme, SousTypeTheme, CreateThemeForm, User } from '@/types';
+
+const SUPERVISOR_ROLES = ['ENSEIGNANT', 'CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_SPECIALITE'];
 
 // ─── Schéma Zod ───────────────────────────────────────────────────────────────
 
@@ -35,7 +39,7 @@ const themeSchema = z.object({
   mots_cles: z.array(z.string()).default([]),
   necessite_stage: z.boolean().default(false),
   type_pfe: z.enum(['CLASSIQUE', 'STARTUP']),
-  sous_types: z.array(z.enum(['RECHERCHE', 'PROFESSIONNEL', 'LES_DEUX'])).default([]),
+  sous_types: z.array(z.enum(['RECHERCHE', 'PROFESSIONNEL'])).default([]),
   specialite_ids: z.array(z.string()).min(1, 'Choisir au moins une spécialité'),
   encadrant_id: z.string().optional(),
   encadrant_externe: z.object({
@@ -82,10 +86,15 @@ function ThemeFormDialog({
   editingTheme: Theme | null;
 }) {
   const { data: specialites } = useActiveSpecialites();
-  const { data: enseignantsData } = useUsers({ role: 'ENSEIGNANT', limit: 200 });
-  const enseignants = enseignantsData?.data ?? [];
+  const [enseignants, setEnseignants] = useState<User[]>([]);
   const [motCleInput, setMotCleInput] = useState('');
   const [showExterne, setShowExterne] = useState(!!editingTheme?.encadrant_externe);
+
+  useEffect(() => {
+    api.get<{ data: User[] }>('/users', { params: { limit: 500 } })
+      .then((res) => setEnseignants(res.data.data.filter((u) => SUPERVISOR_ROLES.includes(u.role))))
+      .catch((err) => console.error('[GestionThemes] Erreur chargement enseignants:', err));
+  }, []);
 
   const createTheme = useCreateTheme();
   const updateTheme = useUpdateTheme();
@@ -208,7 +217,7 @@ function ThemeFormDialog({
             <div className="space-y-2">
               <Label>Sous-type(s) <span className="text-destructive">*</span></Label>
               <div className="flex gap-3 flex-wrap">
-                {(['RECHERCHE', 'PROFESSIONNEL', 'LES_DEUX'] as const).map((st) => (
+                {(['RECHERCHE', 'PROFESSIONNEL'] as const).map((st) => (
                   <button
                     key={st} type="button" onClick={() => toggleSousType(st)}
                     className={`rounded-lg border px-3 py-2 text-sm font-medium transition-all ${
@@ -217,10 +226,13 @@ function ThemeFormDialog({
                         : 'border-border hover:border-muted-foreground/40'
                     }`}
                   >
-                    {st === 'RECHERCHE' ? 'Recherche' : st === 'PROFESSIONNEL' ? 'Professionnel' : 'Les deux'}
+                    {st === 'RECHERCHE' ? 'Recherche' : 'Professionnel'}
                   </button>
                 ))}
               </div>
+              <p className="flex items-start gap-1.5 text-xs text-muted-foreground mt-1.5">
+                Vous pouvez sélectionner les deux options simultanément si le thème est à la fois de recherche et professionnel.
+              </p>
               {errors.sous_types && (
                 <p className="text-xs text-destructive">{errors.sous_types.message as string}</p>
               )}
@@ -442,13 +454,18 @@ function DeleteRequestDialog({ theme, onClose }: { theme: Theme; onClose: () => 
 // ─── Carte thème ──────────────────────────────────────────────────────────────
 
 function ThemeCard({
-  theme, onEdit, onDeleteRequest,
+  theme, onEdit, onDeleteRequest, onView, currentUserId,
 }: {
   theme: Theme;
   onEdit: (t: Theme) => void;
   onDeleteRequest: (t: Theme) => void;
+  onView: (id: string) => void;
+  currentUserId: string;
 }) {
-  const canEdit = !theme.is_affecte && theme.statut_validation !== 'VALIDE';
+  const isProposant = theme.propose_par.id === currentUserId;
+  const isCoEncadrant = !isProposant && theme.co_encadrant?.id === currentUserId;
+  const canEdit = isProposant && !theme.is_affecte && theme.statut_validation !== 'VALIDE';
+  const canDelete = isProposant && !theme.is_affecte;
 
   return (
     <Card className="hover:shadow-md transition-shadow flex flex-col">
@@ -463,6 +480,11 @@ function ThemeCard({
           <div className="flex flex-col items-end gap-1.5 shrink-0">
             <TypeBadge type={theme.type_pfe} />
             <StatutBadge theme={theme} />
+            {isCoEncadrant && (
+              <Badge className="bg-violet-100 text-violet-700 border-violet-200 hover:bg-violet-100 text-xs">
+                Co-encadrant
+              </Badge>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -482,7 +504,7 @@ function ThemeCard({
           <div className="flex flex-wrap gap-1">
             {theme.sous_types.map((st) => (
               <Badge key={st} variant="outline" className="text-xs">
-                {st === 'RECHERCHE' ? 'Recherche' : st === 'PROFESSIONNEL' ? 'Professionnel' : 'Les deux'}
+                {st === 'RECHERCHE' ? 'Recherche' : 'Professionnel'}
               </Badge>
             ))}
           </div>
@@ -491,6 +513,12 @@ function ThemeCard({
         {theme.encadrant && (
           <p className="text-xs text-muted-foreground">
             Encadrant : <span className="font-medium text-foreground">{theme.encadrant.prenom} {theme.encadrant.nom}</span>
+          </p>
+        )}
+
+        {theme.co_encadrant && !isCoEncadrant && (
+          <p className="text-xs text-muted-foreground">
+            Co-encadrant : <span className="font-medium text-foreground">{theme.co_encadrant.prenom} {theme.co_encadrant.nom}</span>
           </p>
         )}
 
@@ -509,21 +537,37 @@ function ThemeCard({
 
         <div className="flex gap-2 pt-2 border-t mt-auto">
           <Button
-            size="sm" variant="outline" className="flex-1"
-            onClick={() => onEdit(theme)} disabled={!canEdit}
-            title={!canEdit ? (theme.is_affecte ? 'Thème affecté' : 'Thème validé — contacter le resp. filière') : ''}
-          >
-            <Pencil className="h-3.5 w-3.5 mr-1.5" />Modifier
-          </Button>
-          <Button
             size="sm" variant="outline"
-            className="text-destructive hover:text-destructive hover:bg-destructive/5"
-            onClick={() => onDeleteRequest(theme)}
-            disabled={theme.is_affecte}
-            title={theme.is_affecte ? 'Thème affecté, non supprimable' : 'Demander la suppression'}
+            className="gap-1.5"
+            onClick={() => onView(theme.id)}
+            title="Voir les détails"
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Eye className="h-3.5 w-3.5" />Détails
           </Button>
+          {isProposant ? (
+            <>
+              <Button
+                size="sm" variant="outline" className="flex-1"
+                onClick={() => onEdit(theme)} disabled={!canEdit}
+                title={!canEdit ? (theme.is_affecte ? 'Thème affecté' : 'Thème validé — contacter le resp. filière') : ''}
+              >
+                <Pencil className="h-3.5 w-3.5 mr-1.5" />Modifier
+              </Button>
+              <Button
+                size="sm" variant="outline"
+                className="text-destructive hover:text-destructive hover:bg-destructive/5"
+                onClick={() => onDeleteRequest(theme)}
+                disabled={!canDelete}
+                title={!canDelete ? 'Thème affecté, non supprimable' : 'Demander la suppression'}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </>
+          ) : (
+            <p className="flex-1 text-xs text-muted-foreground flex items-center">
+              Proposé par {theme.propose_par.prenom} {theme.propose_par.nom}
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -534,12 +578,14 @@ function ThemeCard({
 
 export default function GestionThemes() {
   const navigate = useNavigate();
+  const currentUser = useCurrentUser();
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterStatut, setFilterStatut] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTheme, setEditingTheme] = useState<Theme | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Theme | null>(null);
+  const [detailThemeId, setDetailThemeId] = useState<string | null>(null);
 
   const filters = {
     search: search || undefined,
@@ -569,7 +615,7 @@ export default function GestionThemes() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Mes thèmes</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {total} thème{total !== 1 ? 's' : ''} proposé{total !== 1 ? 's' : ''}
+            {total} thème{total !== 1 ? 's' : ''} dans votre portfolio
           </p>
         </div>
         <Button onClick={openCreate} className="gap-2">
@@ -648,13 +694,14 @@ export default function GestionThemes() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {themes.map((theme) => (
-            <ThemeCard key={theme.id} theme={theme} onEdit={openEdit} onDeleteRequest={setDeleteTarget} />
+            <ThemeCard key={theme.id} theme={theme} onEdit={openEdit} onDeleteRequest={setDeleteTarget} onView={setDetailThemeId} currentUserId={currentUser?.id ?? ''} />
           ))}
         </div>
       )}
 
       {dialogOpen && <ThemeFormDialog open={dialogOpen} onClose={closeDialog} editingTheme={editingTheme} />}
       {deleteTarget && <DeleteRequestDialog theme={deleteTarget} onClose={() => setDeleteTarget(null)} />}
+      <ThemeDetailDialog themeId={detailThemeId} onClose={() => setDetailThemeId(null)} />
     </div>
   );
 }

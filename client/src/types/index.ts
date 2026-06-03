@@ -18,10 +18,14 @@ export type TypeAffectation = 'LIBRE' | 'AUTO';
 export type TypeNotification =
   | 'BINOME_REQUEST'
   | 'BINOME_RESPONSE'
+  | 'BINOME_AJOUTE'
   | 'THEME_CHOSEN'
+  | 'THEME_CHOSEN_HANDLED'
   | 'THEME_RESPONSE'
   | 'AFFECTATION'
   | 'THEME_VALIDATED'
+  | 'ENCADRANT_CONFIRM_REQUEST'
+  | 'ENCADRANT_CONFIRM_RESPONSE'
   | 'SOUTENANCE_PLANIFIEE'
   | 'NEW_DOCUMENT'
   | 'SESSION_UPDATE';
@@ -95,11 +99,13 @@ export interface Theme {
   necessite_stage: boolean;
   type_pfe: ThemeType;
   sous_types: SousTypeTheme[];
-  propose_par: Pick<User, 'id' | 'nom' | 'prenom' | 'email'>;
+  propose_par: Pick<User, 'id' | 'nom' | 'prenom' | 'email' | 'role'>;
   encadrant?: Pick<User, 'id' | 'nom' | 'prenom' | 'email'>;
+  co_encadrant?: Pick<User, 'id' | 'nom' | 'prenom' | 'email'>;
   encadrant_externe?: EncadrantExterne;
   besoin_encadrant: boolean;
   cherche_binome: boolean;
+  encadrant_valide: boolean;
   statut_validation: StatutValidation;
   is_affecte: boolean;
   is_soutenu: boolean;

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate, requireRole } from '../middleware/auth.middleware';
-import { requireActiveSession } from '../middleware/session.middleware';
+import { requireActiveSession, checkNotAffecte } from '../middleware/session.middleware';
 import { validate } from '../middleware/validation.middleware';
 import * as choixService from '../services/choix.service';
 
@@ -26,8 +26,8 @@ router.get('/mes-choix', requireRole('ETUDIANT'), async (req, res, next) => {
   }
 });
 
-// GET /choix/enseignant — demandes en attente pour un enseignant
-router.get('/enseignant', requireRole('ENSEIGNANT'), async (req, res, next) => {
+// GET /choix/enseignant — demandes en attente pour un enseignant (tous les rôles enseignants)
+router.get('/enseignant', requireRole('ENSEIGNANT', 'CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_SPECIALITE'), async (req, res, next) => {
   try {
     const demandes = await choixService.getDemandesEnseignant(req.user!.userId);
     res.json({ success: true, data: demandes });
@@ -41,6 +41,7 @@ router.post(
   '/',
   requireRole('ETUDIANT'),
   requireActiveSession('CHOIX'),
+  checkNotAffecte,
   validate({ body: createChoixSchema }),
   async (req, res, next) => {
     try {
@@ -53,7 +54,7 @@ router.post(
 );
 
 // PATCH /choix/:id/accept — enseignant accepte → affectation automatique
-router.patch('/:id/accept', requireRole('ENSEIGNANT'), async (req, res, next) => {
+router.patch('/:id/accept', requireRole('ENSEIGNANT', 'CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_SPECIALITE'), async (req, res, next) => {
   try {
     const result = await choixService.acceptChoix(req.params['id'] as string, req.user!.userId);
     res.json({ success: true, data: result });
@@ -63,7 +64,7 @@ router.patch('/:id/accept', requireRole('ENSEIGNANT'), async (req, res, next) =>
 });
 
 // PATCH /choix/:id/refuse — enseignant refuse (retourne tousRefuses pour info)
-router.patch('/:id/refuse', requireRole('ENSEIGNANT'), async (req, res, next) => {
+router.patch('/:id/refuse', requireRole('ENSEIGNANT', 'CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_SPECIALITE'), async (req, res, next) => {
   try {
     const result = await choixService.refuseChoix(req.params['id'] as string, req.user!.userId);
     res.json({ success: true, data: result });

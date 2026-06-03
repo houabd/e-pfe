@@ -6,6 +6,7 @@ import type { ApiResponse } from '@/types';
 export interface SoutenanceTheme {
   id: string;
   titre: string;
+  is_soutenu: boolean;
   theme_specialites: Array<{ specialite: { id: string; nom: string } }>;
   affectation: {
     encadrant: { id: string; nom: string; prenom: string; email: string } | null;

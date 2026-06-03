@@ -1,10 +1,15 @@
-﻿import { useState, useCallback } from 'react';
+﻿import { useState, useCallback, useEffect } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import {
   Users, UserPlus, Upload, Download, Search, Filter,
   MoreHorizontal, UserCheck, UserX, Trash2, ChevronLeft, ChevronRight,
+  Pencil, Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -21,7 +26,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useUsers, useToggleUserActive, useDeleteUser, useHardDeleteUser, useBulkDeleteUsers, useBulkHardDeleteUsers, useExportUsers } from '@/hooks/useUsers';
+import { useUsers, useUpdateUser, useToggleUserActive, useDeleteUser, useHardDeleteUser, useBulkDeleteUsers, useBulkHardDeleteUsers, useExportUsers } from '@/hooks/useUsers';
 import { useActiveSpecialites } from '@/hooks/useSpecialites';
 import AddUserDialog from '@/components/users/AddUserDialog';
 import ImportUsersDialog from '@/components/users/ImportUsersDialog';
@@ -30,10 +35,20 @@ import type { UserFilters } from '@/services/users.api';
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
+const ROLES = [
+  { value: 'CHEF_DEPT', label: 'Chef de Département' },
+  { value: 'CHEF_EQUIPE', label: "Chef d'Équipe / Resp. Filière" },
+  { value: 'RESP_SPECIALITE', label: 'Responsable de Spécialité' },
+  { value: 'TECHNICIEN', label: 'Technicien' },
+  { value: 'ENSEIGNANT', label: 'Enseignant' },
+  { value: 'ETUDIANT', label: 'Étudiant (M2)' },
+];
+const ROLES_WITH_SPECIALITE = ['ENSEIGNANT', 'ETUDIANT', 'RESP_SPECIALITE', 'CHEF_EQUIPE'];
+const STUDENT_ROLES = ['ETUDIANT'];
+
 const ROLE_LABELS: Record<string, string> = {
   CHEF_DEPT: 'Chef Dept.',
-  CHEF_EQUIPE: "Chef Équipe",
-  CHEF_EQUIPE: 'Resp. Filière',
+  CHEF_EQUIPE: 'Chef Équipe',
   RESP_SPECIALITE: 'Resp. Spécialité',
   TECHNICIEN: 'Technicien',
   ENSEIGNANT: 'Enseignant',
@@ -43,12 +58,217 @@ const ROLE_LABELS: Record<string, string> = {
 const ROLE_VARIANTS: Record<string, 'default' | 'secondary' | 'info' | 'warning' | 'outline'> = {
   CHEF_DEPT: 'default',
   CHEF_EQUIPE: 'info',
-  CHEF_EQUIPE: 'info',
   RESP_SPECIALITE: 'secondary',
   TECHNICIEN: 'secondary',
   ENSEIGNANT: 'warning',
   ETUDIANT: 'outline',
 };
+
+// ─── Schéma édition utilisateur ──────────────────────────────────────────────
+
+const editUserSchema = z.object({
+  prenom: z.string().min(2, 'Minimum 2 caractères'),
+  nom: z.string().min(2, 'Minimum 2 caractères'),
+  email: z.string().email('Email invalide'),
+  role: z.string().min(1, 'Rôle requis'),
+  date_naissance: z.string().optional(),
+  specialite_id: z.string().optional(),
+  matricule: z.string().optional(),
+  annee_universitaire: z.string().optional(),
+});
+type EditUserForm = z.infer<typeof editUserSchema>;
+
+// ─── Dialogue édition utilisateur ────────────────────────────────────────────
+
+function EditUserDialog({
+  user,
+  open,
+  onClose,
+  specialites,
+}: {
+  user: User | null;
+  open: boolean;
+  onClose: () => void;
+  specialites: { id: string; nom: string }[];
+}) {
+  const updateUser = useUpdateUser();
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    control,
+    reset,
+    formState: { errors },
+  } = useForm<EditUserForm>({
+    resolver: zodResolver(editUserSchema),
+    defaultValues: { prenom: '', nom: '', email: '', role: 'ENSEIGNANT', date_naissance: '', specialite_id: '', matricule: '', annee_universitaire: '' },
+  });
+
+  useEffect(() => {
+    if (user) {
+      reset({
+        prenom: user.prenom,
+        nom: user.nom,
+        email: user.email,
+        role: user.role,
+        date_naissance: user.date_naissance ? user.date_naissance.slice(0, 10) : '',
+        specialite_id: user.specialite?.id ?? '',
+        matricule: user.matricule ?? '',
+        annee_universitaire: user.annee_universitaire ?? '',
+      });
+    }
+  }, [user, reset]);
+
+  const selectedRole = watch('role');
+  const needsSpecialite = ROLES_WITH_SPECIALITE.includes(selectedRole);
+  const isStudent = STUDENT_ROLES.includes(selectedRole);
+  const emailDomain = selectedRole === 'ETUDIANT' ? '@se.univ-bejaia.dz' : '@univ-bejaia.dz';
+
+  const onSubmit = (data: EditUserForm) => {
+    if (!user) return;
+    updateUser.mutate(
+      {
+        id: user.id,
+        dto: {
+          nom: data.nom,
+          prenom: data.prenom,
+          email: data.email,
+          role: data.role,
+          date_naissance: data.date_naissance || undefined,
+          specialite_id: needsSpecialite ? (data.specialite_id || null) : null,
+          matricule: isStudent ? (data.matricule || null) : null,
+          annee_universitaire: isStudent ? (data.annee_universitaire || null) : null,
+        },
+      },
+      { onSuccess: onClose },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Pencil className="size-4" />
+            Modifier l&apos;utilisateur
+          </DialogTitle>
+          <DialogDescription>
+            {user && <>Modifiez les informations de <strong>{user.prenom} {user.nom}</strong>.</>}
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-prenom">Prénom <span className="text-destructive">*</span></Label>
+              <Input id="edit-prenom" {...register('prenom')} aria-invalid={!!errors.prenom} />
+              {errors.prenom && <p className="text-xs text-destructive">{errors.prenom.message}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-nom">Nom <span className="text-destructive">*</span></Label>
+              <Input id="edit-nom" {...register('nom')} aria-invalid={!!errors.nom} />
+              {errors.nom && <p className="text-xs text-destructive">{errors.nom.message}</p>}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-role">Rôle <span className="text-destructive">*</span></Label>
+            <Controller
+              name="role"
+              control={control}
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger id="edit-role">
+                    <SelectValue placeholder="Sélectionner un rôle" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ROLES.map((r) => (
+                      <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            {errors.role && <p className="text-xs text-destructive">{errors.role.message}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-email">Email <span className="text-destructive">*</span></Label>
+            <Input id="edit-email" type="email" {...register('email')} aria-invalid={!!errors.email} />
+            {selectedRole && (
+              <p className="text-xs text-muted-foreground">Domaine attendu : <code>{emailDomain}</code></p>
+            )}
+            {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-dob">Date de naissance</Label>
+            <Controller
+              name="date_naissance"
+              control={control}
+              render={({ field }) => (
+                <Input
+                  id="edit-dob"
+                  type="date"
+                  value={field.value ?? ''}
+                  onChange={(e) => field.onChange(e.target.value)}
+                />
+              )}
+            />
+          </div>
+
+          {needsSpecialite && (
+            <div className="space-y-2">
+              <Label htmlFor="edit-specialite">Spécialité</Label>
+              <Controller
+                name="specialite_id"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    value={field.value || 'none'}
+                    onValueChange={(v) => field.onChange(v === 'none' ? '' : v)}
+                  >
+                    <SelectTrigger id="edit-specialite">
+                      <SelectValue placeholder="Sélectionner une spécialité" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Aucune</SelectItem>
+                      {specialites.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.nom}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+          )}
+
+          {isStudent && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-matricule">Matricule</Label>
+                <Input id="edit-matricule" placeholder="202210001" {...register('matricule')} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-annee">Année universitaire</Label>
+                <Input id="edit-annee" placeholder="2025-2026" {...register('annee_universitaire')} />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="pt-2">
+            <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
+            <Button type="submit" disabled={updateUser.isPending}>
+              {updateUser.isPending && <Loader2 className="size-4 animate-spin" />}
+              Enregistrer
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 // ─── Dialogue confirmation suppression unique ─────────────────────────────────
 
@@ -158,6 +378,7 @@ function UserRow({
   selected,
   onSelect,
   onToggle,
+  onEdit,
   onDelete,
   onHardDelete,
 }: {
@@ -165,6 +386,7 @@ function UserRow({
   selected: boolean;
   onSelect: (id: string, checked: boolean) => void;
   onToggle: (id: string) => void;
+  onEdit: (user: User) => void;
   onDelete: (user: User) => void;
   onHardDelete: (user: User) => void;
 }) {
@@ -221,6 +443,11 @@ function UserRow({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onEdit(user)}>
+              <Pencil className="size-4 mr-2" />
+              Modifier
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => onToggle(user.id)}>
               {user.is_active ? (
                 <><UserX className="size-4 mr-2 text-yellow-600" /> Désactiver</>
@@ -229,13 +456,6 @@ function UserRow({
               )}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => onDelete(user)}
-              className="text-destructive focus:text-destructive"
-            >
-              <UserX className="size-4 mr-2" />
-              Désactiver
-            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => onHardDelete(user)}
               className="text-destructive focus:text-destructive"
@@ -285,6 +505,7 @@ export default function GestionUtilisateurs() {
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [editTarget, setEditTarget] = useState<User | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [hardDeleteTarget, setHardDeleteTarget] = useState<User | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -581,6 +802,7 @@ export default function GestionUtilisateurs() {
                     selected={selectedIds.has(user.id)}
                     onSelect={handleSelectOne}
                     onToggle={(id) => toggleActive.mutate(id)}
+                    onEdit={setEditTarget}
                     onDelete={setDeleteTarget}
                     onHardDelete={setHardDeleteTarget}
                   />
@@ -628,6 +850,12 @@ export default function GestionUtilisateurs() {
       {/* Modals */}
       <AddUserDialog open={showAdd} onOpenChange={setShowAdd} />
       <ImportUsersDialog open={showImport} onOpenChange={setShowImport} />
+      <EditUserDialog
+        open={!!editTarget}
+        user={editTarget}
+        onClose={() => setEditTarget(null)}
+        specialites={specialites ?? []}
+      />
       {deleteTarget && (
         <DeleteConfirmDialog
           user={deleteTarget}

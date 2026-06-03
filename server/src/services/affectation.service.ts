@@ -62,9 +62,50 @@ export async function getAffectations(filters: {
   return { data: affectations, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
 }
 
+export async function getMonAffectation(etudiantId: string) {
+  const affEtudiant = await prisma.affectationEtudiant.findFirst({
+    where: { etudiant_id: etudiantId },
+    select: {
+      affectation: {
+        select: {
+          id: true,
+          type: true,
+          theme: { select: { id: true, titre: true, type_pfe: true } },
+          encadrant: { select: { id: true, nom: true, prenom: true } },
+        },
+      },
+    },
+  });
+  if (affEtudiant) return affEtudiant.affectation;
+
+  const startup = await prisma.startupMembre.findFirst({
+    where: { etudiant_id: etudiantId },
+    select: {
+      affectation: {
+        select: {
+          id: true,
+          type: true,
+          theme: { select: { id: true, titre: true, type_pfe: true } },
+          encadrant: { select: { id: true, nom: true, prenom: true } },
+        },
+      },
+    },
+  });
+  return startup ? startup.affectation : null;
+}
+
 export async function getMesEtudiants(enseignantId: string) {
-  return prisma.affectationEtudiant.findMany({
-    where: { affectation: { encadrant_id: enseignantId } },
+  const rows = await prisma.affectationEtudiant.findMany({
+    where: {
+      affectation: {
+        OR: [
+          { encadrant_id: enseignantId },
+          { theme: { propose_par_id: enseignantId } },
+          { theme: { encadrant_id: enseignantId } },
+          { theme: { co_encadrant_id: enseignantId } },
+        ],
+      },
+    },
     include: {
       etudiant: {
         select: {
@@ -78,6 +119,8 @@ export async function getMesEtudiants(enseignantId: string) {
     },
     orderBy: [{ affectation: { theme: { titre: 'asc' } } }],
   });
+  console.log(`[getMesEtudiants] enseignantId=${enseignantId} → ${rows.length} entrée(s): ${rows.map((r) => r.etudiant_id).join(', ')}`);
+  return rows;
 }
 
 // ─── Enseignants disponibles ─────────────────────────────────────────────────
@@ -92,8 +135,7 @@ export async function getEnseignantsDisponibles(filters: { specialite_id?: strin
     select: {
       id: true, nom: true, prenom: true, email: true,
       specialite: { select: { id: true, nom: true } },
-      _count: { select: { affectations_encadrant: true, themes_proposes: true } },
-      // Thèmes validés non encore affectés dont cet enseignant est encadrant
+      _count: { select: { themes_proposes: true } },
       themes_encadres: {
         where: { is_affecte: false, statut_validation: 'VALIDE' },
         select: {
@@ -101,17 +143,24 @@ export async function getEnseignantsDisponibles(filters: { specialite_id?: strin
           theme_specialites: { include: { specialite: { select: { id: true, nom: true } } } },
         },
       },
+      // Compter les étudiants supervisés (1 binôme = 2 étudiants = 2 places)
+      affectations_encadrant: {
+        select: { etudiants: { select: { id: true } } },
+      },
     },
     orderBy: [{ nom: 'asc' }],
   });
 
   return enseignants
-    .filter((e) => e._count.affectations_encadrant < 2)
-    .map(({ _count, ...e }) => ({
-      ...e,
-      nb_affectations: _count.affectations_encadrant,
-      sans_proposition: _count.themes_proposes === 0,
-    }));
+    .map(({ _count, affectations_encadrant, ...e }) => {
+      const nb_etudiants = affectations_encadrant.reduce((sum, a) => sum + a.etudiants.length, 0);
+      return {
+        ...e,
+        nb_etudiants,
+        sans_proposition: _count.themes_proposes === 0,
+      };
+    })
+    .filter((e) => e.nb_etudiants < 4);
 }
 
 // ─── Étudiants sans thème ─────────────────────────────────────────────────────
@@ -122,8 +171,16 @@ export async function getEtudiantsSansTheme(filters: { specialite_id?: string })
       role: 'ETUDIANT',
       is_active: true,
       ...(filters.specialite_id ? { specialite_id: filters.specialite_id } : {}),
+      // Pas d'affectation formelle
       affectations_etudiant: { none: {} },
       startup_membres: { none: {} },
+      // Pas de thème proposé avec encadrant confirmé (thème en cours de validation ou affecté)
+      themes_proposes: {
+        none: {
+          encadrant_id: { not: null },
+          encadrant_valide: true,
+        },
+      },
     },
     select: {
       id: true, nom: true, prenom: true, email: true, matricule: true,
@@ -142,7 +199,7 @@ export async function getEtudiantsSansTheme(filters: { specialite_id?: string })
     orderBy: [{ specialite: { nom: 'asc' } }, { nom: 'asc' }],
   });
 
-  return etudiants.map(({ binomes_comme_etud1, binomes_comme_etud2, ...e }) => {
+  const mapped = etudiants.map(({ binomes_comme_etud1, binomes_comme_etud2, ...e }) => {
     const b1 = binomes_comme_etud1[0];
     const b2 = binomes_comme_etud2[0];
     return {
@@ -154,6 +211,27 @@ export async function getEtudiantsSansTheme(filters: { specialite_id?: string })
           : null,
     };
   });
+
+  // Exclude students whose active binôme partner is already formally affecté
+  const partnerIds = mapped
+    .map((e) => e.binome?.partenaire.id)
+    .filter((id): id is string => id !== undefined);
+
+  if (partnerIds.length === 0) return mapped;
+
+  const affectedPartners = await prisma.user.findMany({
+    where: {
+      id: { in: partnerIds },
+      OR: [
+        { affectations_etudiant: { some: {} } },
+        { startup_membres: { some: {} } },
+      ],
+    },
+    select: { id: true },
+  });
+
+  const affectedSet = new Set(affectedPartners.map((p) => p.id));
+  return mapped.filter((e) => !e.binome || !affectedSet.has(e.binome.partenaire.id));
 }
 
 // ─── Création (manuelle) ──────────────────────────────────────────────────────
@@ -178,13 +256,66 @@ export async function createAffectation(
     if (theme.is_affecte) throw new BadRequestError('Ce thème est déjà affecté');
   }
 
+  // Auto-inclure le partenaire de binôme si un seul étudiant soumis
+  let effectiveEtudiantIds = [...dto.etudiant_ids];
+  let effectiveBinomeId = dto.binome_id;
+
+  if (effectiveEtudiantIds.length === 1 && !effectiveBinomeId) {
+    const student = await prisma.user.findUnique({
+      where: { id: effectiveEtudiantIds[0] },
+      select: {
+        binomes_comme_etud1: {
+          where: { statut: 'ACCEPTED' },
+          select: { id: true, etud2_id: true },
+          take: 1,
+        },
+        binomes_comme_etud2: {
+          where: { statut: 'ACCEPTED' },
+          select: { id: true, etud1_id: true },
+          take: 1,
+        },
+      },
+    });
+
+    const b1 = student?.binomes_comme_etud1[0];
+    const b2 = student?.binomes_comme_etud2[0];
+    const binome = b1 ?? b2;
+
+    if (binome) {
+      const partnerId = b1 ? b1.etud2_id : b2!.etud1_id;
+      const [partnerAffecte, partnerStartup] = await Promise.all([
+        prisma.affectationEtudiant.findFirst({ where: { etudiant_id: partnerId } }),
+        prisma.startupMembre.findFirst({ where: { etudiant_id: partnerId } }),
+      ]);
+      if (!partnerAffecte && !partnerStartup) {
+        effectiveEtudiantIds = [effectiveEtudiantIds[0], partnerId];
+        effectiveBinomeId = binome.id;
+      }
+    }
+  }
+
+  // Vérifier la capacité de l'encadrant (max 2 étudiants supervisés au total)
+  const currentStudentCount = await prisma.affectationEtudiant.count({
+    where: { affectation: { encadrant_id: dto.encadrant_id } },
+  });
+  const newStudentCount = effectiveEtudiantIds.length;
+  if (currentStudentCount + newStudentCount > 4) {
+    const remaining = 4 - currentStudentCount;
+    if (newStudentCount > remaining) {
+      throw new BadRequestError(
+        `Cet enseignant ne peut accueillir que ${remaining} étudiant${remaining !== 1 ? 's' : ''} supplémentaire${remaining !== 1 ? 's' : ''} (capacité max : 4)`,
+      );
+    }
+    throw new BadRequestError('Cet enseignant a atteint sa capacité maximale (4 étudiants encadrés)');
+  }
+
   // Vérifier que les étudiants existent et ne sont pas déjà affectés
   const etudiants = await prisma.user.findMany({
-    where: { id: { in: dto.etudiant_ids }, role: 'ETUDIANT', is_active: true },
+    where: { id: { in: effectiveEtudiantIds }, role: 'ETUDIANT', is_active: true },
     include: { affectations_etudiant: { take: 1 }, startup_membres: { take: 1 } },
   });
 
-  if (etudiants.length !== dto.etudiant_ids.length) {
+  if (etudiants.length !== effectiveEtudiantIds.length) {
     throw new BadRequestError('Un ou plusieurs étudiants sont introuvables');
   }
 
@@ -211,9 +342,9 @@ export async function createAffectation(
         affecte_par: affectePar,
         type,
         etudiants: {
-          create: dto.etudiant_ids.map((etudiant_id) => ({
+          create: effectiveEtudiantIds.map((etudiant_id) => ({
             etudiant_id,
-            binome_id: dto.binome_id ?? null,
+            binome_id: effectiveBinomeId ?? null,
           })),
         },
       },
@@ -231,6 +362,27 @@ export async function createAffectation(
       });
     }
 
+    // Supprimer les choix PENDING des étudiants maintenant affectés
+    await tx.themeChoix.deleteMany({
+      where: { etudiant_id: { in: effectiveEtudiantIds }, statut: 'PENDING' },
+    });
+
+    // Désactiver les propositions "cherche encadrant" (maintenant orphelines)
+    await tx.theme.updateMany({
+      where: {
+        propose_par_id: { in: effectiveEtudiantIds },
+        besoin_encadrant: true,
+        is_affecte: false,
+      },
+      data: { is_affecte: true, besoin_encadrant: false },
+    });
+
+    // Retirer les annonces "cherche binôme"
+    await tx.theme.updateMany({
+      where: { propose_par_id: { in: effectiveEtudiantIds }, cherche_binome: true },
+      data: { cherche_binome: false },
+    });
+
     return a;
   });
 
@@ -247,7 +399,7 @@ export async function createAffectation(
     meta,
   );
 
-  for (const etudiantId of dto.etudiant_ids) {
+  for (const etudiantId of effectiveEtudiantIds) {
     await notifyUser(
       etudiantId,
       'AFFECTATION',
@@ -312,19 +464,17 @@ export async function affectationAutomatique() {
     }) as Promise<EtudiantRow[]>,
   ]);
 
-  // Filtrer les thèmes dont l'encadrant a déjà 2 affectations en cours
+  // Compter les étudiants déjà supervisés par encadrant (1 binôme = 2 places)
   const encadrantIds = [...new Set(themesRaw.map((t) => t.encadrant_id!))];
-  const affCounts = await prisma.affectation.groupBy({
-    by: ['encadrant_id'],
-    where: { encadrant_id: { in: encadrantIds } },
-    _count: { id: true },
+  const existingStudentRecords = await prisma.affectationEtudiant.findMany({
+    where: { affectation: { encadrant_id: { in: encadrantIds } } },
+    select: { affectation: { select: { encadrant_id: true } } },
   });
-  // encadrant_id est nullable dans le schéma mais on filtre les lignes non-null
-  const countByEncadrant = new Map<string, number>(
-    affCounts
-      .filter((r): r is { encadrant_id: string; _count: { id: number } } => r.encadrant_id !== null)
-      .map((r) => [r.encadrant_id, r._count.id]),
-  );
+  const countByEncadrant = new Map<string, number>();
+  for (const r of existingStudentRecords) {
+    const encId = r.affectation.encadrant_id!;
+    countByEncadrant.set(encId, (countByEncadrant.get(encId) ?? 0) + 1);
+  }
 
   // Compteur mutable pendant l'algorithme (affectations existantes + suggestions en cours)
   const algoCount = new Map<string, number>(countByEncadrant);
@@ -345,13 +495,13 @@ export async function affectationAutomatique() {
   const suggestions: Suggestion[] = [];
   const etudiantMap = new Map(etudiants.map((e) => [e.id, e]));
 
-  function findTheme(specialiteId: string): ThemeRow | null {
+  function findTheme(specialiteId: string, nbStudents: number = 1): ThemeRow | null {
     return (
       themesRaw.find(
         (t) =>
           !assignedThemes.has(t.id) &&
           t.encadrant_id !== null &&
-          (algoCount.get(t.encadrant_id) ?? 0) < 2 &&
+          (algoCount.get(t.encadrant_id) ?? 0) + nbStudents <= 4 &&
           t.theme_specialites.some((ts) => ts.specialite_id === specialiteId),
       ) ?? null
     );
@@ -372,11 +522,12 @@ export async function affectationAutomatique() {
       })),
     });
     assignedThemes.add(theme.id);
-    algoCount.set(theme.encadrant_id!, (algoCount.get(theme.encadrant_id!) ?? 0) + 1);
+    // Incrémenter par nombre d'étudiants (binôme = 2 places, solo = 1 place)
+    algoCount.set(theme.encadrant_id!, (algoCount.get(theme.encadrant_id!) ?? 0) + etudiantIds.length);
     etudiantIds.forEach((id) => assignedStudents.add(id));
   }
 
-  // Passe 1 : binômes en priorité
+  // Passe 1 : binômes en priorité (cherchent un thème avec 2 places libres)
   for (const etudiant of etudiants) {
     if (assignedStudents.has(etudiant.id)) continue;
     if (!etudiant.specialite_id) continue;
@@ -390,18 +541,18 @@ export async function affectationAutomatique() {
     if (assignedStudents.has(partnerId)) continue;
     if (!etudiantMap.has(partnerId)) continue;
 
-    const theme = findTheme(etudiant.specialite_id);
+    const theme = findTheme(etudiant.specialite_id, 2); // binôme = 2 places
     if (!theme) continue;
 
     pushSuggestion(theme, [etudiant.id, partnerId], binome.id);
   }
 
-  // Passe 2 : étudiants seuls
+  // Passe 2 : étudiants seuls (cherchent un thème avec au moins 1 place libre)
   for (const etudiant of etudiants) {
     if (assignedStudents.has(etudiant.id)) continue;
     if (!etudiant.specialite_id) continue;
 
-    const theme = findTheme(etudiant.specialite_id);
+    const theme = findTheme(etudiant.specialite_id, 1); // solo = 1 place
     if (!theme) continue;
 
     pushSuggestion(theme, [etudiant.id]);
@@ -506,6 +657,24 @@ export async function createStartupAffectation(
     });
 
     await tx.theme.update({ where: { id: dto.theme_id }, data: { is_affecte: true } });
+
+    // Nettoyer les données des membres de l'équipe maintenant affectés
+    await tx.themeChoix.deleteMany({
+      where: { etudiant_id: { in: dto.etudiant_ids }, statut: 'PENDING' },
+    });
+    await tx.theme.updateMany({
+      where: {
+        propose_par_id: { in: dto.etudiant_ids },
+        besoin_encadrant: true,
+        is_affecte: false,
+      },
+      data: { is_affecte: true, besoin_encadrant: false },
+    });
+    await tx.theme.updateMany({
+      where: { propose_par_id: { in: dto.etudiant_ids }, cherche_binome: true },
+      data: { cherche_binome: false },
+    });
+
     return a;
   });
 

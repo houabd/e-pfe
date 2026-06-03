@@ -1,7 +1,7 @@
 ﻿import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate, requireRole } from '../middleware/auth.middleware';
-import { requireRespFiliere } from '../middleware/rbac.middleware';
+import { requireAdmin, requireRespFiliere } from '../middleware/rbac.middleware';
 import { validate } from '../middleware/validation.middleware';
 import * as affectationService from '../services/affectation.service';
 
@@ -19,7 +19,7 @@ const paginatedQuerySchema = z.object({
   session_id: z.string().optional(),
   specialite_id: z.string().optional(),
   page: z.coerce.number().int().min(1).optional(),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional(),
 });
 
 const createAffectationSchema = z.object({
@@ -39,6 +39,21 @@ const suggestionItemSchema = z.object({
 const confirmerAutoSchema = z.object({
   suggestions: z.array(suggestionItemSchema).min(1),
 });
+
+// ─── Route étudiant ───────────────────────────────────────────────────────────
+
+router.get(
+  '/mon-affectation',
+  requireRole('ETUDIANT'),
+  async (req, res, next) => {
+    try {
+      const affectation = await affectationService.getMonAffectation(req.user!.userId);
+      res.json({ success: true, data: affectation });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 // ─── Routes enseignant ────────────────────────────────────────────────────────
 
@@ -87,7 +102,7 @@ router.get(
 
 router.get(
   '/',
-  requireRespFiliere,
+  requireAdmin,
   validate({ query: paginatedQuerySchema }),
   async (req, res, next) => {
     try {

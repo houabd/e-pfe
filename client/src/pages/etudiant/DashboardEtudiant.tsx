@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BookOpen, Users, ClipboardList, Megaphone,
-  CheckCircle2, Clock, XCircle, ArrowRight, AlertCircle,
+  CheckCircle2, Clock, XCircle, ArrowRight, AlertCircle, Info,
 } from 'lucide-react';
+import { ThemeDetailDialog } from '@/components/themes/ThemeDetailDialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +13,7 @@ import { useCurrentUser } from '@/stores/authStore';
 import { useActiveSession } from '@/hooks/useSession';
 import { useMesChoix } from '@/hooks/useChoix';
 import { useMyThemes } from '@/hooks/useThemes';
+import { useMonAffectation } from '@/hooks/useAffectations';
 
 function StatutBadge({ statut }: { statut: 'PENDING' | 'ACCEPTED' | 'REFUSED' }) {
   if (statut === 'ACCEPTED') {
@@ -35,9 +38,11 @@ function StatutBadge({ statut }: { statut: 'PENDING' | 'ACCEPTED' | 'REFUSED' })
 }
 
 export default function DashboardEtudiant() {
+  const [detailThemeId, setDetailThemeId] = useState<string | null>(null);
   const user = useCurrentUser();
   const activeSession = useActiveSession();
   const { data: mesChoixData, isLoading: loadingChoix } = useMesChoix();
+  const { data: monAffectation } = useMonAffectation();
   const choix = mesChoixData?.choix ?? [];
   const { data: mesThemesResponse, isLoading: loadingThemes } = useMyThemes();
   const mesThemes = mesThemesResponse?.data ?? [];
@@ -46,13 +51,16 @@ export default function DashboardEtudiant() {
   const acceptedChoix = choix.find((c) => c.statut === 'ACCEPTED');
   const pendingChoix = choix.filter((c) => c.statut === 'PENDING');
   const allRefused = mesChoixData?.peutRechoisir ?? false;
+  const isAdminAffecte = !acceptedChoix && !!monAffectation;
+  const isAffecte = !!acceptedChoix || !!monAffectation;
 
-  const actions = [
-    { to: '/etudiant/themes', icon: BookOpen, title: 'Choisir un thème', description: 'Parcourez les thèmes validés', color: 'text-blue-500' },
-    { to: '/etudiant/proposer', icon: ClipboardList, title: 'Proposer un thème', description: 'Soumettez votre propre sujet', color: 'text-purple-500' },
-    { to: '/etudiant/binome', icon: Users, title: 'Mon binôme', description: 'Gérez votre partenariat', color: 'text-indigo-500' },
-    { to: '/etudiant/annonces', icon: Megaphone, title: 'Annonces', description: 'Thèmes ouverts au binôme', color: 'text-orange-500' },
+  const allActions = [
+    { to: '/etudiant/themes', icon: BookOpen, title: 'Choisir un thème', description: 'Parcourez les thèmes validés', color: 'text-blue-500', hideWhenAffecte: true },
+    { to: '/etudiant/proposer', icon: ClipboardList, title: 'Proposer un thème', description: 'Soumettez votre propre sujet', color: 'text-purple-500', hideWhenAffecte: true },
+    { to: '/etudiant/binome', icon: Users, title: 'Mon binôme', description: 'Gérez votre partenariat', color: 'text-indigo-500', hideWhenAffecte: false },
+    { to: '/etudiant/annonces', icon: Megaphone, title: 'Annonces', description: 'Thèmes ouverts au binôme', color: 'text-orange-500', hideWhenAffecte: true },
   ];
+  const actions = isAffecte ? allActions.filter((a) => !a.hideWhenAffecte) : allActions;
 
   return (
     <div className="space-y-8">
@@ -92,8 +100,39 @@ export default function DashboardEtudiant() {
             <Skeleton className="h-20 rounded-xl" />
             <Skeleton className="h-16 rounded-xl" />
           </div>
-        ) : acceptedChoix ? (
+        ) : isAdminAffecte && monAffectation ? (
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+            <div className="flex items-start gap-4">
+              <div className="rounded-full bg-emerald-100 p-2.5 shrink-0">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold text-emerald-800">Affecté par l'administration</span>
+                  <Badge className="bg-emerald-200 text-emerald-800 border-0 text-xs">AFFECTÉ</Badge>
+                </div>
+                {monAffectation.theme ? (
+                  <p className="text-sm font-medium text-emerald-900 mt-1 line-clamp-2">
+                    {monAffectation.theme.titre}
+                  </p>
+                ) : (
+                  <p className="text-sm text-emerald-700 mt-1">
+                    Thème à définir par votre encadrant.
+                  </p>
+                )}
+                {monAffectation.encadrant && (
+                  <p className="text-xs text-emerald-700 mt-1">
+                    Encadrant : {monAffectation.encadrant.prenom} {monAffectation.encadrant.nom}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : acceptedChoix ? (
+          <div
+            className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => setDetailThemeId(acceptedChoix.theme.id)}
+          >
             <div className="flex items-start gap-4">
               <div className="rounded-full bg-emerald-100 p-2.5 shrink-0">
                 <CheckCircle2 className="h-5 w-5 text-emerald-600" />
@@ -114,6 +153,7 @@ export default function DashboardEtudiant() {
                   </p>
                 )}
               </div>
+              <Info className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
             </div>
           </div>
         ) : allRefused ? (
@@ -142,7 +182,8 @@ export default function DashboardEtudiant() {
             {choix.map((c) => (
               <div
                 key={c.id}
-                className={`flex items-center gap-4 rounded-xl border px-4 py-3.5 ${
+                onClick={() => setDetailThemeId(c.theme.id)}
+                className={`flex items-center gap-4 rounded-xl border px-4 py-3.5 cursor-pointer hover:bg-accent/20 transition-colors ${
                   c.statut === 'REFUSED' ? 'bg-red-50/50 border-red-100' : 'bg-card'
                 }`}
               >
@@ -160,6 +201,7 @@ export default function DashboardEtudiant() {
                   <p className="text-xs text-muted-foreground">{c.theme.type_pfe}</p>
                 </div>
                 <StatutBadge statut={c.statut} />
+                <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               </div>
             ))}
             {pendingChoix.length > 0 && (
@@ -257,6 +299,11 @@ export default function DashboardEtudiant() {
           ))}
         </div>
       </div>
+
+      <ThemeDetailDialog
+        themeId={detailThemeId}
+        onClose={() => setDetailThemeId(null)}
+      />
     </div>
   );
 }

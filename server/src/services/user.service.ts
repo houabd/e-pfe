@@ -6,7 +6,7 @@ import { hashPassword, generateInitialPassword } from '../utils/password.utils';
 import { isValidEmailForRole } from '../utils/email.validator';
 import { NotFoundError, ConflictError, BadRequestError } from '../middleware/error.middleware';
 import type { CreateUserDto, UserFilters } from '../types';
-import type { Role } from '@prisma/client';
+import type { Role, Prisma } from '@prisma/client';
 
 const USER_SELECT = {
   id: true,
@@ -75,6 +75,49 @@ export async function createUser(dto: CreateUserDto) {
     data: { ...dto, password_hash },
     select: USER_SELECT,
   });
+}
+
+// ─── Mise à jour ──────────────────────────────────────────────────────────────
+
+export interface UpdateUserDto {
+  nom?: string;
+  prenom?: string;
+  email?: string;
+  role?: Role;
+  specialite_id?: string | null;
+  matricule?: string | null;
+  annee_universitaire?: string | null;
+  date_naissance?: Date;
+}
+
+export async function updateUser(id: string, dto: UpdateUserDto) {
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user) throw new NotFoundError('Utilisateur');
+
+  if (dto.email && dto.email !== user.email) {
+    const role = dto.role ?? user.role;
+    if (!isValidEmailForRole(dto.email, role)) {
+      throw new BadRequestError(`Email invalide pour le rôle ${role}. Domaine attendu : ${role === 'ETUDIANT' ? '@se.univ-bejaia.dz' : '@univ-bejaia.dz'}`);
+    }
+    const exists = await prisma.user.findUnique({ where: { email: dto.email } });
+    if (exists) throw new ConflictError('Un utilisateur avec cet email existe déjà');
+  }
+
+  const data: Prisma.UserUncheckedUpdateInput = {};
+  if (dto.nom !== undefined) data.nom = dto.nom;
+  if (dto.prenom !== undefined) data.prenom = dto.prenom;
+  if (dto.email !== undefined) data.email = dto.email;
+  if (dto.role !== undefined) data.role = dto.role;
+  if (dto.specialite_id !== undefined) data.specialite_id = dto.specialite_id;
+  if (dto.matricule !== undefined) data.matricule = dto.matricule;
+  if (dto.annee_universitaire !== undefined) data.annee_universitaire = dto.annee_universitaire;
+  if (dto.date_naissance !== undefined) {
+    data.date_naissance = dto.date_naissance;
+    // Le mot de passe initial étant la date de naissance, on le réinitialise
+    data.password_hash = await hashPassword(generateInitialPassword(dto.date_naissance));
+  }
+
+  return prisma.user.update({ where: { id }, data, select: USER_SELECT });
 }
 
 // ─── Toggle actif ─────────────────────────────────────────────────────────────

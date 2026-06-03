@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../config/database';
-import { BadRequestError } from './error.middleware';
+import { BadRequestError, ForbiddenError } from './error.middleware';
 import type { SessionType } from '@prisma/client';
 
 export function requireActiveSession(type?: SessionType) {
@@ -31,6 +31,30 @@ export function requireActiveSession(type?: SessionType) {
       next(err);
     }
   };
+}
+
+// ─── Vérification "non affecté" ───────────────────────────────────────────────
+
+export async function checkNotAffecte(req: Request, _res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (req.user?.role !== 'ETUDIANT') {
+      return next();
+    }
+    const etudiantId = req.user.userId;
+    const [affectation, startup] = await Promise.all([
+      prisma.affectationEtudiant.findFirst({ where: { etudiant_id: etudiantId }, select: { id: true } }),
+      prisma.startupMembre.findFirst({ where: { etudiant_id: etudiantId }, select: { id: true } }),
+    ]);
+    console.log(`[checkNotAffecte] etudiantId=${etudiantId} affectation=${affectation?.id ?? 'null'} startup=${startup?.id ?? 'null'}`);
+    if (affectation || startup) {
+      return next(new ForbiddenError(
+        'Vous avez déjà un thème affecté. Vous ne pouvez plus proposer ni choisir de thème.',
+      ));
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
 }
 
 declare global {

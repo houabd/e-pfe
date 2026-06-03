@@ -2,7 +2,7 @@
 import { z } from 'zod';
 import { authenticate, requireRole } from '../middleware/auth.middleware';
 import { requireRespFiliere } from '../middleware/rbac.middleware';
-import { requireActiveSession } from '../middleware/session.middleware';
+import { requireActiveSession, checkNotAffecte } from '../middleware/session.middleware';
 import { validate } from '../middleware/validation.middleware';
 import * as themeService from '../services/theme.service';
 
@@ -19,6 +19,7 @@ const createThemeSchema = z.object({
   sous_types: z.array(z.enum(['RECHERCHE', 'PROFESSIONNEL', 'LES_DEUX'])).default([]),
   specialite_ids: z.array(z.string()).min(1),
   encadrant_id: z.string().optional(),
+  co_encadrant_id: z.string().optional(),
   encadrant_externe: z.object({
     nom: z.string(),
     prenom: z.string(),
@@ -68,6 +69,15 @@ router.get('/export/:format', requireRespFiliere, validate({ query: themeFilters
   }
 });
 
+router.get('/awaiting-confirmation', requireRole('ENSEIGNANT', 'CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_SPECIALITE'), async (req, res, next) => {
+  try {
+    const data = await themeService.getThemesAwaitingMyConfirmation(req.user!.userId);
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/my', validate({ query: themeFiltersSchema }), async (req, res, next) => {
   try {
     const result = await themeService.getMyThemes(req.user!.userId, req.query as never);
@@ -99,6 +109,7 @@ router.post(
   '/',
   requireRole('ENSEIGNANT', 'ETUDIANT', 'CHEF_EQUIPE', 'CHEF_DEPT'),
   requireActiveSession('CHOIX'),
+  checkNotAffecte,
   validate({ body: createThemeSchema }),
   async (req, res, next) => {
     try {
@@ -154,6 +165,32 @@ router.delete('/:id', requireRespFiliere, async (req, res, next) => {
 });
 
 router.patch(
+  '/:id/confirm-encadrant',
+  requireRole('ENSEIGNANT', 'CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_SPECIALITE'),
+  async (req, res, next) => {
+    try {
+      const theme = await themeService.confirmEncadrant(req.params['id'] as string, req.user!.userId);
+      res.json({ success: true, data: theme, message: 'Supervision confirmée' });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+router.patch(
+  '/:id/refuse-encadrant',
+  requireRole('ENSEIGNANT', 'CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_SPECIALITE'),
+  async (req, res, next) => {
+    try {
+      const theme = await themeService.refuseEncadrant(req.params['id'] as string, req.user!.userId);
+      res.json({ success: true, data: theme, message: 'Supervision refusée' });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+router.patch(
   '/:id/validate',
   requireRespFiliere,
   validate({ body: validateActionSchema }),
@@ -171,11 +208,14 @@ router.patch(
 
 router.patch(
   '/:id/soutenu',
-  requireRole('TECHNICIEN', 'CHEF_DEPT', 'CHEF_EQUIPE'),
+  requireRole('TECHNICIEN', 'CHEF_DEPT'),
+  validate({ body: z.object({ is_soutenu: z.boolean() }) }),
   async (req, res, next) => {
     try {
-      const theme = await themeService.markAsSoutenu(req.params['id'] as string);
-      res.json({ success: true, data: theme, message: 'Thème marqué soutenu' });
+      const { is_soutenu } = req.body as { is_soutenu: boolean };
+      const theme = await themeService.markAsSoutenu(req.params['id'] as string, is_soutenu);
+      const msg = is_soutenu ? 'Thème marqué soutenu' : 'Statut soutenu annulé';
+      res.json({ success: true, data: theme, message: msg });
     } catch (err) {
       next(err);
     }

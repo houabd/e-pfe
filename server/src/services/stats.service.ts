@@ -35,6 +35,8 @@ export async function getGlobalStats() {
     themesStartups,
     etudiantsSansTheme,
     themesSansEncadrant,
+    themesPlanifies,
+    themesAMarquer,
   ] = await Promise.all([
     prisma.user.count({ where: { role: 'ETUDIANT', is_active: true } }),
     prisma.user.count({ where: { role: 'ENSEIGNANT', is_active: true } }),
@@ -49,6 +51,10 @@ export async function getGlobalStats() {
     }),
     prisma.theme.count({
       where: { besoin_encadrant: true, encadrant_id: null, is_affecte: false },
+    }),
+    prisma.soutenance.count(),
+    prisma.soutenance.count({
+      where: { theme: { is_soutenu: false } },
     }),
   ]);
 
@@ -68,7 +74,9 @@ export async function getGlobalStats() {
     themesNonValides: totalThemes - themesValides,
     themesAffectes,
     themesNonAffectes: totalThemes - themesAffectes,
+    themesPlanifies,
     themesSoutenus,
+    themesAMarquer,
     themesClassiques,
     themesStartups,
     etudiantsSansTheme,
