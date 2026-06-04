@@ -13,6 +13,7 @@ import ChoixThemes from '@/pages/etudiant/ChoixThemes';
 import ProposerTheme from '@/pages/etudiant/ProposerTheme';
 import GestionBinome from '@/pages/etudiant/GestionBinome';
 import Annonces from '@/pages/etudiant/Annonces';
+import MonStartup from '@/pages/etudiant/MonStartup';
 
 import DashboardEnseignant from '@/pages/enseignant/DashboardEnseignant';
 import GestionThemes from '@/pages/enseignant/GestionThemes';
@@ -72,6 +73,7 @@ export const router = createBrowserRouter([
               { path: '/etudiant/proposer', element: <ProposerTheme /> },
               { path: '/etudiant/binome', element: <GestionBinome /> },
               { path: '/etudiant/annonces', element: <Annonces /> },
+              { path: '/etudiant/startup', element: <MonStartup /> },
             ],
           },
 
@@ -87,12 +89,11 @@ export const router = createBrowserRouter([
             ],
           },
 
-          // Admin / Staff
+          // Admin / Staff (toutes les pages sauf utilisateurs)
           {
             element: <RoleRoute roles={[...ADMIN_ROLES]} redirectTo="/connexion" />,
             children: [
               { path: '/admin', element: <DashboardAdmin /> },
-              { path: '/admin/utilisateurs', element: <GestionUtilisateurs /> },
               { path: '/admin/themes', element: <GestionThemesAdmin /> },
               { path: '/admin/affectations', element: <GestionAffectations /> },
               { path: '/admin/soutenances', element: <PlanificationSoutenances /> },
@@ -100,6 +101,13 @@ export const router = createBrowserRouter([
               { path: '/admin/specialites', element: <GestionSpecialites /> },
               { path: '/admin/statistiques', element: <Statistiques /> },
               { path: '/admin/chatbot', element: <GestionDocumentsRAG /> },
+            ],
+          },
+          // Gestion des utilisateurs : CHEF_DEPT et TECHNICIEN uniquement
+          {
+            element: <RoleRoute roles={['CHEF_DEPT', 'TECHNICIEN']} redirectTo="/admin" />,
+            children: [
+              { path: '/admin/utilisateurs', element: <GestionUtilisateurs /> },
             ],
           },
 

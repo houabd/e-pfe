@@ -23,7 +23,7 @@ const themeFiltersSchema = baseFilters.extend({
 });
 
 const etudiantFiltersSchema = baseFilters.extend({
-  statut: z.enum(['avec_theme', 'sans_theme', 'avec_binome', 'sans_binome', 'avec_proposition']).optional(),
+  statut: z.enum(['avec_theme', 'sans_theme', 'avec_binome', 'sans_binome', 'avec_proposition', 'equipe_startup', 'monome']).optional(),
 });
 
 const exportSchema = baseFilters.extend({

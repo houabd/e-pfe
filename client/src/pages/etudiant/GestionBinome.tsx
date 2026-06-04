@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Users, Search, UserCheck, Clock, X, Check,
-  Mail, BookOpen, Send, ChevronDown, Filter,
+  Mail, BookOpen, Send, ChevronDown, Filter, Info,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +23,7 @@ import {
   useAcceptBinome,
   useRefuseBinome,
 } from '@/hooks/useBinomes';
+import { useMonAffectation } from '@/hooks/useAffectations';
 import { useQuery } from '@tanstack/react-query';
 import { rechercherEtudiants } from '@/services/binomes.api';
 import type { EtudiantRecherche } from '@/services/binomes.api';
@@ -447,11 +448,22 @@ function RechercheSection() {
 // ─── Page principale ──────────────────────────────────────────────────────────
 
 export default function GestionBinome() {
+  const { data: affectation, isLoading: loadingAff } = useMonAffectation();
   const { data: binome, isLoading: loadingBinome } = useMonBinome();
   const { data: demandesEnvoyees = [], isLoading: loadingEnvoyees } = useDemandesEnvoyees();
 
+  const isStartupMember = affectation?.theme?.type_pfe === 'STARTUP';
   const hasBinomeActif = !!binome;
   const hasDemandePending = demandesEnvoyees.length > 0;
+
+  if (loadingAff) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-24 w-full rounded-xl" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -466,20 +478,47 @@ export default function GestionBinome() {
         </p>
       </div>
 
-      {/* Statut binôme actif */}
-      {loadingBinome
-        ? <Skeleton className="h-28 w-full rounded-xl" />
-        : <BinomeActif />
-      }
+      {/* Bannière STARTUP — bloque toute la gestion binôme */}
+      {isStartupMember && (
+        <Card className="border-purple-200 bg-purple-50">
+          <CardContent className="flex items-start gap-3 pt-5 pb-5">
+            <Info className="h-5 w-5 text-purple-600 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-semibold text-purple-800 text-sm">
+                Vous faites partie d'une équipe STARTUP
+              </p>
+              <p className="text-sm text-purple-700 mt-0.5">
+                Les membres d'une équipe STARTUP ne peuvent pas former de binôme, envoyer
+                ou accepter des demandes de binôme.
+              </p>
+              {affectation?.theme && (
+                <p className="text-xs text-purple-600 mt-1.5 font-medium">
+                  Thème : {affectation.theme.titre}
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Demandes reçues (visible même si binôme actif ne sera jamais le cas logiquement) */}
-      {!hasBinomeActif && <DemandesRecues />}
+      {!isStartupMember && (
+        <>
+          {/* Statut binôme actif */}
+          {loadingBinome
+            ? <Skeleton className="h-28 w-full rounded-xl" />
+            : <BinomeActif />
+          }
 
-      {/* Demandes envoyées */}
-      {!hasBinomeActif && !loadingEnvoyees && <DemandesEnvoyees />}
+          {/* Demandes reçues */}
+          {!hasBinomeActif && <DemandesRecues />}
 
-      {/* Recherche — masquée si binôme actif ou demande en attente */}
-      {!hasBinomeActif && !hasDemandePending && <RechercheSection />}
+          {/* Demandes envoyées */}
+          {!hasBinomeActif && !loadingEnvoyees && <DemandesEnvoyees />}
+
+          {/* Recherche — masquée si binôme actif ou demande en attente */}
+          {!hasBinomeActif && !hasDemandePending && <RechercheSection />}
+        </>
+      )}
     </div>
   );
 }

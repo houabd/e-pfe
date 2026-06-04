@@ -2,10 +2,12 @@ import { useState, useMemo, useRef } from 'react';
 import { ThemeDetailDialog } from '@/components/themes/ThemeDetailDialog';
 import { useAnnonces } from '@/hooks/useThemes';
 import { useActiveSpecialites } from '@/hooks/useSpecialites';
+import { useMonAffectation } from '@/hooks/useAffectations';
 import type { AnnonceTheme } from '@/services/themes.api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -18,7 +20,7 @@ import {
   DropdownMenuContent,
   DropdownMenuCheckboxItem,
 } from '@/components/ui/dropdown-menu';
-import { ChevronDown, Search, Mail, User, BookOpen, Tag } from 'lucide-react';
+import { ChevronDown, Search, Mail, User, BookOpen, Tag, Info } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 // ─── Multi-select spécialité ─────────────────────────────────────────────────
@@ -159,6 +161,15 @@ function AnnonceCard({ annonce, onContact, onView }: AnnonceCardProps) {
           <Badge variant="outline" className="text-xs">
             {annonce.type_pfe === 'CLASSIQUE' ? 'Classique' : 'Startup'}
           </Badge>
+          {annonce.type_pfe === 'STARTUP' ? (
+            <Badge className="text-xs bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-100">
+              Cherche des membres
+            </Badge>
+          ) : (
+            <Badge className="text-xs bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100">
+              Cherche un binôme
+            </Badge>
+          )}
         </div>
         {annonce.session && (
           <span className="shrink-0 text-xs text-muted-foreground">
@@ -202,7 +213,7 @@ function AnnonceCard({ annonce, onContact, onView }: AnnonceCardProps) {
         </div>
         <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); onContact(annonce); }}>
           <Mail className="mr-1.5 h-3.5 w-3.5" />
-          Contacter
+          {annonce.type_pfe === 'STARTUP' ? 'Rejoindre' : 'Contacter'}
         </Button>
       </div>
     </div>
@@ -237,6 +248,9 @@ export default function Annonces() {
   const [contactAnnonce, setContactAnnonce] = useState<AnnonceTheme | null>(null);
   const [detailThemeId, setDetailThemeId] = useState<string | null>(null);
 
+  const { data: affectation } = useMonAffectation();
+  const isStartupMember = affectation?.theme?.type_pfe === 'STARTUP';
+
   const { data: annoncesResult, isLoading } = useAnnonces();
   const { data: specialites = [] } = useActiveSpecialites();
 
@@ -268,12 +282,30 @@ export default function Annonces() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Annonces de binôme</h2>
+        <h2 className="text-2xl font-bold tracking-tight">Annonces</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Étudiants proposant un thème et cherchant un binôme pour collaborer.
+          Thèmes validés ouverts à un binôme (classique) ou à des membres d'équipe (STARTUP).
         </p>
       </div>
 
+      {isStartupMember && (
+        <Card className="border-purple-200 bg-purple-50">
+          <CardContent className="flex items-start gap-3 pt-5 pb-5">
+            <Info className="h-5 w-5 text-purple-600 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-semibold text-purple-800 text-sm">
+                Vous faites partie d'une équipe STARTUP
+              </p>
+              <p className="text-sm text-purple-700 mt-0.5">
+                Les membres d'une équipe STARTUP ne peuvent pas consulter les annonces.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!isStartupMember && (
+        <>
       {/* Filtres */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[220px]">
@@ -339,6 +371,8 @@ export default function Annonces() {
 
       <ContactDialog annonce={contactAnnonce} onClose={() => setContactAnnonce(null)} />
       <ThemeDetailDialog themeId={detailThemeId} onClose={() => setDetailThemeId(null)} />
+        </>
+      )}
     </div>
   );
 }

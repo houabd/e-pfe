@@ -5,7 +5,7 @@ import { NotificationBell } from '@/components/notifications/NotificationBell';
 import {
   LayoutDashboard, BookOpen, Users, ClipboardList, Calendar,
   BarChart2, Search, LogOut, Settings, ChevronLeft,
-  GraduationCap, Layers, Menu, Database,
+  GraduationCap, Layers, Menu, Database, Rocket,
 } from 'lucide-react';
 import FloatingChat from '@/components/chat/FloatingChat';
 import { AppLogo } from '@/components/ui/AppLogo';
@@ -37,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/etudiant/proposer', label: 'Proposer un thème', icon: <Layers className="size-4" />,          roles: ['ETUDIANT'] },
   { to: '/etudiant/binome',   label: 'Mon binôme',        icon: <Users className="size-4" />,           roles: ['ETUDIANT'] },
   { to: '/etudiant/annonces', label: 'Annonces',          icon: <ClipboardList className="size-4" />,   roles: ['ETUDIANT'] },
+  { to: '/etudiant/startup',  label: 'Mon équipe Startup',icon: <Rocket className="size-4" />,          roles: ['ETUDIANT'] },
 
   // Espace enseignant
   { to: '/enseignant',            label: 'Tableau de bord',   icon: <LayoutDashboard className="size-4" />, roles: ['ENSEIGNANT', 'RESP_SPECIALITE', 'CHEF_EQUIPE', 'CHEF_DEPT'], section: 'Espace Enseignant' },
@@ -47,7 +48,7 @@ const NAV_ITEMS: NavItem[] = [
 
   // Administration
   { to: '/admin',               label: 'Tableau de bord',     icon: <LayoutDashboard className="size-4" />, roles: ['CHEF_DEPT', 'CHEF_EQUIPE', 'TECHNICIEN'],         section: 'Administration' },
-  { to: '/admin/utilisateurs',  label: 'Utilisateurs',        icon: <Users className="size-4" />,           roles: ['CHEF_DEPT', 'CHEF_EQUIPE', 'TECHNICIEN'],         section: 'Administration' },
+  { to: '/admin/utilisateurs',  label: 'Utilisateurs',        icon: <Users className="size-4" />,           roles: ['CHEF_DEPT', 'TECHNICIEN'],                        section: 'Administration' },
   { to: '/admin/themes',        label: 'Thèmes',              icon: <BookOpen className="size-4" />,        roles: ['CHEF_DEPT', 'CHEF_EQUIPE'],                       section: 'Administration' },
   { to: '/admin/affectations',  label: 'Affectations',        icon: <Layers className="size-4" />,          roles: ['CHEF_DEPT', 'CHEF_EQUIPE'],                       section: 'Administration' },
   { to: '/admin/soutenances',   label: 'Soutenances',         icon: <Calendar className="size-4" />,        roles: ['CHEF_DEPT', 'TECHNICIEN'],                        section: 'Administration' },

@@ -182,6 +182,23 @@ export async function createTheme(dto: CreateThemeDto, user: TokenPayload) {
   // STARTUP avec encadrant externe fourni → affectation automatique (CLAUDE.md)
   const isAffecteAuto = dto.type_pfe === 'STARTUP' && !!encadrant_externe;
 
+  // Si étudiant avec binôme actif → le partenaire rejoint l'équipe STARTUP automatiquement
+  let binomePartnerId: string | null = null;
+  if (isAffecteAuto && user.role === 'ETUDIANT') {
+    const binomeActif = await prisma.binome.findFirst({
+      where: {
+        OR: [{ etud1_id: user.userId }, { etud2_id: user.userId }],
+        statut: 'ACCEPTED',
+      },
+      select: { etud1_id: true, etud2_id: true },
+    });
+    if (binomeActif) {
+      binomePartnerId = binomeActif.etud1_id === user.userId
+        ? binomeActif.etud2_id
+        : binomeActif.etud1_id;
+    }
+  }
+
   return prisma.$transaction(async (tx) => {
     const theme = await tx.theme.create({
       data: {
@@ -201,8 +218,12 @@ export async function createTheme(dto: CreateThemeDto, user: TokenPayload) {
       include: THEME_INCLUDE,
     });
 
-    // Crée l'affectation startup et ajoute le proposant comme premier membre
+    // Crée l'affectation startup et ajoute le proposant (+ son binôme si applicable) comme membres
     if (isAffecteAuto) {
+      const startupMembresData = [
+        { etudiant_id: user.userId },
+        ...(binomePartnerId ? [{ etudiant_id: binomePartnerId }] : []),
+      ];
       await tx.affectation.create({
         data: {
           theme_id: theme.id,
@@ -211,7 +232,7 @@ export async function createTheme(dto: CreateThemeDto, user: TokenPayload) {
           affecte_par: user.userId,
           type: 'LIBRE',
           ...(user.role === 'ETUDIANT'
-            ? { startup_membres: { create: [{ etudiant_id: user.userId }] } }
+            ? { startup_membres: { create: startupMembresData } }
             : {}),
         },
       });
@@ -230,6 +251,15 @@ export async function createTheme(dto: CreateThemeDto, user: TokenPayload) {
         encadrantId,
         'ENCADRANT_CONFIRM_REQUEST',
         `${who} vous désigne comme encadrant pour le thème "${theme.titre}". Veuillez confirmer ou refuser.`,
+        { theme_id: theme.id },
+      );
+    }
+    // Notifier le partenaire de binôme ajouté à l'équipe STARTUP
+    if (binomePartnerId) {
+      await notifyUser(
+        binomePartnerId,
+        'STARTUP_MEMBRE_AJOUTE',
+        `Votre binôme vous a ajouté(e) à l'équipe STARTUP "${theme.titre}".`,
         { theme_id: theme.id },
       );
     }
@@ -310,20 +340,16 @@ export async function updateTheme(id: string, dto: Partial<CreateThemeDto>, user
   if (!theme) throw new NotFoundError('Thème');
 
   const isAuthor = theme.propose_par_id === user.userId;
-  const isAdmin = ['CHEF_EQUIPE', 'CHEF_DEPT'].includes(user.role);
 
-  if (!isAuthor && !isAdmin) {
+  if (!isAuthor) {
     throw new ForbiddenError('Vous ne pouvez pas modifier ce thème');
   }
 
-  if (theme.statut_validation === 'VALIDE' && !isAdmin) {
+  const needsPermission = theme.statut_validation === 'VALIDE' || theme.is_affecte;
+  if (needsPermission && !theme.modification_autorisee) {
     throw new ForbiddenError(
-      'Ce thème est validé. Contactez le responsable de filière pour toute modification.',
+      'Ce thème est validé ou affecté. Soumettez une demande de modification.',
     );
-  }
-
-  if (theme.is_affecte && !isAdmin) {
-    throw new ForbiddenError('Ce thème est déjà affecté et ne peut plus être modifié.');
   }
 
   if (dto.type_pfe && dto.sous_types !== undefined) {
@@ -358,11 +384,17 @@ export async function updateTheme(id: string, dto: Partial<CreateThemeDto>, user
       : {}),
   };
 
-  return prisma.theme.update({
+  const updated = await prisma.theme.update({
     where: { id },
-    data: updateData,
+    data: {
+      ...updateData,
+      // Consommer le droit de modification après usage
+      ...(theme.modification_autorisee ? { modification_autorisee: false } : {}),
+    },
     include: THEME_INCLUDE,
   });
+
+  return updated;
 }
 
 // ─── Suppression (CHEF_EQUIPE uniquement) ────────────────────────────────────
@@ -487,11 +519,120 @@ export async function markAsSoutenu(themeId: string, isSoutenu: boolean) {
     throw new BadRequestError('Ce thème n\'a pas de soutenance planifiée.');
   }
 
-  return prisma.theme.update({
+  const updated = await prisma.theme.update({
     where: { id: themeId },
     data: { is_soutenu: isSoutenu },
     include: THEME_INCLUDE,
   });
+
+  if (isSoutenu) {
+    const affectation = await prisma.affectation.findFirst({
+      where: { theme_id: themeId },
+      include: { etudiants: { select: { etudiant_id: true } } },
+    });
+    const msg = `Félicitations ! Votre soutenance du thème "${theme.titre}" a été validée et enregistrée.`;
+    for (const ae of affectation?.etudiants ?? []) {
+      await notifyUser(ae.etudiant_id, 'THEME_SOUTENU', msg, { theme_id: themeId });
+    }
+  }
+
+  return updated;
+}
+
+// ─── Demandes de modification ─────────────────────────────────────────────────
+
+export async function demanderModification(themeId: string, demandeurId: string, motif: string) {
+  const theme = await prisma.theme.findUnique({ where: { id: themeId } });
+  if (!theme) throw new NotFoundError('Thème');
+  if (theme.propose_par_id !== demandeurId) {
+    throw new ForbiddenError("Vous n'êtes pas le proposant de ce thème");
+  }
+  if (theme.statut_validation !== 'VALIDE' && !theme.is_affecte) {
+    throw new BadRequestError('Le thème n\'est pas encore validé — vous pouvez le modifier directement.');
+  }
+  if (theme.modification_autorisee) {
+    throw new BadRequestError('Vous avez déjà une autorisation de modification en cours.');
+  }
+
+  const existingPending = await prisma.demandeModificationTheme.findFirst({
+    where: { theme_id: themeId, statut: 'PENDING' },
+  });
+  if (existingPending) {
+    throw new BadRequestError('Une demande est déjà en attente pour ce thème.');
+  }
+
+  const demande = await prisma.demandeModificationTheme.create({
+    data: { theme_id: themeId, demandeur_id: demandeurId, motif },
+    include: { theme: { select: { id: true, titre: true } }, demandeur: { select: { id: true, nom: true, prenom: true } } },
+  });
+
+  // Notifier CHEF_DEPT et CHEF_EQUIPE
+  const admins = await prisma.user.findMany({
+    where: { role: { in: ['CHEF_DEPT', 'CHEF_EQUIPE'] }, is_active: true },
+    select: { id: true },
+  });
+  const who = `${demande.demandeur.prenom} ${demande.demandeur.nom}`;
+  for (const admin of admins) {
+    await notifyUser(admin.id, 'MODIFICATION_DEMANDE',
+      `${who} demande l'autorisation de modifier le thème "${demande.theme.titre}"`,
+      { theme_id: themeId, demande_id: demande.id });
+  }
+
+  return demande;
+}
+
+export async function getDemandesModification(filters: { statut?: 'PENDING' | 'ACCEPTED' | 'REFUSED' }) {
+  return prisma.demandeModificationTheme.findMany({
+    where: filters.statut ? { statut: filters.statut } : {},
+    include: {
+      theme: {
+        select: {
+          id: true, titre: true, type_pfe: true, statut_validation: true, is_affecte: true,
+          theme_specialites: { include: { specialite: { select: { id: true, nom: true } } } },
+        },
+      },
+      demandeur: { select: { id: true, nom: true, prenom: true, email: true, role: true } },
+    },
+    orderBy: { created_at: 'desc' },
+  });
+}
+
+export async function traiterDemandeModification(
+  demandeId: string,
+  _adminId: string,
+  decision: 'ACCEPTED' | 'REFUSED',
+  commentaire?: string,
+) {
+  const demande = await prisma.demandeModificationTheme.findUnique({
+    where: { id: demandeId },
+    include: { theme: { select: { id: true, titre: true } }, demandeur: { select: { id: true } } },
+  });
+  if (!demande) throw new NotFoundError('Demande');
+  if (demande.statut !== 'PENDING') throw new BadRequestError('Cette demande a déjà été traitée.');
+
+  await prisma.$transaction(async (tx) => {
+    await tx.demandeModificationTheme.update({
+      where: { id: demandeId },
+      data: { statut: decision, commentaire_admin: commentaire ?? null },
+    });
+    if (decision === 'ACCEPTED') {
+      await tx.theme.update({
+        where: { id: demande.theme_id },
+        data: { modification_autorisee: true },
+      });
+    }
+  });
+
+  const message = decision === 'ACCEPTED'
+    ? `Votre demande de modification pour "${demande.theme.titre}" a été acceptée. Vous pouvez maintenant modifier votre thème.`
+    : `Votre demande de modification pour "${demande.theme.titre}" a été refusée.${commentaire ? ` Motif : ${commentaire}` : ''}`;
+
+  await notifyUser(demande.demandeur.id,
+    decision === 'ACCEPTED' ? 'MODIFICATION_ACCEPTEE' : 'MODIFICATION_REFUSEE',
+    message,
+    { theme_id: demande.theme_id, demande_id: demandeId });
+
+  return { message: decision === 'ACCEPTED' ? 'Demande acceptée' : 'Demande refusée' };
 }
 
 // ─── Thèmes cherchant un binôme (annonces) ───────────────────────────────────

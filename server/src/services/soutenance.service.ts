@@ -162,7 +162,7 @@ export async function updateSoutenance(id: string, dto: Partial<CreateSoutenance
   }
 
   const { jury, ...rest } = dto;
-  return prisma.soutenance.update({
+  const updated = await prisma.soutenance.update({
     where: { id },
     data: {
       ...rest,
@@ -170,6 +170,45 @@ export async function updateSoutenance(id: string, dto: Partial<CreateSoutenance
     },
     include: SOUTENANCE_INCLUDE,
   });
+
+  const dateStr = new Date(updated.date_soutenance).toLocaleDateString('fr-FR');
+  const msg = `Votre soutenance a été modifiée — ${dateStr} à ${updated.heure}, Salle ${updated.salle} — "${updated.theme.titre}"`;
+
+  for (const ae of updated.theme.affectation?.etudiants ?? []) {
+    await notifyUser(ae.etudiant_id, 'SOUTENANCE_MODIFIEE', msg, { soutenance_id: id });
+  }
+  for (const j of updated.jury) {
+    await notifyUser(
+      j.enseignant.id,
+      'SOUTENANCE_MODIFIEE',
+      `Modification soutenance (rôle : ${j.role}) — ${dateStr} à ${updated.heure}, Salle ${updated.salle}`,
+      { soutenance_id: id },
+    );
+  }
+
+  return updated;
+}
+
+// ─── Suppression ──────────────────────────────────────────────────────────────
+
+export async function deleteSoutenance(id: string): Promise<void> {
+  const soutenance = await prisma.soutenance.findUnique({
+    where: { id },
+    include: SOUTENANCE_INCLUDE,
+  });
+  if (!soutenance) throw new NotFoundError('Soutenance');
+
+  const dateStr = new Date(soutenance.date_soutenance).toLocaleDateString('fr-FR');
+  const msg = `La soutenance du ${dateStr} à ${soutenance.heure} (Salle ${soutenance.salle}) pour "${soutenance.theme.titre}" a été annulée.`;
+
+  for (const ae of soutenance.theme.affectation?.etudiants ?? []) {
+    await notifyUser(ae.etudiant_id, 'SOUTENANCE_ANNULEE', msg, { theme_id: soutenance.theme.id });
+  }
+  for (const j of soutenance.jury) {
+    await notifyUser(j.enseignant.id, 'SOUTENANCE_ANNULEE', msg, { theme_id: soutenance.theme.id });
+  }
+
+  await prisma.soutenance.delete({ where: { id } });
 }
 
 // ─── Enseignants disponibles pour le jury ─────────────────────────────────────

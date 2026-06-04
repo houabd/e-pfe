@@ -1,12 +1,15 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Search, GraduationCap, User, BookOpen, X, ChevronRight } from 'lucide-react';
+import { Search, GraduationCap, User, BookOpen, X, Mail, MapPin, Hash, CheckCircle2, AlertCircle } from 'lucide-react';
 import { ThemeDetailDialog } from '@/components/themes/ThemeDetailDialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 import { useSearch } from '@/hooks/useSearch';
 import type { SearchEtudiant, SearchEnseignant, SearchTheme } from '@/services/search.api';
 
@@ -51,12 +54,187 @@ function ResultSkeleton() {
   );
 }
 
+// ─── Dialog détail étudiant ───────────────────────────────────────────────────
+
+const ROLE_LABELS: Record<string, string> = {
+  CHEF_DEPT: 'Chef de Département',
+  CHEF_EQUIPE: 'Responsable de Filière',
+  RESP_SPECIALITE: 'Responsable de Spécialité',
+  TECHNICIEN: 'Technicien',
+  ENSEIGNANT: 'Enseignant',
+  ETUDIANT: 'Étudiant',
+};
+
+function EtudiantDetailDialog({ etudiant, onClose }: { etudiant: SearchEtudiant | null; onClose: () => void }) {
+  if (!etudiant) return null;
+  const initials = `${etudiant.prenom[0] ?? ''}${etudiant.nom[0] ?? ''}`.toUpperCase();
+  const aff = etudiant.affectation;
+
+  return (
+    <Dialog open={!!etudiant} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="sr-only">Détails de l'étudiant</DialogTitle>
+        </DialogHeader>
+
+        {/* Avatar + nom */}
+        <div className="flex flex-col items-center gap-3 pt-2 pb-4 border-b">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 text-blue-700 text-2xl font-bold">
+            {initials}
+          </div>
+          <div className="text-center">
+            <p className="text-lg font-bold">{etudiant.prenom} {etudiant.nom}</p>
+            <p className="text-sm text-muted-foreground">Étudiant</p>
+          </div>
+        </div>
+
+        {/* Informations */}
+        <div className="space-y-3 py-2">
+          <div className="flex items-center gap-3 text-sm">
+            <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-muted-foreground">Email</span>
+            <span className="font-medium ml-auto truncate max-w-[220px]">{etudiant.email}</span>
+          </div>
+
+          {etudiant.matricule && (
+            <div className="flex items-center gap-3 text-sm">
+              <Hash className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-muted-foreground">Matricule</span>
+              <span className="font-mono font-medium ml-auto">{etudiant.matricule}</span>
+            </div>
+          )}
+
+          {etudiant.specialite && (
+            <div className="flex items-center gap-3 text-sm">
+              <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-muted-foreground">Spécialité</span>
+              <Badge variant="secondary" className="ml-auto text-xs">{etudiant.specialite.nom}</Badge>
+            </div>
+          )}
+
+          {/* Statut d'affectation */}
+          <div className="mt-4 rounded-lg border p-4">
+            {aff?.theme ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span className="text-sm font-semibold text-emerald-700">Thème affecté</span>
+                  <Badge className={`ml-auto text-[11px] border-0 ${aff.theme.type_pfe === 'STARTUP' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                    {aff.theme.type_pfe}
+                  </Badge>
+                </div>
+                <p className="text-sm font-medium pl-6 line-clamp-2">{aff.theme.titre}</p>
+                {aff.encadrant ? (
+                  <p className="text-xs text-muted-foreground pl-6">
+                    Encadrant : {aff.encadrant.prenom} {aff.encadrant.nom}
+                  </p>
+                ) : aff.theme.type_pfe === 'STARTUP' ? (
+                  <p className="text-xs text-muted-foreground pl-6 italic">Encadrant externe</p>
+                ) : null}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
+                <span className="text-sm text-amber-700">Sans thème affecté</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Dialog détail enseignant ─────────────────────────────────────────────────
+
+function EnseignantDetailDialog({ enseignant, onClose }: { enseignant: SearchEnseignant | null; onClose: () => void }) {
+  if (!enseignant) return null;
+  const initials = `${enseignant.prenom[0] ?? ''}${enseignant.nom[0] ?? ''}`.toUpperCase();
+
+  return (
+    <Dialog open={!!enseignant} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="sr-only">Détails de l'enseignant</DialogTitle>
+        </DialogHeader>
+
+        {/* Avatar + nom */}
+        <div className="flex flex-col items-center gap-3 pt-2 pb-4 border-b">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-2xl font-bold">
+            {initials}
+          </div>
+          <div className="text-center">
+            <p className="text-lg font-bold">{enseignant.prenom} {enseignant.nom}</p>
+            <p className="text-sm text-muted-foreground">{ROLE_LABELS[enseignant.role] ?? enseignant.role}</p>
+          </div>
+        </div>
+
+        {/* Informations */}
+        <div className="space-y-3 py-2">
+          <div className="flex items-center gap-3 text-sm">
+            <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-muted-foreground">Email</span>
+            <span className="font-medium ml-auto truncate max-w-[220px]">{enseignant.email}</span>
+          </div>
+
+          {enseignant.specialite && (
+            <div className="flex items-center gap-3 text-sm">
+              <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-muted-foreground">Spécialité</span>
+              <Badge variant="secondary" className="ml-auto text-xs">{enseignant.specialite.nom}</Badge>
+            </div>
+          )}
+
+          <div className="flex items-center gap-3 text-sm">
+            <BookOpen className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-muted-foreground">Thèmes proposés</span>
+            <span className="font-semibold ml-auto">{enseignant.nb_themes}</span>
+          </div>
+
+          <div className="flex items-center gap-3 text-sm">
+            <GraduationCap className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-muted-foreground">Étudiants encadrés</span>
+            <span className="font-semibold ml-auto">{enseignant.nb_affectations}</span>
+          </div>
+
+          {/* Indicateur de charge */}
+          <div className="mt-2 rounded-lg border p-4">
+            {enseignant.nb_affectations === 0 ? (
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
+                <span className="text-sm text-amber-700">Aucun étudiant encadré actuellement</span>
+              </div>
+            ) : enseignant.nb_affectations > 2 ? (
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-orange-500 shrink-0" />
+                <span className="text-sm text-orange-700">
+                  Encadre {enseignant.nb_affectations} étudiants — chargé
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span className="text-sm text-emerald-700">
+                  Encadre {enseignant.nb_affectations} étudiant{enseignant.nb_affectations > 1 ? 's' : ''}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Carte étudiant ───────────────────────────────────────────────────────────
 
-function EtudiantCard({ e, q }: { e: SearchEtudiant; q: string }) {
+function EtudiantCard({ e, q, onClick }: { e: SearchEtudiant; q: string; onClick: () => void }) {
   const initials = `${e.prenom[0] ?? ''}${e.nom[0] ?? ''}`.toUpperCase();
   return (
-    <div className="flex items-start gap-3 rounded-lg border bg-card p-4 hover:shadow-sm transition-shadow">
+    <div
+      className="flex items-start gap-3 rounded-lg border bg-card p-4 hover:shadow-sm hover:border-primary/30 transition-all cursor-pointer"
+      onClick={onClick}
+    >
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs font-semibold dark:bg-blue-900/40 dark:text-blue-300">
         {initials}
       </div>
@@ -96,10 +274,13 @@ function EtudiantCard({ e, q }: { e: SearchEtudiant; q: string }) {
 
 // ─── Carte enseignant ─────────────────────────────────────────────────────────
 
-function EnseignantCard({ e, q }: { e: SearchEnseignant; q: string }) {
+function EnseignantCard({ e, q, onClick }: { e: SearchEnseignant; q: string; onClick: () => void }) {
   const initials = `${e.prenom[0] ?? ''}${e.nom[0] ?? ''}`.toUpperCase();
   return (
-    <div className="flex items-start gap-3 rounded-lg border bg-card p-4 hover:shadow-sm transition-shadow">
+    <div
+      className="flex items-start gap-3 rounded-lg border bg-card p-4 hover:shadow-sm hover:border-primary/30 transition-all cursor-pointer"
+      onClick={onClick}
+    >
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold dark:bg-emerald-900/40 dark:text-emerald-300">
         {initials}
       </div>
@@ -191,6 +372,8 @@ function EmptySection({ label }: { label: string }) {
 
 export default function SearchPage() {
   const [detailThemeId, setDetailThemeId] = useState<string | null>(null);
+  const [detailEtudiant, setDetailEtudiant] = useState<SearchEtudiant | null>(null);
+  const [detailEnseignant, setDetailEnseignant] = useState<SearchEnseignant | null>(null);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const qFromUrl = searchParams.get('q') ?? '';
@@ -305,7 +488,7 @@ export default function SearchPage() {
             ) : (
               <div className="space-y-3">
                 {etudiants.map((e) => (
-                  <EtudiantCard key={e.id} e={e} q={qFromUrl} />
+                  <EtudiantCard key={e.id} e={e} q={qFromUrl} onClick={() => setDetailEtudiant(e)} />
                 ))}
               </div>
             )}
@@ -320,7 +503,7 @@ export default function SearchPage() {
             ) : (
               <div className="space-y-3">
                 {enseignants.map((e) => (
-                  <EnseignantCard key={e.id} e={e} q={qFromUrl} />
+                  <EnseignantCard key={e.id} e={e} q={qFromUrl} onClick={() => setDetailEnseignant(e)} />
                 ))}
               </div>
             )}
@@ -346,6 +529,14 @@ export default function SearchPage() {
       <ThemeDetailDialog
         themeId={detailThemeId}
         onClose={() => setDetailThemeId(null)}
+      />
+      <EtudiantDetailDialog
+        etudiant={detailEtudiant}
+        onClose={() => setDetailEtudiant(null)}
+      />
+      <EnseignantDetailDialog
+        enseignant={detailEnseignant}
+        onClose={() => setDetailEnseignant(null)}
       />
 
       {/* Indicateur de rechargement subtil */}

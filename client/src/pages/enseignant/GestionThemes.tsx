@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, Search, Pencil, Trash2, CheckCircle, Clock,
-  BookOpen, Rocket, Tag, Mail, X, ChevronDown, Eye,
+  BookOpen, Rocket, Tag, Mail, X, ChevronDown, Eye, MessageSquarePlus,
 } from 'lucide-react';
 import { ThemeDetailDialog } from '@/components/themes/ThemeDetailDialog';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useMyThemes, useCreateTheme, useUpdateTheme, useRespFiliereInfo } from '@/hooks/useThemes';
+import { useMyThemes, useCreateTheme, useUpdateTheme, useRespFiliereInfo, useDemanderModification } from '@/hooks/useThemes';
 import { useActiveSpecialites } from '@/hooks/useSpecialites';
 import { useCurrentUser } from '@/stores/authStore';
 import { api } from '@/services/api';
@@ -146,7 +146,8 @@ function ThemeFormDialog({
     setValue('sous_types',
       sousTypes.includes(st) ? sousTypes.filter((s) => s !== st) : [...sousTypes, st]);
 
-  const isBlocked = editingTheme?.is_affecte || editingTheme?.statut_validation === 'VALIDE';
+  const needsPermission = (editingTheme?.is_affecte || editingTheme?.statut_validation === 'VALIDE');
+  const isBlocked = needsPermission && !editingTheme?.modification_autorisee;
 
   const onSubmit = async (values: ThemeFormValues) => {
     const dto: CreateThemeForm = {
@@ -169,11 +170,14 @@ function ThemeFormDialog({
           <DialogTitle>{editingTheme ? 'Modifier le thème' : 'Proposer un thème'}</DialogTitle>
         </DialogHeader>
 
+        {editingTheme?.modification_autorisee && (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            Modification autorisée par l'administration. Cette autorisation sera consommée à la sauvegarde.
+          </div>
+        )}
         {isBlocked && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            {editingTheme?.is_affecte
-              ? 'Ce thème est affecté et ne peut plus être modifié.'
-              : 'Ce thème est validé. Contactez le responsable de filière pour toute modification.'}
+            Ce thème est verrouillé. Soumettez une demande de modification pour obtenir l'autorisation.
           </div>
         )}
 
@@ -451,21 +455,74 @@ function DeleteRequestDialog({ theme, onClose }: { theme: Theme; onClose: () => 
   );
 }
 
+// ─── Dialog demande de modification ──────────────────────────────────────────
+
+function DemandeModifDialog({ theme, onClose }: { theme: Theme; onClose: () => void }) {
+  const [motif, setMotif] = useState('');
+  const demander = useDemanderModification();
+
+  const onSubmit = async () => {
+    if (motif.trim().length < 10) return;
+    await demander.mutateAsync({ themeId: theme.id, motif: motif.trim() });
+    onClose();
+  };
+
+  return (
+    <Dialog open onOpenChange={() => onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Demander une modification</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Thème : <span className="font-medium text-foreground">{theme.titre}</span>
+          </p>
+          <div className="space-y-2">
+            <Label htmlFor="motif">Motif de la demande <span className="text-destructive">*</span></Label>
+            <Textarea
+              id="motif"
+              placeholder="Expliquez pourquoi vous souhaitez modifier ce thème (min. 10 caractères)…"
+              value={motif}
+              onChange={(e) => setMotif(e.target.value)}
+              rows={4}
+            />
+            {motif.trim().length > 0 && motif.trim().length < 10 && (
+              <p className="text-xs text-destructive">Motif trop court (min. 10 caractères)</p>
+            )}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Annuler</Button>
+          <Button
+            onClick={onSubmit}
+            disabled={motif.trim().length < 10 || demander.isPending}
+          >
+            {demander.isPending ? 'Envoi…' : 'Envoyer la demande'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Carte thème ──────────────────────────────────────────────────────────────
 
 function ThemeCard({
-  theme, onEdit, onDeleteRequest, onView, currentUserId,
+  theme, onEdit, onDeleteRequest, onView, onDemandeModif, currentUserId,
 }: {
   theme: Theme;
   onEdit: (t: Theme) => void;
   onDeleteRequest: (t: Theme) => void;
   onView: (id: string) => void;
+  onDemandeModif: (t: Theme) => void;
   currentUserId: string;
 }) {
   const isProposant = theme.propose_par.id === currentUserId;
   const isCoEncadrant = !isProposant && theme.co_encadrant?.id === currentUserId;
-  const canEdit = isProposant && !theme.is_affecte && theme.statut_validation !== 'VALIDE';
+  const isLocked = (theme.statut_validation === 'VALIDE' || theme.is_affecte) && !theme.modification_autorisee;
+  const canEdit = isProposant && !isLocked;
   const canDelete = isProposant && !theme.is_affecte;
+  const canRequestModif = isProposant && isLocked;
 
   return (
     <Card className="hover:shadow-md transition-shadow flex flex-col">
@@ -535,7 +592,13 @@ function ThemeCard({
           {theme.cherche_binome && <span className="text-purple-600 font-medium">Cherche binôme</span>}
         </div>
 
-        <div className="flex gap-2 pt-2 border-t mt-auto">
+        {theme.modification_autorisee && (
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-700 font-medium">
+            Modification autorisée
+          </div>
+        )}
+
+        <div className="flex gap-2 pt-2 border-t mt-auto flex-wrap">
           <Button
             size="sm" variant="outline"
             className="gap-1.5"
@@ -546,13 +609,21 @@ function ThemeCard({
           </Button>
           {isProposant ? (
             <>
-              <Button
-                size="sm" variant="outline" className="flex-1"
-                onClick={() => onEdit(theme)} disabled={!canEdit}
-                title={!canEdit ? (theme.is_affecte ? 'Thème affecté' : 'Thème validé — contacter le resp. filière') : ''}
-              >
-                <Pencil className="h-3.5 w-3.5 mr-1.5" />Modifier
-              </Button>
+              {canRequestModif ? (
+                <Button
+                  size="sm" variant="outline" className="flex-1 gap-1.5 text-amber-600 border-amber-300 hover:bg-amber-50"
+                  onClick={() => onDemandeModif(theme)}
+                >
+                  <MessageSquarePlus className="h-3.5 w-3.5" />Demander modification
+                </Button>
+              ) : (
+                <Button
+                  size="sm" variant="outline" className="flex-1"
+                  onClick={() => onEdit(theme)} disabled={!canEdit}
+                >
+                  <Pencil className="h-3.5 w-3.5 mr-1.5" />Modifier
+                </Button>
+              )}
               <Button
                 size="sm" variant="outline"
                 className="text-destructive hover:text-destructive hover:bg-destructive/5"
@@ -586,6 +657,7 @@ export default function GestionThemes() {
   const [editingTheme, setEditingTheme] = useState<Theme | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Theme | null>(null);
   const [detailThemeId, setDetailThemeId] = useState<string | null>(null);
+  const [demandeModifTarget, setDemandeModifTarget] = useState<Theme | null>(null);
 
   const filters = {
     search: search || undefined,
@@ -694,13 +766,14 @@ export default function GestionThemes() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {themes.map((theme) => (
-            <ThemeCard key={theme.id} theme={theme} onEdit={openEdit} onDeleteRequest={setDeleteTarget} onView={setDetailThemeId} currentUserId={currentUser?.id ?? ''} />
+            <ThemeCard key={theme.id} theme={theme} onEdit={openEdit} onDeleteRequest={setDeleteTarget} onView={setDetailThemeId} onDemandeModif={setDemandeModifTarget} currentUserId={currentUser?.id ?? ''} />
           ))}
         </div>
       )}
 
       {dialogOpen && <ThemeFormDialog open={dialogOpen} onClose={closeDialog} editingTheme={editingTheme} />}
       {deleteTarget && <DeleteRequestDialog theme={deleteTarget} onClose={() => setDeleteTarget(null)} />}
+      {demandeModifTarget && <DemandeModifDialog theme={demandeModifTarget} onClose={() => setDemandeModifTarget(null)} />}
       <ThemeDetailDialog themeId={detailThemeId} onClose={() => setDetailThemeId(null)} />
     </div>
   );

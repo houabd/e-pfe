@@ -34,6 +34,7 @@ export interface SearchEnseignant {
   role: string;
   specialite?: { id: string; nom: string } | null;
   nb_affectations: number;
+  nb_themes: number;
 }
 
 export interface SearchTheme {

@@ -115,5 +115,13 @@ router.patch('/:id', requireAdmin, validate({ body: createSoutenanceSchema.parti
   }
 });
 
+router.delete('/:id', requireAdmin, async (req, res, next) => {
+  try {
+    await soutenanceService.deleteSoutenance(req.params['id'] as string);
+    res.json({ success: true, message: 'Soutenance supprimée' });
+  } catch (err) {
+    next(err);
+  }
+});
 
 export default router;

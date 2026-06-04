@@ -3,8 +3,9 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
-  Plus, Search, Pencil, Trash2, CheckCircle2, XCircle,
+  Plus, Search, Trash2, CheckCircle2, XCircle,
   BookOpen, Rocket, Tag, X, ChevronDown, Shield, GraduationCap, Download, Info,
+  MessageSquarePlus, Check, Ban,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,12 +23,13 @@ import {
 } from '@/components/ui/select';
 import {
   useThemes, useValidateTheme, useMarkAsSoutenu,
-  useDeleteTheme, useUpdateTheme, useCreateThemeAsAdmin, useExportThemes,
+  useDeleteTheme, useCreateThemeAsAdmin, useExportThemes,
+  useDemandesModification, useTraiterDemandeModification,
 } from '@/hooks/useThemes';
 import { ThemeDetailDialog } from '@/components/themes/ThemeDetailDialog';
 import { useActiveSpecialites } from '@/hooks/useSpecialites';
 import { api } from '@/services/api';
-import type { Theme, SousTypeTheme, CreateThemeForm, User } from '@/types';
+import type { Theme, SousTypeTheme, CreateThemeForm, User, DemandeModification } from '@/types';
 
 const SUPERVISOR_ROLES = ['ENSEIGNANT', 'CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_SPECIALITE'];
 
@@ -256,20 +258,18 @@ function DeleteDialog({ theme, onClose }: { theme: Theme; onClose: () => void })
   );
 }
 
-// ─── Formulaire admin (ajouter / modifier) ────────────────────────────────────
+// ─── Formulaire admin (ajouter un thème) ─────────────────────────────────────
 
 function AdminThemeFormDialog({
-  open, onClose, editingTheme,
+  open, onClose,
 }: {
   open: boolean;
   onClose: () => void;
-  editingTheme: Theme | null;
 }) {
-  const isCreate = !editingTheme;
   const { data: specialites } = useActiveSpecialites();
   const [enseignants, setEnseignants] = useState<User[]>([]);
   const [motCleInput, setMotCleInput] = useState('');
-  const [showExterne, setShowExterne] = useState(!!editingTheme?.encadrant_externe);
+  const [showExterne, setShowExterne] = useState(false);
 
   useEffect(() => {
     api.get<{ data: User[] }>('/users', { params: { limit: 500 } })
@@ -278,27 +278,12 @@ function AdminThemeFormDialog({
   }, []);
 
   const createAdmin = useCreateThemeAsAdmin();
-  const updateTheme = useUpdateTheme();
 
-  const defaultValues: ThemeFormValues = editingTheme
-    ? {
-        titre: editingTheme.titre,
-        description: editingTheme.description,
-        mots_cles: editingTheme.mots_cles,
-        necessite_stage: editingTheme.necessite_stage,
-        type_pfe: editingTheme.type_pfe,
-        sous_types: editingTheme.sous_types as SousTypeTheme[],
-        specialite_ids: editingTheme.theme_specialites.map((ts) => ts.specialite.id),
-        encadrant_id: editingTheme.encadrant?.id,
-        encadrant_externe: editingTheme.encadrant_externe ?? undefined,
-        besoin_encadrant: editingTheme.besoin_encadrant,
-        cherche_binome: editingTheme.cherche_binome,
-      }
-    : {
-        titre: '', description: '', mots_cles: [], necessite_stage: false,
-        type_pfe: 'CLASSIQUE', sous_types: [], specialite_ids: [],
-        besoin_encadrant: false, cherche_binome: false,
-      };
+  const defaultValues: ThemeFormValues = {
+    titre: '', description: '', mots_cles: [], necessite_stage: false,
+    type_pfe: 'CLASSIQUE', sous_types: [], specialite_ids: [],
+    besoin_encadrant: false, cherche_binome: false,
+  };
 
   const {
     register, handleSubmit, control, watch, setValue,
@@ -325,6 +310,7 @@ function AdminThemeFormDialog({
       sousTypes.includes(st) ? sousTypes.filter((s) => s !== st) : [...sousTypes, st]);
 
   const onSubmit = async (values: ThemeFormValues) => {
+    if (!values.propose_par_id) return;
     const base: CreateThemeForm = {
       ...values,
       besoin_encadrant: values.besoin_encadrant ?? false,
@@ -332,13 +318,7 @@ function AdminThemeFormDialog({
       encadrant_id: values.besoin_encadrant ? undefined : values.encadrant_id,
       encadrant_externe: showExterne ? values.encadrant_externe : undefined,
     };
-
-    if (isCreate) {
-      if (!values.propose_par_id) return;
-      await createAdmin.mutateAsync({ ...base, propose_par_id: values.propose_par_id });
-    } else {
-      await updateTheme.mutateAsync({ id: editingTheme.id, dto: base });
-    }
+    await createAdmin.mutateAsync({ ...base, propose_par_id: values.propose_par_id });
     onClose();
   };
 
@@ -348,44 +328,42 @@ function AdminThemeFormDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-primary" />
-            {isCreate ? 'Ajouter un thème' : 'Modifier le thème'}
+            Ajouter un thème
           </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-          {/* Proposé par (admin only, create only) */}
-          {isCreate && (
-            <div className="space-y-1.5">
-              <Label>
-                Proposé par <span className="text-destructive">*</span>
-              </Label>
-              <Controller
-                name="propose_par_id"
-                control={control}
-                render={({ field }) => (
-                  <Select
-                    value={field.value ?? '__none__'}
-                    onValueChange={(v) => field.onChange(v === '__none__' ? undefined : v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner un enseignant..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">Sélectionner...</SelectItem>
-                      {enseignants.map((e) => (
-                        <SelectItem key={e.id} value={e.id}>
-                          {e.prenom} {e.nom}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {errors.propose_par_id && (
-                <p className="text-xs text-destructive">{errors.propose_par_id.message}</p>
+          {/* Proposé par */}
+          <div className="space-y-1.5">
+            <Label>
+              Proposé par <span className="text-destructive">*</span>
+            </Label>
+            <Controller
+              name="propose_par_id"
+              control={control}
+              render={({ field }) => (
+                <Select
+                  value={field.value ?? '__none__'}
+                  onValueChange={(v) => field.onChange(v === '__none__' ? undefined : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un enseignant..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Sélectionner...</SelectItem>
+                    {enseignants.map((e) => (
+                      <SelectItem key={e.id} value={e.id}>
+                        {e.prenom} {e.nom}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
-            </div>
-          )}
+            />
+            {errors.propose_par_id && (
+              <p className="text-xs text-destructive">{errors.propose_par_id.message}</p>
+            )}
+          </div>
 
           {/* Type PFE */}
           <div className="space-y-2">
@@ -592,7 +570,7 @@ function AdminThemeFormDialog({
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Enregistrement...' : isCreate ? 'Ajouter' : 'Enregistrer'}
+              {isSubmitting ? 'Enregistrement...' : 'Ajouter'}
             </Button>
           </DialogFooter>
         </form>
@@ -608,7 +586,6 @@ function ThemeRow({
   onValidate,
   onRefuse,
   onSoutenu,
-  onEdit,
   onDelete,
   onView,
 }: {
@@ -616,7 +593,6 @@ function ThemeRow({
   onValidate: (t: Theme) => void;
   onRefuse: (t: Theme) => void;
   onSoutenu: (t: Theme) => void;
-  onEdit: (t: Theme) => void;
   onDelete: (t: Theme) => void;
   onView: (id: string) => void;
 }) {
@@ -718,13 +694,6 @@ function ThemeRow({
           </Button>
           <Button
             size="sm" variant="outline"
-            className="h-7 px-2.5 text-xs"
-            onClick={() => onEdit(theme)}
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            size="sm" variant="outline"
             className="h-7 px-2.5 text-xs text-destructive hover:text-destructive"
             onClick={() => onDelete(theme)}
             disabled={theme.is_affecte}
@@ -750,6 +719,111 @@ const QUICK_FILTERS: { key: QuickFilter; label: string }[] = [
   { key: 'non-affectes', label: 'Non affectés' },
 ];
 
+// ─── Traitement d'une demande de modification ─────────────────────────────────
+
+function TraiterDemandeDialog({
+  demande, onClose,
+}: { demande: DemandeModification; onClose: () => void }) {
+  const [commentaire, setCommentaire] = useState('');
+  const traiter = useTraiterDemandeModification();
+
+  const handle = async (decision: 'ACCEPTED' | 'REFUSED') => {
+    await traiter.mutateAsync({ demandeId: demande.id, decision, commentaire: commentaire.trim() || undefined });
+    onClose();
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Traiter la demande de modification</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="rounded-lg border bg-muted/30 p-4 space-y-2 text-sm">
+            <p><span className="text-muted-foreground">Thème :</span> <span className="font-medium">{demande.theme.titre}</span></p>
+            <p><span className="text-muted-foreground">Enseignant :</span> {demande.demandeur.prenom} {demande.demandeur.nom}</p>
+            <p className="text-muted-foreground">Motif :</p>
+            <p className="whitespace-pre-wrap rounded bg-background border px-3 py-2">{demande.motif}</p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="commentaire">Commentaire (optionnel)</Label>
+            <Textarea
+              id="commentaire"
+              placeholder="Ajoutez une explication à votre décision…"
+              value={commentaire}
+              onChange={(e) => setCommentaire(e.target.value)}
+              rows={3}
+            />
+          </div>
+        </div>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose}>Annuler</Button>
+          <Button
+            variant="outline"
+            className="text-destructive border-destructive/40 hover:bg-destructive/5 gap-1.5"
+            disabled={traiter.isPending}
+            onClick={() => handle('REFUSED')}
+          >
+            <Ban className="h-4 w-4" />Refuser
+          </Button>
+          <Button
+            className="gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+            disabled={traiter.isPending}
+            onClick={() => handle('ACCEPTED')}
+          >
+            <Check className="h-4 w-4" />Autoriser
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Section demandes de modification ────────────────────────────────────────
+
+function DemandesModificationSection() {
+  const { data: demandes = [], isLoading } = useDemandesModification('PENDING');
+  const [traiterTarget, setTraiterTarget] = useState<DemandeModification | null>(null);
+
+  if (isLoading) return null;
+  if (demandes.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <MessageSquarePlus className="h-5 w-5 text-amber-600" />
+        <h2 className="font-semibold text-amber-800">
+          Demandes de modification en attente
+          <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
+            {demandes.length}
+          </span>
+        </h2>
+      </div>
+      <div className="divide-y rounded-xl border border-amber-200 bg-amber-50/50 overflow-hidden">
+        {demandes.map((d) => (
+          <div key={d.id} className="flex items-start gap-4 p-4">
+            <div className="flex-1 min-w-0 space-y-1">
+              <p className="text-sm font-semibold truncate">{d.theme.titre}</p>
+              <p className="text-xs text-muted-foreground">
+                {d.demandeur.prenom} {d.demandeur.nom} · {new Date(d.created_at).toLocaleDateString('fr-FR')}
+              </p>
+              <p className="text-sm text-foreground/80 line-clamp-2">{d.motif}</p>
+            </div>
+            <Button
+              size="sm"
+              className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white"
+              onClick={() => setTraiterTarget(d)}
+            >
+              Traiter
+            </Button>
+          </div>
+        ))}
+      </div>
+      {traiterTarget && <TraiterDemandeDialog demande={traiterTarget} onClose={() => setTraiterTarget(null)} />}
+    </div>
+  );
+}
+
 export default function GestionThemes() {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('');
@@ -758,7 +832,6 @@ export default function GestionThemes() {
   const [page, setPage] = useState(1);
 
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [editingTheme, setEditingTheme] = useState<Theme | null>(null);
   const [validateTarget, setValidateTarget] = useState<Theme | null>(null);
   const [refuseTarget, setRefuseTarget] = useState<Theme | null>(null);
   const [soutenanceTarget, setSoutenanceTarget] = useState<Theme | null>(null);
@@ -827,6 +900,8 @@ export default function GestionThemes() {
           </Button>
         </div>
       </div>
+
+      <DemandesModificationSection />
 
       {/* Filtres rapides */}
       <div className="flex gap-2 flex-wrap">
@@ -916,7 +991,6 @@ export default function GestionThemes() {
               onValidate={setValidateTarget}
               onRefuse={setRefuseTarget}
               onSoutenu={setSoutenanceTarget}
-              onEdit={setEditingTheme}
               onDelete={setDeleteTarget}
               onView={setDetailThemeId}
             />
@@ -952,10 +1026,7 @@ export default function GestionThemes() {
       {/* Dialogs */}
       <ThemeDetailDialog themeId={detailThemeId} onClose={() => setDetailThemeId(null)} />
       {addDialogOpen && (
-        <AdminThemeFormDialog open onClose={() => setAddDialogOpen(false)} editingTheme={null} />
-      )}
-      {editingTheme && (
-        <AdminThemeFormDialog open onClose={() => setEditingTheme(null)} editingTheme={editingTheme} />
+        <AdminThemeFormDialog open onClose={() => setAddDialogOpen(false)} />
       )}
       {validateTarget && <ValidateDialog theme={validateTarget} onClose={() => setValidateTarget(null)} />}
       {refuseTarget && <RefuseDialog theme={refuseTarget} onClose={() => setRefuseTarget(null)} />}

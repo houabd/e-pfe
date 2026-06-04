@@ -1,5 +1,5 @@
 import { api } from './api';
-import type { Theme, ApiResponse, CreateThemeForm } from '@/types';
+import type { Theme, ApiResponse, CreateThemeForm, DemandeModification } from '@/types';
 
 export interface ThemeFilters {
   specialite_id?: string;
@@ -120,4 +120,24 @@ export async function confirmEncadrant(id: string): Promise<Theme> {
 export async function refuseEncadrant(id: string): Promise<Theme> {
   const { data } = await api.patch<ApiResponse<Theme>>(`/themes/${id}/refuse-encadrant`);
   return data.data!;
+}
+
+export async function demanderModification(themeId: string, motif: string): Promise<DemandeModification> {
+  const { data } = await api.post<ApiResponse<DemandeModification>>(`/themes/${themeId}/demandes-modification`, { motif });
+  return data.data!;
+}
+
+export async function getDemandesModification(statut?: 'PENDING' | 'ACCEPTED' | 'REFUSED'): Promise<DemandeModification[]> {
+  const { data } = await api.get<ApiResponse<DemandeModification[]>>('/themes/demandes-modification', {
+    params: statut ? { statut } : {},
+  });
+  return data.data ?? [];
+}
+
+export async function traiterDemandeModification(
+  demandeId: string,
+  decision: 'ACCEPTED' | 'REFUSED',
+  commentaire?: string,
+): Promise<void> {
+  await api.patch(`/themes/demandes-modification/${demandeId}`, { decision, commentaire });
 }

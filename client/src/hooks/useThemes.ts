@@ -151,6 +151,40 @@ export function useAnnonces(filters?: { specialite_id?: string }) {
   });
 }
 
+export function useDemanderModification() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ themeId, motif }: { themeId: string; motif: string }) =>
+      themesApi.demanderModification(themeId, motif),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['themes'] });
+      toast.success('Demande de modification envoyée — vous serez notifié dès qu\'elle est traitée');
+    },
+    onError: (e) => toast.error(extractApiError(e)),
+  });
+}
+
+export function useDemandesModification(statut?: 'PENDING' | 'ACCEPTED' | 'REFUSED') {
+  return useQuery({
+    queryKey: ['demandes-modification', statut],
+    queryFn: () => themesApi.getDemandesModification(statut),
+  });
+}
+
+export function useTraiterDemandeModification() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ demandeId, decision, commentaire }: { demandeId: string; decision: 'ACCEPTED' | 'REFUSED'; commentaire?: string }) =>
+      themesApi.traiterDemandeModification(demandeId, decision, commentaire),
+    onSuccess: (_, { decision }) => {
+      void qc.invalidateQueries({ queryKey: ['demandes-modification'] });
+      void qc.invalidateQueries({ queryKey: ['themes'] });
+      toast.success(decision === 'ACCEPTED' ? 'Modification autorisée — enseignant notifié' : 'Demande refusée — enseignant notifié');
+    },
+    onError: (e) => toast.error(extractApiError(e)),
+  });
+}
+
 export function useExportThemes() {
   return useMutation({
     mutationFn: ({ format, filters }: { format: 'excel' | 'pdf'; filters?: Omit<themesApi.ThemeFilters, 'page' | 'limit'> }) =>

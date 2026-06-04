@@ -34,9 +34,14 @@ export function getNotificationLink(
       return null;
 
     case 'SOUTENANCE_PLANIFIEE':
+    case 'SOUTENANCE_MODIFIEE':
+    case 'SOUTENANCE_ANNULEE':
       if (role === 'ETUDIANT') return '/etudiant';
       if (role === 'ENSEIGNANT' || role === 'RESP_SPECIALITE') return '/enseignant';
       return '/admin/soutenances';
+
+    case 'THEME_SOUTENU':
+      return '/etudiant';
 
     case 'SESSION_UPDATE': {
       const adminRoles: Role[] = ['CHEF_DEPT', 'CHEF_EQUIPE', 'TECHNICIEN'];
@@ -45,6 +50,28 @@ export function getNotificationLink(
       if (role === 'ETUDIANT') return '/etudiant';
       return null;
     }
+
+    case 'MODIFICATION_DEMANDE':
+      return '/admin/themes';
+
+    case 'MODIFICATION_ACCEPTEE':
+    case 'MODIFICATION_REFUSEE':
+      return '/enseignant/themes';
+
+    case 'STARTUP_INVITATION':
+      return '/etudiant';
+
+    case 'STARTUP_MEMBRE_AJOUTE':
+    case 'STARTUP_PROPOSITION':
+    case 'STARTUP_PROPOSITION_ACCEPTEE':
+    case 'STARTUP_PROPOSITION_REFUSEE':
+      if (role === 'ETUDIANT') return '/etudiant';
+      if (metadata?.affectation_id) return `/enseignant/etudiants`;
+      return null;
+
+    case 'ENCADRANT_CONFIRM_REQUEST':
+    case 'ENCADRANT_CONFIRM_RESPONSE':
+      return null;
 
     case 'NEW_DOCUMENT':
       return null;

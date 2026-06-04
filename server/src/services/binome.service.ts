@@ -18,6 +18,15 @@ export async function demanderBinome(demandeurId: string, cibleId: string) {
     throw new BadRequestError('Vous ne pouvez pas vous ajouter vous-même comme binôme');
   }
 
+  // Vérif demandeur : pas dans une équipe STARTUP
+  const demandeurStartup = await prisma.startupMembre.findFirst({
+    where: { etudiant_id: demandeurId },
+    select: { id: true },
+  });
+  if (demandeurStartup) {
+    throw new BadRequestError('Vous êtes affecté à un thème STARTUP — la formation de binôme n\'est pas applicable');
+  }
+
   // Vérif demandeur : pas de demande en cours ni de binôme actif
   const demandePendingDemandeur = await prisma.binome.findFirst({
     where: {
@@ -81,6 +90,18 @@ export async function acceptBinome(binomeId: string, userId: string) {
   if (!binome) throw new NotFoundError('Demande de binôme');
   if (binome.etud2_id !== userId) throw new ForbiddenError('Cette demande ne vous est pas adressée');
   if (binome.statut !== 'PENDING') throw new BadRequestError('Cette demande n\'est plus en attente');
+
+  // Vérifier qu'aucun des deux étudiants n'est entre-temps rejoint une équipe STARTUP
+  const [etud2Startup, etud1Startup] = await Promise.all([
+    prisma.startupMembre.findFirst({ where: { etudiant_id: userId }, select: { id: true } }),
+    prisma.startupMembre.findFirst({ where: { etudiant_id: binome.etud1_id }, select: { id: true } }),
+  ]);
+  if (etud2Startup) {
+    throw new BadRequestError('Vous êtes affecté à un thème STARTUP — vous ne pouvez pas accepter une demande de binôme');
+  }
+  if (etud1Startup) {
+    throw new BadRequestError('Le demandeur est désormais affecté à un thème STARTUP — cette demande n\'est plus valide');
+  }
 
   type EncadrantInfo = {
     encadrantId: string;

@@ -294,6 +294,8 @@ function EtudiantsTab({ specialiteId }: { specialiteId: string }) {
   const allData = useEtudiantsStatsAdmin({ specialite_id: specialiteId }).data ?? [];
   const avecTheme = allData.filter(e => e.has_theme).length;
   const sansTheme = allData.length - avecTheme;
+  const enStartup = allData.filter(e => e.is_startup).length;
+  const monomes = allData.filter(e => e.is_monome).length;
 
   const toggleSort = (col: EtuSort) => {
     if (sort === col) setDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -312,6 +314,13 @@ function EtudiantsTab({ specialiteId }: { specialiteId: string }) {
     { name: 'Avec thème', value: avecTheme, fill: C.blue },
     { name: 'Sans thème', value: sansTheme, fill: C.amber },
   ];
+
+  function EtudiantStatutBadge({ row }: { row: typeof allData[0] }) {
+    if (!row.has_theme) return <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700">Sans thème</span>;
+    if (row.is_startup) return <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium bg-purple-100 text-purple-700">Startup</span>;
+    if (row.has_binome) return <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium bg-teal-100 text-teal-700">Binôme</span>;
+    return <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium bg-blue-100 text-blue-700">Monôme</span>;
+  }
 
   function SortIcon({ col }: { col: EtuSort }) {
     if (sort !== col) return <ArrowUpDown className="h-3 w-3 opacity-40" />;
@@ -342,10 +351,12 @@ function EtudiantsTab({ specialiteId }: { specialiteId: string }) {
           <CardContent className="space-y-3 pt-3">
             {[
               { label: 'Total', value: allData.length, color: 'text-foreground' },
-              { label: 'Avec thème', value: avecTheme, color: 'text-blue-600' },
+              { label: 'Affectés', value: avecTheme, color: 'text-blue-600' },
               { label: 'Sans thème', value: sansTheme, color: 'text-amber-600' },
               { label: 'Avec binôme', value: allData.filter(e => e.has_binome).length, color: 'text-teal-600' },
-              { label: 'Ont proposé', value: allData.filter(e => e.nb_themes_proposes > 0).length, color: 'text-purple-600' },
+              { label: 'Monômes', value: monomes, color: 'text-orange-600' },
+              { label: 'Équipe Startup', value: enStartup, color: 'text-purple-600' },
+              { label: 'Ont proposé', value: allData.filter(e => e.nb_themes_proposes > 0).length, color: 'text-rose-600' },
             ].map(r => (
               <div key={r.label} className="flex justify-between text-sm">
                 <span className="text-muted-foreground">{r.label}</span>
@@ -366,6 +377,8 @@ function EtudiantsTab({ specialiteId }: { specialiteId: string }) {
               <SelectItem value="sans_theme">Sans thème</SelectItem>
               <SelectItem value="avec_binome">Avec binôme</SelectItem>
               <SelectItem value="sans_binome">Sans binôme</SelectItem>
+              <SelectItem value="monome">Monômes</SelectItem>
+              <SelectItem value="equipe_startup">Équipe Startup</SelectItem>
               <SelectItem value="avec_proposition">Ont proposé</SelectItem>
             </SelectContent>
           </Select>
@@ -420,9 +433,7 @@ function EtudiantsTab({ specialiteId }: { specialiteId: string }) {
                       </td>
                       <td className="px-4 py-2.5 text-right"><Badge variant="outline" className="text-xs">{e.nb_choix}</Badge></td>
                       <td className="px-4 py-2.5 text-right">
-                        {e.has_theme
-                          ? <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Affecté</span>
-                          : <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Sans thème</span>}
+                        <EtudiantStatutBadge row={e} />
                       </td>
                     </tr>
                   ))}

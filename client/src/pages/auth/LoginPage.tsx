@@ -4,9 +4,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Link } from 'react-router-dom';
 import { useLogin } from '@/hooks/useAuth';
 
 const loginSchema = z.object({
@@ -32,11 +33,21 @@ export default function LoginPage() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Connexion</CardTitle>
-        <CardDescription>Entrez votre email professionnel et votre mot de passe</CardDescription>
+      <CardHeader className="items-center text-center pt-8 pb-4 px-8 gap-0">
+        <Link to="/" className="mb-3 block w-16 h-16 mx-auto">
+          <img
+            src="/logo.png"
+            alt="e-PFE"
+            width={64}
+            height={64}
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            className="hover:opacity-80 transition-opacity"
+          />
+        </Link>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">e-PFE</p>
+        <CardTitle className="text-xl">Connexion</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-8 pb-8 pt-4">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
           <div className="space-y-2">
             <Label htmlFor="email">Email <span className="text-destructive" aria-hidden>*</span></Label>
@@ -92,7 +103,7 @@ export default function LoginPage() {
         </form>
 
         <p className="text-xs text-muted-foreground text-center mt-4">
-          Mot de passe initial : votre date de naissance au format <strong>JJMMAAAA</strong>
+          Mot de passe initial : votre date de naissance
         </p>
       </CardContent>
     </Card>

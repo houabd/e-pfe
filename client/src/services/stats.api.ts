@@ -26,6 +26,9 @@ export interface EtudiantStatRow {
   annee_universitaire: string | null;
   specialite: { id: string; nom: string } | null;
   has_theme: boolean;
+  is_startup: boolean;
+  is_monome: boolean;
+  has_encadrant: boolean;
   affectation: {
     theme: { id: string; titre: string; type_pfe: string } | null;
     encadrant: { id: string; nom: string; prenom: string } | null;

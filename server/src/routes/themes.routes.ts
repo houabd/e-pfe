@@ -53,7 +53,51 @@ const createThemeAdminSchema = createThemeSchema.extend({
   propose_par_id: z.string().min(1, 'Enseignant requis'),
 });
 
+const demandeModifSchema = z.object({
+  motif: z.string().min(10, 'Motif trop court (min 10 caractères)'),
+});
+
+const traiterDemandeSchema = z.object({
+  decision: z.enum(['ACCEPTED', 'REFUSED']),
+  commentaire: z.string().optional(),
+});
+
+const demandesFiltersSchema = z.object({
+  statut: z.enum(['PENDING', 'ACCEPTED', 'REFUSED']).optional(),
+});
+
 // ⚠️ Ces routes statiques doivent être déclarées AVANT /:id
+
+// ─── Demandes de modification ─────────────────────────────────────────────────
+
+router.get(
+  '/demandes-modification',
+  requireRespFiliere,
+  validate({ query: demandesFiltersSchema }),
+  async (req, res, next) => {
+    try {
+      const data = await themeService.getDemandesModification(req.query as never);
+      res.json({ success: true, data });
+    } catch (err) { next(err); }
+  },
+);
+
+router.patch(
+  '/demandes-modification/:demandeId',
+  requireRespFiliere,
+  validate({ body: traiterDemandeSchema }),
+  async (req, res, next) => {
+    try {
+      const { decision, commentaire } = req.body as { decision: 'ACCEPTED' | 'REFUSED'; commentaire?: string };
+      const result = await themeService.traiterDemandeModification(
+        req.params['demandeId'] as string, req.user!.userId, decision, commentaire,
+      );
+      res.json({ success: true, data: result });
+    } catch (err) { next(err); }
+  },
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 router.get('/export/:format', requireRespFiliere, validate({ query: themeFiltersSchema }), async (req, res, next) => {
   try {
@@ -145,6 +189,19 @@ router.get('/:id', async (req, res, next) => {
     next(err);
   }
 });
+
+router.post(
+  '/:id/demandes-modification',
+  requireRole('ENSEIGNANT', 'CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_SPECIALITE'),
+  validate({ body: demandeModifSchema }),
+  async (req, res, next) => {
+    try {
+      const { motif } = req.body as { motif: string };
+      const data = await themeService.demanderModification(req.params['id'] as string, req.user!.userId, motif);
+      res.status(201).json({ success: true, data });
+    } catch (err) { next(err); }
+  },
+);
 
 router.patch('/:id', validate({ body: createThemeSchema.partial() }), async (req, res, next) => {
   try {

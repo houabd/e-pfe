@@ -291,28 +291,31 @@ export async function acceptChoix(choixId: string, enseignantId: string) {
       },
     });
 
-    // 5. Lier l'étudiant à l'affectation
-    await tx.affectationEtudiant.create({
-      data: {
-        affectation_id: affectation.id,
-        etudiant_id: choix.etudiant_id,
-        binome_id: effectiveBinomeId,
-      },
-    });
-    console.log(`[acceptChoix] AffectationEtudiant créé pour A=${choix.etudiant_id} affectation=${affectation.id}`);
+    const isStartup = choix.theme.type_pfe === 'STARTUP';
+    const etudiantIds = [choix.etudiant_id, ...(partnerId ? [partnerId] : [])];
 
-    // 6. Lier le partenaire de binôme si applicable
-    if (partnerId) {
-      await tx.affectationEtudiant.create({
-        data: {
-          affectation_id: affectation.id,
-          etudiant_id: partnerId,
-          binome_id: effectiveBinomeId,
-        },
+    if (isStartup) {
+      // 5 & 6. STARTUP → StartupMembre (équipe agrandissable jusqu'à 6)
+      await tx.startupMembre.createMany({
+        data: etudiantIds.map((etudiant_id) => ({ affectation_id: affectation.id, etudiant_id })),
       });
-      console.log(`[acceptChoix] AffectationEtudiant créé pour B=${partnerId} affectation=${affectation.id}`);
+      console.log(`[acceptChoix] StartupMembre créés pour ${etudiantIds.join(', ')} affectation=${affectation.id}`);
     } else {
-      console.log('[acceptChoix] Pas de partenaire — aucun AffectationEtudiant créé pour B');
+      // 5. Lier l'étudiant à l'affectation
+      await tx.affectationEtudiant.create({
+        data: { affectation_id: affectation.id, etudiant_id: choix.etudiant_id, binome_id: effectiveBinomeId },
+      });
+      console.log(`[acceptChoix] AffectationEtudiant créé pour A=${choix.etudiant_id} affectation=${affectation.id}`);
+
+      // 6. Lier le partenaire de binôme si applicable
+      if (partnerId) {
+        await tx.affectationEtudiant.create({
+          data: { affectation_id: affectation.id, etudiant_id: partnerId, binome_id: effectiveBinomeId },
+        });
+        console.log(`[acceptChoix] AffectationEtudiant créé pour B=${partnerId} affectation=${affectation.id}`);
+      } else {
+        console.log('[acceptChoix] Pas de partenaire — aucun AffectationEtudiant créé pour B');
+      }
     }
 
     // 7. Désactiver les propositions "cherche encadrant" des étudiants affectés (maintenant orphelines)

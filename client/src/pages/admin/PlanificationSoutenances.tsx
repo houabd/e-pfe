@@ -17,12 +17,17 @@ import {
 } from '@/components/ui/select';
 import {
   Calendar, List, Download, Plus, X, ChevronLeft, ChevronRight,
-  GraduationCap, User, Users, Clock, MapPin, BookOpen, Pencil, CheckCircle2,
+  GraduationCap, User, Users, Clock, MapPin, BookOpen, Pencil, CheckCircle2, Trash2,
 } from 'lucide-react';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { useActiveSpecialites } from '@/hooks/useSpecialites';
 import { useAffectations } from '@/hooks/useAffectations';
 import {
-  useSoutenances, useCreateSoutenance, useUpdateSoutenance,
+  useSoutenances, useCreateSoutenance, useUpdateSoutenance, useDeleteSoutenance,
   useEnseignantsDisponibles, useExportSoutenancesPDF, useExportSoutenancesExcel,
 } from '@/hooks/useSoutenances';
 import { useMarkAsSoutenu } from '@/hooks/useThemes';
@@ -515,10 +520,12 @@ function ListePlanning({
   soutenances,
   onEdit,
   onMarquerSoutenu,
+  onDelete,
 }: {
   soutenances: SoutenanceFull[];
   onEdit: (s: SoutenanceFull) => void;
   onMarquerSoutenu: (themeId: string, isSoutenu: boolean) => void;
+  onDelete: (id: string) => void;
 }) {
   const byDate = useMemo(() => {
     const map = new Map<string, SoutenanceFull[]>();
@@ -626,6 +633,34 @@ function ListePlanning({
                       <Button size="sm" variant="ghost" onClick={() => onEdit(s)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="sm" variant="ghost"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Supprimer la soutenance ?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              La soutenance du <strong>{new Date(s.date_soutenance + 'T12:00:00').toLocaleDateString('fr-FR')}</strong> à <strong>{s.heure}</strong> pour <strong>«&nbsp;{s.theme.titre}&nbsp;»</strong> sera supprimée.
+                              Les étudiants et le jury recevront une notification d'annulation. Cette action est irréversible.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Annuler</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-destructive hover:bg-destructive/90"
+                              onClick={() => onDelete(s.id)}
+                            >
+                              Supprimer
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </div>
                 );
@@ -805,6 +840,7 @@ export default function PlanificationSoutenances() {
   const exportPDF = useExportSoutenancesPDF();
   const exportExcel = useExportSoutenancesExcel();
   const markAsSoutenuMutation = useMarkAsSoutenu();
+  const deleteSoutenanceMutation = useDeleteSoutenance();
 
   const soutenances = soutenancesResult?.data ?? [];
   const affectations = affectationsResult?.data ?? [];
@@ -971,6 +1007,7 @@ export default function PlanificationSoutenances() {
                 onMarquerSoutenu={(themeId, isSoutenu) =>
                   markAsSoutenuMutation.mutate({ id: themeId, isSoutenu })
                 }
+                onDelete={(id) => deleteSoutenanceMutation.mutate(id)}
               />
             ) : (
               <CalendrierMensuel soutenances={soutenances} onEdit={handleEdit} />

@@ -74,7 +74,7 @@ export default function FloatingChat() {
       onFallback: (content, warning) => {
         setMessages((prev) => {
           const exists = prev.some((m) => m.id === assistantMsgId);
-          const msg: Message = { id: assistantMsgId, role: 'assistant', content, source_type: 'gemini', warning };
+          const msg: Message = { id: assistantMsgId, role: 'assistant', content, source_type: 'general', warning: warning || undefined };
           return exists ? prev.map((m) => m.id === assistantMsgId ? msg : m) : [...prev, msg];
         });
         setStreamingMsgId(null);
@@ -160,7 +160,6 @@ export default function FloatingChat() {
                   <div className="flex-1 min-w-0 space-y-1.5">
                     {msg.id !== streamingMsgId && msg.warning && (
                       <div className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-800/30 px-2 py-1.5 text-[10px] text-amber-700 dark:text-amber-300">
-                        <span className="shrink-0">⚠️</span>
                         <span>{msg.warning}</span>
                       </div>
                     )}
@@ -177,7 +176,7 @@ export default function FloatingChat() {
                       </Sources>
                     )}
                     {msg.id !== streamingMsgId && msg.source_type === 'general' && (
-                      <p className="text-[10px] text-orange-500 font-medium px-1">🤖 Réponse générale</p>
+                      <p className="text-[10px] text-orange-500 font-medium px-1">Réponse générale</p>
                     )}
                     {msg.id !== streamingMsgId && msg.source_type === 'pdf' && msg.sources && msg.sources.length > 0 && (
                       <p className="text-[10px] text-emerald-600 font-medium px-1">✅ Guide LMD officiel</p>

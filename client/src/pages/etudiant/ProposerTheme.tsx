@@ -22,6 +22,7 @@ import { useActiveSpecialites } from '@/hooks/useSpecialites';
 import { useUsers } from '@/hooks/useUsers';
 import { useActiveSession } from '@/hooks/useSession';
 import { useMonAffectation } from '@/hooks/useAffectations';
+import { useMonBinome } from '@/hooks/useBinomes';
 import { CheckCircle2 } from 'lucide-react';
 import type { SousTypeTheme, CreateThemeForm } from '@/types';
 
@@ -80,6 +81,7 @@ export default function ProposerTheme() {
   const navigate = useNavigate();
   const activeSession = useActiveSession();
   const { data: monAffectation } = useMonAffectation();
+  const { data: monBinome } = useMonBinome();
   const { data: specialites } = useActiveSpecialites();
   const { data: enseignantsData } = useUsers({ role: 'ENSEIGNANT', limit: 200 });
   const enseignants = enseignantsData?.data ?? [];
@@ -111,6 +113,7 @@ export default function ProposerTheme() {
 
   const isSessionActive = !!activeSession && activeSession.type === 'CHOIX';
   const hasEncadrantExterne = showExterne && !!encadrantExterne?.nom && !!encadrantExterne?.email;
+  const hasBinomeActif = !!monBinome;
 
   const addMotCle = () => {
     const val = motCleInput.trim();
@@ -502,6 +505,17 @@ export default function ProposerTheme() {
                     </span>
                   </div>
                 )}
+
+                {/* Binôme auto-ajouté (STARTUP + encadrant externe + binôme actif) */}
+                {typePfe === 'STARTUP' && hasEncadrantExterne && hasBinomeActif && (
+                  <div className="rounded-lg bg-purple-50 border border-purple-200 px-4 py-3 text-sm text-purple-800 flex items-start gap-2">
+                    <Users className="h-4 w-4 mt-0.5 shrink-0 text-purple-500" />
+                    <span>
+                      Vous avez un binôme actif — votre partenaire sera automatiquement{' '}
+                      <strong>ajouté(e) à votre équipe STARTUP</strong> lors de la soumission.
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -538,7 +552,7 @@ export default function ProposerTheme() {
               </div>
             </div>
 
-            {/* Cherche binôme + message conditionnel */}
+            {/* Cherche binôme / membre + message conditionnel */}
             <div>
               <div
                 className={`flex items-start gap-3 border p-4 transition-all ${
@@ -562,10 +576,14 @@ export default function ProposerTheme() {
                 <div>
                   <Label htmlFor="cherche_binome" className="cursor-pointer flex items-center gap-2">
                     <Users className="h-4 w-4 text-purple-500" />
-                    Ouvert pour former un binôme
+                    {typePfe === 'STARTUP'
+                      ? 'Cherche des membres d\'équipe'
+                      : 'Ouvert pour former un binôme'}
                   </Label>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Publie une annonce visible par les étudiants qui cherchent un binôme.
+                    {typePfe === 'STARTUP'
+                      ? 'Publie une annonce pour recruter des membres dans votre équipe STARTUP.'
+                      : 'Publie une annonce visible par les étudiants qui cherchent un binôme.'}
                   </p>
                 </div>
               </div>
@@ -577,8 +595,10 @@ export default function ProposerTheme() {
                   <p className="text-sm text-purple-800">
                     <strong>Votre annonce sera visible</strong> — une fois ce thème validé par le
                     responsable de filière, il apparaîtra dans la page{' '}
-                    <strong>Annonces</strong>. Les étudiants sans binôme pourront demander à rejoindre
-                    votre projet.
+                    <strong>Annonces</strong>.{' '}
+                    {typePfe === 'STARTUP'
+                      ? 'Les étudiants pourront vous contacter pour rejoindre votre équipe.'
+                      : 'Les étudiants sans binôme pourront demander à rejoindre votre projet.'}
                   </p>
                 </div>
               )}
@@ -616,7 +636,11 @@ export default function ProposerTheme() {
                 <div className="flex gap-3 text-xs text-muted-foreground flex-wrap">
                   {besoinEncadrant && <span className="text-blue-600">● Cherche encadrant</span>}
                   {watch('necessite_stage') && <span className="text-amber-600">● Stage requis</span>}
-                  {chercheBinome && <span className="text-purple-600">● Ouvert pour binôme</span>}
+                  {chercheBinome && (
+                    <span className="text-purple-600">
+                      {typePfe === 'STARTUP' ? '● Cherche des membres' : '● Ouvert pour binôme'}
+                    </span>
+                  )}
                   {typePfe === 'STARTUP' && hasEncadrantExterne && (
                     <span className="text-orange-600">● Auto-affecté (encadrant externe)</span>
                   )}

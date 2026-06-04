@@ -39,6 +39,12 @@ enum StatutValidation {
   VALIDE
 }
 
+enum StatutDemandeModification {
+  PENDING
+  ACCEPTED
+  REFUSED
+}
+
 enum StatutChoix {
   PENDING
   ACCEPTED
@@ -46,6 +52,12 @@ enum StatutChoix {
 }
 
 enum StatutBinome {
+  PENDING
+  ACCEPTED
+  REFUSED
+}
+
+enum StatutProposition {
   PENDING
   ACCEPTED
   REFUSED
@@ -75,6 +87,17 @@ enum TypeNotification {
   SOUTENANCE_PLANIFIEE
   NEW_DOCUMENT
   SESSION_UPDATE
+  STARTUP_MEMBRE_AJOUTE
+  STARTUP_INVITATION
+  STARTUP_PROPOSITION
+  STARTUP_PROPOSITION_ACCEPTEE
+  STARTUP_PROPOSITION_REFUSEE
+  MODIFICATION_DEMANDE
+  MODIFICATION_ACCEPTEE
+  MODIFICATION_REFUSEE
+  SOUTENANCE_MODIFIEE
+  SOUTENANCE_ANNULEE
+  THEME_SOUTENU
 }
 
 // ─── Models ────────────────────────────────────────────────────────────────
@@ -136,8 +159,11 @@ model User {
   soutenances_jury   SoutenanceJury[]
   affectations_encadrant Affectation[] @relation("AffectationEncadrant")
   affectations_par   Affectation[] @relation("AffectationPar")
-  notifications      Notification[]
-  documents_rag      DocumentRag[]
+  notifications              Notification[]
+  documents_rag              DocumentRag[]
+  propositions_soumises      PropositionMembre[]        @relation("PropositionProposeur")
+  propositions_recues        PropositionMembre[]        @relation("PropositionCandidat")
+  demandes_modification      DemandeModificationTheme[] @relation("DemandeModificationDemandeur")
 
   @@index([specialite_id])
   @@index([role])
@@ -150,31 +176,33 @@ model Theme {
   titre              String
   description        String
   mots_cles          String[]
-  necessite_stage    Boolean          @default(false)
-  type_pfe           ThemeType
-  sous_types         SousTypeTheme[]
-  propose_par_id     String
-  encadrant_id       String?
-  co_encadrant_id    String?
-  encadrant_externe  Json?
-  besoin_encadrant   Boolean          @default(false)
-  cherche_binome     Boolean          @default(false)
-  encadrant_valide   Boolean          @default(true)
-  statut_validation  StatutValidation @default(NON_VALIDE)
-  is_affecte         Boolean          @default(false)
-  is_soutenu         Boolean          @default(false)
-  session_id         String
-  created_at         DateTime         @default(now())
-  updated_at         DateTime         @updatedAt
+  necessite_stage        Boolean          @default(false)
+  type_pfe               ThemeType
+  sous_types             SousTypeTheme[]
+  propose_par_id         String
+  encadrant_id           String?
+  co_encadrant_id        String?
+  encadrant_externe      Json?
+  besoin_encadrant       Boolean          @default(false)
+  cherche_binome         Boolean          @default(false)
+  encadrant_valide       Boolean          @default(true)
+  statut_validation      StatutValidation @default(NON_VALIDE)
+  modification_autorisee Boolean          @default(false)
+  is_affecte             Boolean          @default(false)
+  is_soutenu             Boolean          @default(false)
+  session_id             String
+  created_at             DateTime         @default(now())
+  updated_at             DateTime         @updatedAt
 
   propose_par       User              @relation("ThemeProposeePar", fields: [propose_par_id], references: [id])
   encadrant         User?             @relation("ThemeEncadrant", fields: [encadrant_id], references: [id])
   co_encadrant      User?             @relation("ThemeCoEncadrant", fields: [co_encadrant_id], references: [id])
   session           Session           @relation(fields: [session_id], references: [id])
-  theme_specialites ThemeSpecialite[]
-  choix             ThemeChoix[]
-  affectation       Affectation?
-  soutenance        Soutenance?
+  theme_specialites      ThemeSpecialite[]
+  choix                  ThemeChoix[]
+  affectation            Affectation?
+  soutenance             Soutenance?
+  demandes_modification  DemandeModificationTheme[]
 
   @@unique([titre])
   @@index([session_id])
@@ -246,8 +274,10 @@ model Affectation {
   encadrant User?               @relation("AffectationEncadrant", fields: [encadrant_id], references: [id])
   session   Session             @relation(fields: [session_id], references: [id])
   par       User                @relation("AffectationPar", fields: [affecte_par], references: [id])
-  etudiants AffectationEtudiant[]
-  startup_membres StartupMembre[]
+  etudiants            AffectationEtudiant[]
+  startup_membres      StartupMembre[]
+  membres_externes     MembreExterne[]
+  propositions_membres PropositionMembre[]
 
   @@index([session_id])
   @@index([encadrant_id])
@@ -311,6 +341,43 @@ model SoutenanceJury {
   @@map("soutenance_jury")
 }
 
+model MembreExterne {
+  id             String   @id @default(cuid())
+  affectation_id String
+  nom            String
+  prenom         String
+  email          String
+  specialite     String?
+  universite     String?
+  commentaire    String?
+  created_at     DateTime @default(now())
+
+  affectation Affectation @relation(fields: [affectation_id], references: [id], onDelete: Cascade)
+
+  @@index([affectation_id])
+  @@map("membres_externes")
+}
+
+model PropositionMembre {
+  id                  String            @id @default(cuid())
+  affectation_id      String
+  proposeur_id        String
+  candidat_interne_id String?
+  candidat_externe    Json?
+  statut              StatutProposition @default(PENDING)
+  etudiant_accepte    Boolean           @default(false)
+  created_at          DateTime          @default(now())
+  updated_at          DateTime          @updatedAt
+
+  affectation      Affectation @relation(fields: [affectation_id], references: [id], onDelete: Cascade)
+  proposeur        User        @relation("PropositionProposeur", fields: [proposeur_id], references: [id])
+  candidat_interne User?       @relation("PropositionCandidat", fields: [candidat_interne_id], references: [id])
+
+  @@index([affectation_id])
+  @@index([proposeur_id])
+  @@map("propositions_membre")
+}
+
 model Notification {
   id         String           @id @default(cuid())
   user_id    String
@@ -352,5 +419,24 @@ model RagChunk {
 
   @@index([document_id])
   @@map("rag_chunks")
+}
+
+model DemandeModificationTheme {
+  id                String                    @id @default(cuid())
+  theme_id          String
+  demandeur_id      String
+  motif             String
+  statut            StatutDemandeModification @default(PENDING)
+  commentaire_admin String?
+  created_at        DateTime                  @default(now())
+  updated_at        DateTime                  @updatedAt
+
+  theme     Theme @relation(fields: [theme_id], references: [id], onDelete: Cascade)
+  demandeur User  @relation("DemandeModificationDemandeur", fields: [demandeur_id], references: [id])
+
+  @@index([theme_id])
+  @@index([demandeur_id])
+  @@index([statut])
+  @@map("demandes_modification_theme")
 }
 

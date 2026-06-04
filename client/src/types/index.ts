@@ -28,7 +28,41 @@ export type TypeNotification =
   | 'ENCADRANT_CONFIRM_RESPONSE'
   | 'SOUTENANCE_PLANIFIEE'
   | 'NEW_DOCUMENT'
-  | 'SESSION_UPDATE';
+  | 'SESSION_UPDATE'
+  | 'STARTUP_MEMBRE_AJOUTE'
+  | 'STARTUP_INVITATION'
+  | 'STARTUP_PROPOSITION'
+  | 'STARTUP_PROPOSITION_ACCEPTEE'
+  | 'STARTUP_PROPOSITION_REFUSEE'
+  | 'MODIFICATION_DEMANDE'
+  | 'MODIFICATION_ACCEPTEE'
+  | 'MODIFICATION_REFUSEE'
+  | 'SOUTENANCE_MODIFIEE'
+  | 'SOUTENANCE_ANNULEE'
+  | 'THEME_SOUTENU';
+
+// ─── Demande de modification ─────────────────────────────────────────────────
+
+export type StatutDemandeModification = 'PENDING' | 'ACCEPTED' | 'REFUSED';
+
+export interface DemandeModification {
+  id: string;
+  theme_id: string;
+  demandeur_id: string;
+  motif: string;
+  statut: StatutDemandeModification;
+  commentaire_admin?: string | null;
+  created_at: string;
+  theme: {
+    id: string;
+    titre: string;
+    type_pfe: string;
+    statut_validation: StatutValidation;
+    is_affecte: boolean;
+    theme_specialites: Array<{ specialite: Specialite }>;
+  };
+  demandeur: Pick<User, 'id' | 'nom' | 'prenom' | 'email' | 'role'>;
+}
 
 // ─── API ────────────────────────────────────────────────────────────────────
 
@@ -107,6 +141,7 @@ export interface Theme {
   cherche_binome: boolean;
   encadrant_valide: boolean;
   statut_validation: StatutValidation;
+  modification_autorisee: boolean;
   is_affecte: boolean;
   is_soutenu: boolean;
   session: Pick<Session, 'id' | 'type' | 'annee_universitaire'>;
@@ -187,6 +222,8 @@ export interface GlobalStats {
   themesSoutenus: number;
   themesClassiques: number;
   themesStartups: number;
+  themesAffectesClassiques: number;
+  themesAffectesStartups: number;
   etudiantsSansTheme: number;
   etudiantsAvecTheme: number;
   enseignantsSurcharges: number;

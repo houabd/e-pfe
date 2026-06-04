@@ -87,3 +87,16 @@ export function useExportSoutenancesExcel() {
     onError: (e) => toast.error(extractApiError(e)),
   });
 }
+
+export function useDeleteSoutenance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => soutenancesApi.deleteSoutenance(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['soutenances'] });
+      void qc.invalidateQueries({ queryKey: ['affectations'] });
+      toast.success('Soutenance supprimée');
+    },
+    onError: (e) => toast.error(extractApiError(e)),
+  });
+}

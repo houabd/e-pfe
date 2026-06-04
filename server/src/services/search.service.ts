@@ -96,6 +96,17 @@ export async function globalSearch({ q, page = 1, limit = 20 }: SearchQuery) {
           },
           take: 1,
         },
+        startup_membres: {
+          select: {
+            affectation: {
+              select: {
+                theme: { select: { id: true, titre: true, type_pfe: true } },
+                encadrant: { select: { id: true, nom: true, prenom: true } },
+              },
+            },
+          },
+          take: 1,
+        },
       },
       skip,
       take,
@@ -115,7 +126,7 @@ export async function globalSearch({ q, page = 1, limit = 20 }: SearchQuery) {
         email: true,
         role: true,
         specialite: { select: { id: true, nom: true } },
-        _count: { select: { affectations_encadrant: true } },
+        _count: { select: { affectations_encadrant: true, themes_proposes: true } },
       },
       skip,
       take,
@@ -154,14 +165,15 @@ export async function globalSearch({ q, page = 1, limit = 20 }: SearchQuery) {
     }),
   ]);
 
-  const etudiantsNorm = etudiants.map(({ affectations_etudiant, ...e }) => ({
+  const etudiantsNorm = etudiants.map(({ affectations_etudiant, startup_membres, ...e }) => ({
     ...e,
-    affectation: affectations_etudiant[0]?.affectation ?? null,
+    affectation: affectations_etudiant[0]?.affectation ?? startup_membres[0]?.affectation ?? null,
   }));
 
   const enseignantsNorm = enseignants.map(({ _count, ...e }) => ({
     ...e,
     nb_affectations: _count.affectations_encadrant,
+    nb_themes: _count.themes_proposes,
   }));
 
   return {

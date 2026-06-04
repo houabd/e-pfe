@@ -13,7 +13,7 @@ import { useCurrentUser } from '@/stores/authStore';
 import { useActiveSession } from '@/hooks/useSession';
 import { useMesChoix } from '@/hooks/useChoix';
 import { useMyThemes } from '@/hooks/useThemes';
-import { useMonAffectation } from '@/hooks/useAffectations';
+import { useMonAffectation, useMesInvitationsStartup, useEtudiantAccepteProposition, useEtudiantRefuseProposition } from '@/hooks/useAffectations';
 
 function StatutBadge({ statut }: { statut: 'PENDING' | 'ACCEPTED' | 'REFUSED' }) {
   if (statut === 'ACCEPTED') {
@@ -46,6 +46,9 @@ export default function DashboardEtudiant() {
   const choix = mesChoixData?.choix ?? [];
   const { data: mesThemesResponse, isLoading: loadingThemes } = useMyThemes();
   const mesThemes = mesThemesResponse?.data ?? [];
+  const { data: invitations = [] } = useMesInvitationsStartup();
+  const accepterInvitation = useEtudiantAccepteProposition();
+  const refuserInvitation = useEtudiantRefuseProposition();
   const navigate = useNavigate();
 
   const acceptedChoix = choix.find((c) => c.statut === 'ACCEPTED');
@@ -89,6 +92,62 @@ export default function DashboardEtudiant() {
         </div>
       )}
 
+      {/* Invitations STARTUP */}
+      {invitations.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+            Invitations STARTUP reçues
+          </h2>
+          <div className="space-y-2">
+            {invitations.map((inv) => (
+              <div key={inv.id} className="rounded-xl border border-purple-200 bg-purple-50 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-full bg-purple-100 p-2 shrink-0">
+                    <Users className="h-4 w-4 text-purple-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-purple-800">
+                      {inv.proposeur.prenom} {inv.proposeur.nom} vous invite à rejoindre une équipe STARTUP
+                    </p>
+                    {inv.affectation.theme && (
+                      <p className="text-sm text-purple-700 mt-0.5 line-clamp-1">
+                        {inv.affectation.theme.titre}
+                      </p>
+                    )}
+                    {inv.affectation.encadrant ? (
+                      <p className="text-xs text-purple-600 mt-0.5">
+                        Encadrant : {inv.affectation.encadrant.prenom} {inv.affectation.encadrant.nom}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-purple-500 mt-0.5 italic">Encadrant externe</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-3 justify-end">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                    disabled={refuserInvitation.isPending || accepterInvitation.isPending}
+                    onClick={() => refuserInvitation.mutate(inv.id)}
+                  >
+                    Refuser
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                    disabled={accepterInvitation.isPending || refuserInvitation.isPending}
+                    onClick={() => accepterInvitation.mutate(inv.id)}
+                  >
+                    Accepter
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Statut de thème */}
       <div className="space-y-3">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
@@ -101,33 +160,61 @@ export default function DashboardEtudiant() {
             <Skeleton className="h-16 rounded-xl" />
           </div>
         ) : isAdminAffecte && monAffectation ? (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
-            <div className="flex items-start gap-4">
-              <div className="rounded-full bg-emerald-100 p-2.5 shrink-0">
-                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-semibold text-emerald-800">Affecté par l'administration</span>
-                  <Badge className="bg-emerald-200 text-emerald-800 border-0 text-xs">AFFECTÉ</Badge>
+          monAffectation.theme?.type_pfe === 'STARTUP' ? (
+            <div className="rounded-xl border border-purple-200 bg-purple-50 p-5">
+              <div className="flex items-start gap-4">
+                <div className="rounded-full bg-purple-100 p-2.5 shrink-0">
+                  <CheckCircle2 className="h-5 w-5 text-purple-600" />
                 </div>
-                {monAffectation.theme ? (
-                  <p className="text-sm font-medium text-emerald-900 mt-1 line-clamp-2">
-                    {monAffectation.theme.titre}
-                  </p>
-                ) : (
-                  <p className="text-sm text-emerald-700 mt-1">
-                    Thème à définir par votre encadrant.
-                  </p>
-                )}
-                {monAffectation.encadrant && (
-                  <p className="text-xs text-emerald-700 mt-1">
-                    Encadrant : {monAffectation.encadrant.prenom} {monAffectation.encadrant.nom}
-                  </p>
-                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-purple-800">Équipe STARTUP</span>
+                    <Badge className="bg-purple-200 text-purple-800 border-0 text-xs">STARTUP</Badge>
+                  </div>
+                  {monAffectation.theme && (
+                    <p className="text-sm font-medium text-purple-900 mt-1 line-clamp-2">
+                      {monAffectation.theme.titre}
+                    </p>
+                  )}
+                  {monAffectation.encadrant ? (
+                    <p className="text-xs text-purple-700 mt-1">
+                      Encadrant : {monAffectation.encadrant.prenom} {monAffectation.encadrant.nom}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-purple-600 mt-1 italic">Encadrant externe</p>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+              <div className="flex items-start gap-4">
+                <div className="rounded-full bg-emerald-100 p-2.5 shrink-0">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-emerald-800">Affecté par l'administration</span>
+                    <Badge className="bg-emerald-200 text-emerald-800 border-0 text-xs">AFFECTÉ</Badge>
+                  </div>
+                  {monAffectation.theme ? (
+                    <p className="text-sm font-medium text-emerald-900 mt-1 line-clamp-2">
+                      {monAffectation.theme.titre}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-emerald-700 mt-1">
+                      Thème à définir par votre encadrant.
+                    </p>
+                  )}
+                  {monAffectation.encadrant && (
+                    <p className="text-xs text-emerald-700 mt-1">
+                      Encadrant : {monAffectation.encadrant.prenom} {monAffectation.encadrant.nom}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
         ) : acceptedChoix ? (
           <div
             className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 cursor-pointer hover:shadow-md transition-shadow"
@@ -143,15 +230,20 @@ export default function DashboardEtudiant() {
                   <Badge className="bg-emerald-200 text-emerald-800 border-0 text-xs">
                     Choix n°{acceptedChoix.ordre}
                   </Badge>
+                  {acceptedChoix.theme.type_pfe === 'STARTUP' && (
+                    <Badge className="bg-purple-200 text-purple-800 border-0 text-xs">STARTUP</Badge>
+                  )}
                 </div>
                 <p className="text-sm font-medium text-emerald-900 mt-1 line-clamp-2">
                   {acceptedChoix.theme.titre}
                 </p>
-                {acceptedChoix.theme.encadrant && (
+                {acceptedChoix.theme.encadrant ? (
                   <p className="text-xs text-emerald-700 mt-1">
                     Encadrant : {acceptedChoix.theme.encadrant.prenom} {acceptedChoix.theme.encadrant.nom}
                   </p>
-                )}
+                ) : acceptedChoix.theme.type_pfe === 'STARTUP' ? (
+                  <p className="text-xs text-emerald-600 mt-1 italic">Encadrant externe</p>
+                ) : null}
               </div>
               <Info className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
             </div>

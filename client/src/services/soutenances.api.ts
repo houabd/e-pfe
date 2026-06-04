@@ -116,3 +116,7 @@ export async function exportSoutenancesExcel(
   });
   return response.data as Blob;
 }
+
+export async function deleteSoutenance(id: string): Promise<void> {
+  await api.delete(`/soutenances/${id}`);
+}

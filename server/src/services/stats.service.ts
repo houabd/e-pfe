@@ -33,7 +33,9 @@ export async function getGlobalStats() {
     themesSoutenus,
     themesClassiques,
     themesStartups,
-    etudiantsSansTheme,
+    themesAffectesClassiques,
+    themesAffectesStartups,
+    etudiantsAvecTheme,
     themesSansEncadrant,
     themesPlanifies,
     themesAMarquer,
@@ -46,8 +48,17 @@ export async function getGlobalStats() {
     prisma.theme.count({ where: { is_soutenu: true } }),
     prisma.theme.count({ where: { type_pfe: 'CLASSIQUE' } }),
     prisma.theme.count({ where: { type_pfe: 'STARTUP' } }),
+    prisma.theme.count({ where: { is_affecte: true, type_pfe: 'CLASSIQUE' } }),
+    prisma.theme.count({ where: { is_affecte: true, type_pfe: 'STARTUP' } }),
+    // Étudiants avec thème : soit via affectation_etudiants, soit via startup_membres
     prisma.user.count({
-      where: { role: 'ETUDIANT', is_active: true, affectations_etudiant: { none: {} } },
+      where: {
+        role: 'ETUDIANT', is_active: true,
+        OR: [
+          { affectations_etudiant: { some: {} } },
+          { startup_membres: { some: {} } },
+        ],
+      },
     }),
     prisma.theme.count({
       where: { besoin_encadrant: true, encadrant_id: null, is_affecte: false },
@@ -58,7 +69,8 @@ export async function getGlobalStats() {
     }),
   ]);
 
-  // Surcharge / sans affectation calculé côté app pour éviter une sous-requête complexe
+  const etudiantsSansTheme = totalEtudiants - etudiantsAvecTheme;
+
   const enseignantsLoad = await prisma.user.findMany({
     where: { role: 'ENSEIGNANT', is_active: true },
     select: { _count: { select: { affectations_encadrant: true } } },
@@ -79,8 +91,10 @@ export async function getGlobalStats() {
     themesAMarquer,
     themesClassiques,
     themesStartups,
+    themesAffectesClassiques,
+    themesAffectesStartups,
     etudiantsSansTheme,
-    etudiantsAvecTheme: totalEtudiants - etudiantsSansTheme,
+    etudiantsAvecTheme,
     enseignantsSurcharges,
     enseignantsSansAffectation,
     themesSansEncadrant,
@@ -89,12 +103,14 @@ export async function getGlobalStats() {
 
 // ─── GET /stats/enseignants ───────────────────────────────────────────────────
 
+const TEACHER_ROLES = ['ENSEIGNANT', 'CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_SPECIALITE'] as const;
+
 export async function getEnseignantsStats(filters: EnseignantFilters) {
   const { specialite_id, categorie } = filters;
 
   const rows = await prisma.user.findMany({
     where: {
-      role: 'ENSEIGNANT',
+      role: { in: [...TEACHER_ROLES] },
       is_active: true,
       ...(specialite_id ? { specialite_id } : {}),
     },
@@ -104,17 +120,27 @@ export async function getEnseignantsStats(filters: EnseignantFilters) {
       prenom: true,
       email: true,
       specialite: { select: { id: true, nom: true } },
-      _count: { select: { themes_proposes: true, affectations_encadrant: true } },
+      _count: { select: { themes_proposes: true } },
+      // Affectés où le teacher est le proposeur
+      themes_proposes: { where: { is_affecte: true }, select: { id: true } },
+      // Affectés où le teacher est l'encadrant déclaré sur le thème
+      themes_encadres: { where: { is_affecte: true }, select: { id: true } },
     },
     orderBy: [{ nom: 'asc' }, { prenom: 'asc' }],
   });
 
   const mapped = rows.map(e => {
     const nb_proposes = e._count.themes_proposes;
-    const nb_affectes = e._count.affectations_encadrant;
+    // Dédoublonnage : un thème proposé ET encadré par la même personne ne compte qu'une fois
+    const affectesIds = new Set([
+      ...e.themes_proposes.map(t => t.id),
+      ...e.themes_encadres.map(t => t.id),
+    ]);
+    const nb_affectes = affectesIds.size;
+
     const cat =
       nb_affectes > 2 ? 'SURCHARGE' :
-      nb_proposes < 2 ? 'SANS_PROPOSITION' :
+      nb_proposes === 0 ? 'SANS_PROPOSITION' :
       nb_affectes < 2 ? 'SOUS_CHARGE' : 'NORMAL';
 
     return {
@@ -269,6 +295,17 @@ export async function getEtudiantsStats(filters: EtudiantFilters) {
           },
         },
       },
+      startup_membres: {
+        take: 1,
+        include: {
+          affectation: {
+            select: {
+              theme: { select: { id: true, titre: true, type_pfe: true } },
+              encadrant: { select: { id: true, nom: true, prenom: true } },
+            },
+          },
+        },
+      },
       binomes_comme_etud1: {
         where: { statut: 'ACCEPTED' },
         take: 1,
@@ -285,7 +322,11 @@ export async function getEtudiantsStats(filters: EtudiantFilters) {
   });
 
   const mapped = rows.map(e => {
-    const affectation = e.affectations_etudiant[0]?.affectation ?? null;
+    // Affectation via classique (affectation_etudiants) OU via STARTUP (startup_membres)
+    const affectationClassique = e.affectations_etudiant[0]?.affectation ?? null;
+    const affectationStartup = e.startup_membres[0]?.affectation ?? null;
+    const affectation = affectationClassique ?? affectationStartup ?? null;
+
     const b1 = e.binomes_comme_etud1[0];
     const b2 = e.binomes_comme_etud2[0];
     const binome = b1
@@ -293,6 +334,12 @@ export async function getEtudiantsStats(filters: EtudiantFilters) {
       : b2
       ? { id: b2.id, partenaire: b2.etud1 }
       : null;
+
+    const has_theme = !!affectation;
+    const is_startup = affectation?.theme?.type_pfe === 'STARTUP';
+    // Monôme = affecté à un thème classique sans binôme (travaille seul)
+    const is_monome = has_theme && !is_startup && !binome;
+    const has_encadrant = !!affectation?.encadrant;
 
     return {
       id: e.id,
@@ -302,7 +349,10 @@ export async function getEtudiantsStats(filters: EtudiantFilters) {
       matricule: e.matricule,
       annee_universitaire: e.annee_universitaire,
       specialite: e.specialite,
-      has_theme: !!affectation,
+      has_theme,
+      is_startup,
+      is_monome,
+      has_encadrant,
       affectation: affectation
         ? { theme: affectation.theme, encadrant: affectation.encadrant }
         : null,
@@ -315,11 +365,13 @@ export async function getEtudiantsStats(filters: EtudiantFilters) {
 
   if (!statut) return mapped;
   switch (statut) {
-    case 'avec_theme': return mapped.filter(r => r.has_theme);
-    case 'sans_theme': return mapped.filter(r => !r.has_theme);
-    case 'avec_binome': return mapped.filter(r => r.has_binome);
-    case 'sans_binome': return mapped.filter(r => !r.has_binome);
+    case 'avec_theme':       return mapped.filter(r => r.has_theme);
+    case 'sans_theme':       return mapped.filter(r => !r.has_theme);
+    case 'avec_binome':      return mapped.filter(r => r.has_binome);
+    case 'sans_binome':      return mapped.filter(r => !r.has_binome);
     case 'avec_proposition': return mapped.filter(r => r.nb_themes_proposes > 0);
+    case 'equipe_startup':   return mapped.filter(r => r.is_startup);
+    case 'monome':           return mapped.filter(r => r.is_monome);
     default: return mapped;
   }
 }
@@ -327,14 +379,19 @@ export async function getEtudiantsStats(filters: EtudiantFilters) {
 // ─── GET /stats/enseignant (dashboard enseignant) ─────────────────────────────
 
 export async function getEnseignantStats(enseignantId: string) {
-  const [totalThemes, themesAffectes, themesValides, demandesEnAttente, etudiantsEncadres] =
-    await Promise.all([
-      prisma.theme.count({ where: { propose_par_id: enseignantId } }),
-      prisma.theme.count({ where: { propose_par_id: enseignantId, is_affecte: true } }),
-      prisma.theme.count({ where: { propose_par_id: enseignantId, statut_validation: 'VALIDE' } }),
-      prisma.themeChoix.count({ where: { theme: { encadrant_id: enseignantId }, statut: 'PENDING' } }),
-      prisma.affectationEtudiant.count({ where: { affectation: { encadrant_id: enseignantId } } }),
-    ]);
+  const [
+    totalThemes, themesAffectes, themesValides, demandesEnAttente,
+    etudiantsClassiques, etudiantsStartup,
+  ] = await Promise.all([
+    prisma.theme.count({ where: { propose_par_id: enseignantId } }),
+    prisma.theme.count({ where: { propose_par_id: enseignantId, is_affecte: true } }),
+    prisma.theme.count({ where: { propose_par_id: enseignantId, statut_validation: 'VALIDE' } }),
+    prisma.themeChoix.count({ where: { theme: { encadrant_id: enseignantId }, statut: 'PENDING' } }),
+    // Classiques : via affectation_etudiants
+    prisma.affectationEtudiant.count({ where: { affectation: { encadrant_id: enseignantId } } }),
+    // STARTUP : via startup_membres
+    prisma.startupMembre.count({ where: { affectation: { encadrant_id: enseignantId } } }),
+  ]);
 
   return {
     totalThemes,
@@ -342,7 +399,7 @@ export async function getEnseignantStats(enseignantId: string) {
     themesNonAffectes: totalThemes - themesAffectes,
     themesValides,
     demandesEnAttente,
-    etudiantsEncadres,
+    etudiantsEncadres: etudiantsClassiques + etudiantsStartup,
   };
 }
 

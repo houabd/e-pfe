@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 from typing import AsyncGenerator
 
 from langchain_groq import ChatGroq
@@ -18,10 +19,32 @@ logger = logging.getLogger(__name__)
 NO_DOCS = "Aucun document indexé pour le moment."
 NO_INFO = "Je ne trouve pas cette information dans les documents fournis."
 
+_CONVERSATIONAL_RE = re.compile(
+    r'^(bonjour|bonsoir|salut|hello|hi|coucou|hey|salam|'
+    r'merci|merci beaucoup|thank you|thanks|'
+    r'au revoir|bye|goodbye|à bientôt|bonne journée|bonne soirée|bonne nuit|'
+    r'comment vas-tu|comment allez-vous|ça va|'
+    r'oui|non|ok|d\'accord|parfait|super|bien|'
+    r'aide|help|que peux-tu faire|qui es-tu|tu es quoi|c\'est quoi)[.!?\s]*$',
+    re.IGNORECASE,
+)
+
+def _is_conversational(question: str) -> bool:
+    return bool(_CONVERSATIONAL_RE.match(question.strip()))
+
 
 def _get_llm() -> ChatGroq:
     return ChatGroq(model=LLM_MODEL, temperature=0, max_tokens=MAX_TOKENS)
 
+
+_CONVERSATIONAL_SYSTEM = (
+    "Tu es un assistant universitaire algérien sympathique et professionnel, spécialisé dans "
+    "le système LMD et les Projets de Fin d'Études (PFE) à l'Université de Béjaïa. "
+    "Réponds aux salutations et messages simples de façon naturelle et chaleureuse. "
+    "Rappelle brièvement que tu peux aider sur les questions relatives au PFE, au système LMD, "
+    "aux soutenances, aux thèmes et à la plateforme e-PFE. "
+    "Réponds dans la même langue que la question. Sois concis."
+)
 
 _FALLBACK_SYSTEM = (
     "Tu es un assistant universitaire algérien spécialisé dans le système LMD "
@@ -29,6 +52,25 @@ _FALLBACK_SYSTEM = (
     "Réponds de manière générale, utile et concise en te basant sur tes connaissances "
     "du système universitaire algérien. Réponds dans la même langue que la question."
 )
+
+
+def _conversational_response(question: str) -> dict:
+    try:
+        llm = ChatGroq(model=LLM_MODEL, temperature=0.5, max_tokens=200)
+        response = llm.invoke([
+            SystemMessage(content=_CONVERSATIONAL_SYSTEM),
+            HumanMessage(content=question),
+        ])
+        return {
+            "answer": response.content,
+            "sources": [],
+            "confidence": 1.0,
+            "source_type": "general",
+            "warning": None,
+        }
+    except Exception as exc:
+        logger.warning(f"Conversational response failed: {exc}")
+        return {"answer": "Bonjour ! Comment puis-je vous aider ?", "sources": [], "confidence": 1.0, "source_type": None, "warning": None}
 
 
 def _fallback_response(question: str) -> dict:
@@ -82,6 +124,9 @@ def _build_user_message(context: str, question: str) -> str:
 
 
 def run_rag(question: str) -> dict:
+    if _is_conversational(question):
+        return _conversational_response(question)
+
     retriever = build_retriever()
     if retriever is None:
         return {"answer": NO_DOCS, "sources": [], "confidence": 0.0}
@@ -111,6 +156,21 @@ def run_rag(question: str) -> dict:
 
 
 async def stream_rag(question: str) -> AsyncGenerator[str, None]:
+    if _is_conversational(question):
+        try:
+            llm = ChatGroq(model=LLM_MODEL, temperature=0.5, max_tokens=200)
+            async for chunk in llm.astream([
+                SystemMessage(content=_CONVERSATIONAL_SYSTEM),
+                HumanMessage(content=question),
+            ]):
+                if chunk.content:
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk.content})}\n\n"
+            yield f"data: {json.dumps({'type': 'done', 'sources': [], 'chunks_used': 0, 'confidence': 1.0, 'source_type': 'general'})}\n\n"
+        except Exception as exc:
+            yield f"data: {json.dumps({'type': 'chunk', 'content': 'Bonjour ! Comment puis-je vous aider ?'})}\n\n"
+            yield f"data: {json.dumps({'type': 'done', 'sources': [], 'chunks_used': 0, 'confidence': 1.0, 'source_type': 'general'})}\n\n"
+        return
+
     retriever = await asyncio.to_thread(build_retriever)
     if retriever is None:
         yield f"data: {json.dumps({'type': 'error', 'message': NO_DOCS})}\n\n"

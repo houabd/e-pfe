@@ -1,5 +1,6 @@
 ﻿import { prisma } from '../config/database';
-import { NotFoundError, BadRequestError } from '../middleware/error.middleware';
+import { Prisma } from '@prisma/client';
+import { NotFoundError, BadRequestError, ForbiddenError } from '../middleware/error.middleware';
 import { notifyUser } from './notification.service';
 import type { CreateAffectationDto, ConfirmerAutoDto } from '../types';
 
@@ -35,6 +36,17 @@ const STARTUP_INCLUDE = {
       },
     },
     orderBy: { id: 'asc' as const },
+  },
+  membres_externes: { orderBy: { created_at: 'asc' as const } },
+  etudiants: {
+    include: {
+      etudiant: {
+        select: {
+          id: true, nom: true, prenom: true, email: true, matricule: true,
+          specialite: { select: { id: true, nom: true } },
+        },
+      },
+    },
   },
 } as const;
 
@@ -95,32 +107,45 @@ export async function getMonAffectation(etudiantId: string) {
 }
 
 export async function getMesEtudiants(enseignantId: string) {
-  const rows = await prisma.affectationEtudiant.findMany({
-    where: {
-      affectation: {
-        OR: [
-          { encadrant_id: enseignantId },
-          { theme: { propose_par_id: enseignantId } },
-          { theme: { encadrant_id: enseignantId } },
-          { theme: { co_encadrant_id: enseignantId } },
-        ],
-      },
-    },
-    include: {
-      etudiant: {
-        select: {
-          id: true, nom: true, prenom: true, email: true, matricule: true,
-          specialite: { select: { id: true, nom: true } },
-        },
-      },
-      affectation: {
-        select: { theme: { select: { id: true, titre: true, type_pfe: true } } },
-      },
-    },
+  const teacherCondition = {
+    OR: [
+      { encadrant_id: enseignantId },
+      { theme: { propose_par_id: enseignantId } },
+      { theme: { encadrant_id: enseignantId } },
+      { theme: { co_encadrant_id: enseignantId } },
+    ],
+  };
+
+  const etudiantSelect = {
+    id: true, nom: true, prenom: true, email: true, matricule: true,
+    specialite: { select: { id: true, nom: true } },
+  } as const;
+
+  const affectationSelect = {
+    select: { theme: { select: { id: true, titre: true, type_pfe: true } } },
+  } as const;
+
+  // Étudiants classiques (via affectation_etudiants)
+  const classiques = await prisma.affectationEtudiant.findMany({
+    where: { affectation: teacherCondition },
+    include: { etudiant: { select: etudiantSelect }, affectation: affectationSelect },
     orderBy: [{ affectation: { theme: { titre: 'asc' } } }],
   });
-  console.log(`[getMesEtudiants] enseignantId=${enseignantId} → ${rows.length} entrée(s): ${rows.map((r) => r.etudiant_id).join(', ')}`);
-  return rows;
+
+  // Membres STARTUP (via startup_membres)
+  const startupMembres = await prisma.startupMembre.findMany({
+    where: { affectation: teacherCondition },
+    include: { etudiant: { select: etudiantSelect }, affectation: affectationSelect },
+    orderBy: [{ affectation: { theme: { titre: 'asc' } } }],
+  });
+
+  // Fusion avec déduplication par etudiant_id (données legacy peuvent avoir les deux)
+  const seen = new Set<string>();
+  return [...classiques, ...startupMembres].filter((r) => {
+    if (seen.has(r.etudiant_id)) return false;
+    seen.add(r.etudiant_id);
+    return true;
+  });
 }
 
 // ─── Enseignants disponibles ─────────────────────────────────────────────────
@@ -711,35 +736,48 @@ export async function getStartupEquipe(affectationId: string) {
   return affectation;
 }
 
-// ─── Startup : ajout d'un membre ─────────────────────────────────────────────
+// ─── Startup : ajout d'un membre interne ─────────────────────────────────────
+
+async function assertEncadrantOrAdmin(affectationEncadrantId: string | null, appelantId: string) {
+  if (affectationEncadrantId === appelantId) return;
+  const appelant = await prisma.user.findUnique({ where: { id: appelantId }, select: { role: true } });
+  if (!appelant || !['CHEF_DEPT', 'CHEF_EQUIPE'].includes(appelant.role)) {
+    throw new ForbiddenError("Seul l'encadrant ou un administrateur peut effectuer cette action");
+  }
+}
 
 export async function addStartupMembre(
   affectationId: string,
   etudiantId: string,
+  appelantId: string,
   roleEquipe?: string,
 ) {
   const affectation = await prisma.affectation.findUnique({
     where: { id: affectationId },
-    include: { theme: { select: { id: true, titre: true, type_pfe: true } }, startup_membres: true },
+    include: {
+      theme: { select: { id: true, titre: true, type_pfe: true } },
+      startup_membres: true,
+      membres_externes: true,
+      etudiants: { select: { etudiant_id: true } },
+    },
   });
   if (!affectation) throw new NotFoundError('Affectation');
   if (!affectation.theme || affectation.theme.type_pfe !== 'STARTUP') {
     throw new BadRequestError("Cette affectation n'est pas de type STARTUP");
   }
-  if (affectation.startup_membres.length >= 6) {
-    throw new BadRequestError("L'équipe STARTUP a atteint le maximum de 6 membres");
-  }
+  await assertEncadrantOrAdmin(affectation.encadrant_id, appelantId);
+
+  const totalMembers = affectation.startup_membres.length + affectation.membres_externes.length + affectation.etudiants.length;
+  if (totalMembers >= 6) throw new BadRequestError("L'équipe STARTUP a atteint le maximum de 6 membres");
   if (affectation.startup_membres.some((m) => m.etudiant_id === etudiantId)) {
-    throw new BadRequestError('Cet étudiant est déjà membre de l\'équipe');
+    throw new BadRequestError("Cet étudiant est déjà membre de l'équipe");
   }
 
   const etudiant = await prisma.user.findUnique({
     where: { id: etudiantId },
     include: { affectations_etudiant: { take: 1 }, startup_membres: { take: 1 } },
   });
-  if (!etudiant || etudiant.role !== 'ETUDIANT' || !etudiant.is_active) {
-    throw new NotFoundError('Étudiant');
-  }
+  if (!etudiant || etudiant.role !== 'ETUDIANT' || !etudiant.is_active) throw new NotFoundError('Étudiant');
   if (etudiant.affectations_etudiant.length > 0 || etudiant.startup_membres.length > 0) {
     throw new BadRequestError('Cet étudiant est déjà affecté à un autre thème');
   }
@@ -747,23 +785,382 @@ export async function addStartupMembre(
   const membre = await prisma.startupMembre.create({
     data: { affectation_id: affectationId, etudiant_id: etudiantId, role_equipe: roleEquipe ?? null },
     include: {
-      etudiant: {
-        select: {
-          id: true, nom: true, prenom: true, email: true,
-          specialite: { select: { id: true, nom: true } },
-        },
-      },
+      etudiant: { select: { id: true, nom: true, prenom: true, email: true, specialite: { select: { id: true, nom: true } } } },
     },
   });
 
-  await notifyUser(
-    etudiantId,
-    'AFFECTATION',
-    `Vous avez été ajouté à l'équipe startup "${affectation.theme?.titre ?? ''}"`,
-    { theme_id: affectation.theme?.id, affectation_id: affectationId },
-  );
+  const themeTitre = affectation.theme.titre;
+  const meta = { theme_id: affectation.theme.id, affectation_id: affectationId };
+
+  await notifyUser(etudiantId, 'STARTUP_MEMBRE_AJOUTE', `Vous avez été ajouté à l'équipe startup "${themeTitre}"`, meta);
+  for (const m of affectation.startup_membres) {
+    await notifyUser(m.etudiant_id, 'STARTUP_MEMBRE_AJOUTE',
+      `${etudiant.prenom} ${etudiant.nom} a rejoint l'équipe startup "${themeTitre}"`, meta);
+  }
 
   return membre;
+}
+
+// ─── Startup : ajout d'un membre externe ─────────────────────────────────────
+
+export async function addMembreExterne(
+  affectationId: string,
+  dto: { nom: string; prenom: string; email: string; specialite?: string; universite?: string; commentaire?: string },
+  appelantId: string,
+) {
+  const affectation = await prisma.affectation.findUnique({
+    where: { id: affectationId },
+    include: {
+      theme: { select: { id: true, titre: true, type_pfe: true } },
+      startup_membres: true,
+      membres_externes: true,
+      etudiants: { select: { etudiant_id: true } },
+    },
+  });
+  if (!affectation) throw new NotFoundError('Affectation');
+  if (!affectation.theme || affectation.theme.type_pfe !== 'STARTUP') {
+    throw new BadRequestError("Cette affectation n'est pas de type STARTUP");
+  }
+  await assertEncadrantOrAdmin(affectation.encadrant_id, appelantId);
+
+  const totalMembers = affectation.startup_membres.length + affectation.membres_externes.length + affectation.etudiants.length;
+  if (totalMembers >= 6) throw new BadRequestError("L'équipe STARTUP a atteint le maximum de 6 membres");
+
+  const membre = await prisma.membreExterne.create({ data: { affectation_id: affectationId, ...dto } });
+
+  const meta = { theme_id: affectation.theme.id, affectation_id: affectationId };
+  for (const m of affectation.startup_membres) {
+    await notifyUser(m.etudiant_id, 'STARTUP_MEMBRE_AJOUTE',
+      `${dto.prenom} ${dto.nom} (externe) a rejoint l'équipe startup "${affectation.theme.titre}"`, meta);
+  }
+
+  return membre;
+}
+
+// ─── Startup : équipes encadrées par un enseignant ───────────────────────────
+
+export async function getMesStartups(enseignantId: string) {
+  return prisma.affectation.findMany({
+    where: {
+      OR: [
+        { encadrant_id: enseignantId },
+        { theme: { propose_par_id: enseignantId } },
+        { theme: { encadrant_id: enseignantId } },
+      ],
+      theme: { type_pfe: 'STARTUP' },
+    },
+    include: STARTUP_INCLUDE,
+    orderBy: { created_at: 'desc' },
+  });
+}
+
+// ─── Startup : propositions de membres ───────────────────────────────────────
+
+export async function getPropositions(affectationId: string, userId: string) {
+  const affectation = await prisma.affectation.findUnique({
+    where: { id: affectationId },
+    include: {
+      startup_membres: { select: { etudiant_id: true } },
+      etudiants: { select: { etudiant_id: true } },
+    },
+  });
+  if (!affectation) throw new NotFoundError('Affectation');
+
+  const isEncadrant = affectation.encadrant_id === userId;
+  const isMember = affectation.startup_membres.some((m) => m.etudiant_id === userId)
+    || affectation.etudiants.some((e) => e.etudiant_id === userId);
+  if (!isEncadrant && !isMember) throw new ForbiddenError('Accès refusé');
+
+  return prisma.propositionMembre.findMany({
+    where: isEncadrant
+      // L'encadrant ne voit que les propositions où l'étudiant a déjà accepté
+      ? { affectation_id: affectationId, etudiant_accepte: true }
+      : { affectation_id: affectationId, proposeur_id: userId },
+    include: {
+      proposeur: { select: { id: true, nom: true, prenom: true } },
+      candidat_interne: {
+        select: { id: true, nom: true, prenom: true, email: true, specialite: { select: { id: true, nom: true } } },
+      },
+    },
+    orderBy: { created_at: 'desc' },
+  });
+}
+
+export async function proposerMembre(
+  affectationId: string,
+  dto: {
+    candidat_interne_id?: string;
+    candidat_externe?: { nom: string; prenom: string; email: string; specialite?: string; universite?: string; commentaire?: string };
+  },
+  proposeurId: string,
+) {
+  if (!dto.candidat_interne_id && !dto.candidat_externe) {
+    throw new BadRequestError('Candidat interne ou externe requis');
+  }
+
+  const affectation = await prisma.affectation.findUnique({
+    where: { id: affectationId },
+    include: {
+      theme: { select: { id: true, titre: true } },
+      startup_membres: true,
+      membres_externes: true,
+      etudiants: { select: { etudiant_id: true } },
+    },
+  });
+  if (!affectation) throw new NotFoundError('Affectation');
+
+  const isMemberStartup = affectation.startup_membres.some((m) => m.etudiant_id === proposeurId);
+  const isMemberAff = affectation.etudiants.some((e) => e.etudiant_id === proposeurId);
+  if (!isMemberStartup && !isMemberAff) throw new ForbiddenError("Vous n'êtes pas membre de cette équipe");
+
+  const totalMembers = affectation.startup_membres.length + affectation.membres_externes.length + affectation.etudiants.length;
+  if (totalMembers >= 6) throw new BadRequestError("L'équipe STARTUP a atteint le maximum de 6 membres");
+
+  if (dto.candidat_interne_id) {
+    if (affectation.startup_membres.some((m) => m.etudiant_id === dto.candidat_interne_id)) {
+      throw new BadRequestError("Cet étudiant est déjà membre de l'équipe");
+    }
+    const existing = await prisma.propositionMembre.findFirst({
+      where: { affectation_id: affectationId, candidat_interne_id: dto.candidat_interne_id, statut: 'PENDING' },
+    });
+    if (existing) throw new BadRequestError('Une proposition est déjà en attente pour cet étudiant');
+  }
+
+  const proposition = await prisma.propositionMembre.create({
+    data: {
+      affectation_id: affectationId,
+      proposeur_id: proposeurId,
+      candidat_interne_id: dto.candidat_interne_id ?? null,
+      candidat_externe: dto.candidat_externe
+        ? (dto.candidat_externe as unknown as Prisma.InputJsonValue)
+        : Prisma.JsonNull,
+      // L'étudiant interne doit d'abord accepter — l'encadrant sera notifié après
+      etudiant_accepte: !dto.candidat_interne_id, // externes → pas d'étape étudiant
+    },
+    include: {
+      proposeur: { select: { id: true, nom: true, prenom: true } },
+      candidat_interne: { select: { id: true, nom: true, prenom: true, email: true, specialite: { select: { id: true, nom: true } } } },
+    },
+  });
+
+  const themeTitre = affectation.theme?.titre ?? '';
+
+  if (dto.candidat_interne_id) {
+    // Notifier l'ÉTUDIANT proposé (pas l'enseignant) — il doit d'abord accepter
+    const proposeur = await prisma.user.findUnique({ where: { id: proposeurId }, select: { nom: true, prenom: true } });
+    const who = proposeur ? `${proposeur.prenom} ${proposeur.nom}` : 'Un membre';
+    await notifyUser(dto.candidat_interne_id, 'STARTUP_INVITATION',
+      `${who} vous invite à rejoindre l'équipe STARTUP "${themeTitre}"`,
+      { affectation_id: affectationId, proposition_id: proposition.id });
+  } else if (dto.candidat_externe && affectation.encadrant_id) {
+    // Candidat externe : pas d'étape étudiant, notifier directement l'encadrant
+    const proposeur = await prisma.user.findUnique({ where: { id: proposeurId }, select: { nom: true, prenom: true } });
+    const who = proposeur ? `${proposeur.prenom} ${proposeur.nom}` : 'Un membre';
+    const ext = dto.candidat_externe;
+    await notifyUser(affectation.encadrant_id, 'STARTUP_PROPOSITION',
+      `${who} propose d'ajouter ${ext.prenom} ${ext.nom} (externe) à l'équipe "${themeTitre}"`,
+      { affectation_id: affectationId, proposition_id: proposition.id });
+  }
+
+  return proposition;
+}
+
+export async function getMesInvitationsStartup(etudiantId: string) {
+  return prisma.propositionMembre.findMany({
+    where: {
+      candidat_interne_id: etudiantId,
+      statut: 'PENDING',
+      etudiant_accepte: false,
+    },
+    include: {
+      affectation: {
+        select: {
+          id: true,
+          theme: { select: { id: true, titre: true, type_pfe: true } },
+          encadrant: { select: { id: true, nom: true, prenom: true } },
+        },
+      },
+      proposeur: { select: { id: true, nom: true, prenom: true } },
+    },
+    orderBy: { created_at: 'desc' },
+  });
+}
+
+export async function etudiantAccepteProposition(propId: string, etudiantId: string) {
+  const prop = await prisma.propositionMembre.findUnique({
+    where: { id: propId },
+    include: {
+      affectation: {
+        include: {
+          theme: { select: { id: true, titre: true } },
+          startup_membres: true,
+          membres_externes: true,
+          etudiants: { select: { etudiant_id: true } },
+        },
+      },
+      proposeur: { select: { id: true, nom: true, prenom: true } },
+    },
+  });
+  if (!prop) throw new NotFoundError('Invitation');
+  if (prop.candidat_interne_id !== etudiantId) throw new ForbiddenError('Cette invitation ne vous est pas adressée');
+  if (prop.statut !== 'PENDING') throw new BadRequestError('Cette invitation a déjà été traitée');
+  if (prop.etudiant_accepte) throw new BadRequestError('Vous avez déjà accepté cette invitation');
+
+  const totalMembers = prop.affectation.startup_membres.length + prop.affectation.membres_externes.length + prop.affectation.etudiants.length;
+  if (totalMembers >= 6) throw new BadRequestError("L'équipe STARTUP a atteint le maximum de 6 membres");
+
+  const themeTitre = prop.affectation.theme?.titre ?? '';
+  const affectationId = prop.affectation_id;
+  const meta = { affectation_id: affectationId, proposition_id: propId };
+
+  if (!prop.affectation.encadrant_id) {
+    // Encadrant externe → l'étudiant s'auto-accepte, devient membre directement
+    const etudiant = await prisma.user.findUnique({
+      where: { id: etudiantId },
+      include: { affectations_etudiant: { take: 1 }, startup_membres: { take: 1 } },
+    });
+    if (!etudiant || etudiant.affectations_etudiant.length > 0 || etudiant.startup_membres.length > 0) {
+      throw new BadRequestError('Vous êtes déjà affecté à un autre thème');
+    }
+    await prisma.$transaction(async (tx) => {
+      await tx.propositionMembre.update({ where: { id: propId }, data: { statut: 'ACCEPTED', etudiant_accepte: true } });
+      await tx.startupMembre.create({ data: { affectation_id: affectationId, etudiant_id: etudiantId } });
+    });
+    await notifyUser(prop.proposeur_id, 'STARTUP_PROPOSITION_ACCEPTEE',
+      `Vous avez rejoint l'équipe STARTUP "${themeTitre}"`, meta);
+    for (const m of prop.affectation.startup_membres) {
+      if (m.etudiant_id !== prop.proposeur_id && m.etudiant_id !== etudiantId) {
+        await notifyUser(m.etudiant_id, 'STARTUP_MEMBRE_AJOUTE',
+          `Un nouveau membre a rejoint l'équipe "${themeTitre}"`, meta);
+      }
+    }
+    return { message: 'Vous avez rejoint l\'équipe STARTUP', statut: 'AFFECTE' };
+  } else {
+    // Encadrant interne → marquer étudiant accepté, notifier l'encadrant
+    await prisma.propositionMembre.update({ where: { id: propId }, data: { etudiant_accepte: true } });
+    const etudiantInfo = await prisma.user.findUnique({ where: { id: etudiantId }, select: { nom: true, prenom: true } });
+    const nom = etudiantInfo ? `${etudiantInfo.prenom} ${etudiantInfo.nom}` : 'Un étudiant';
+    await notifyUser(prop.affectation.encadrant_id, 'STARTUP_PROPOSITION',
+      `${nom} a accepté l'invitation et attend votre validation pour rejoindre l'équipe "${themeTitre}"`,
+      meta);
+    return { message: 'Invitation acceptée — en attente de validation par l\'encadrant', statut: 'EN_ATTENTE_ENCADRANT' };
+  }
+}
+
+export async function etudiantRefuseProposition(propId: string, etudiantId: string) {
+  const prop = await prisma.propositionMembre.findUnique({
+    where: { id: propId },
+    include: { affectation: { select: { theme: { select: { titre: true } } } } },
+  });
+  if (!prop) throw new NotFoundError('Invitation');
+  if (prop.candidat_interne_id !== etudiantId) throw new ForbiddenError('Cette invitation ne vous est pas adressée');
+  if (prop.statut !== 'PENDING') throw new BadRequestError('Cette invitation a déjà été traitée');
+
+  await prisma.propositionMembre.update({ where: { id: propId }, data: { statut: 'REFUSED' } });
+
+  await notifyUser(prop.proposeur_id, 'STARTUP_PROPOSITION_REFUSEE',
+    `L'étudiant a décliné l'invitation pour l'équipe "${prop.affectation.theme?.titre ?? ''}"`,
+    { affectation_id: prop.affectation_id, proposition_id: propId });
+
+  return { message: 'Invitation refusée' };
+}
+
+export async function accepterProposition(propId: string, encadrantId: string) {
+  const prop = await prisma.propositionMembre.findUnique({
+    where: { id: propId },
+    include: {
+      affectation: {
+        include: {
+          theme: { select: { id: true, titre: true } },
+          startup_membres: true,
+          membres_externes: true,
+          etudiants: { select: { etudiant_id: true } },
+        },
+      },
+      candidat_interne: { select: { id: true, nom: true, prenom: true } },
+    },
+  });
+  if (!prop) throw new NotFoundError('Proposition');
+  if (prop.affectation.encadrant_id !== encadrantId) throw new ForbiddenError('Accès refusé');
+  if (prop.statut !== 'PENDING') throw new BadRequestError('Cette proposition a déjà été traitée');
+  if (prop.candidat_interne_id && !prop.etudiant_accepte) {
+    throw new BadRequestError("L'étudiant n'a pas encore accepté l'invitation");
+  }
+
+  const totalMembers = prop.affectation.startup_membres.length + prop.affectation.membres_externes.length + prop.affectation.etudiants.length;
+  if (totalMembers >= 6) throw new BadRequestError("L'équipe a atteint la capacité maximale de 6 membres");
+
+  const affectationId = prop.affectation_id;
+  const themeTitre = prop.affectation.theme?.titre ?? '';
+  const meta = { affectation_id: affectationId, proposition_id: propId };
+
+  await prisma.$transaction(async (tx) => {
+    await tx.propositionMembre.update({ where: { id: propId }, data: { statut: 'ACCEPTED' } });
+
+    if (prop.candidat_interne_id) {
+      const candidat = await tx.user.findUnique({
+        where: { id: prop.candidat_interne_id },
+        include: { affectations_etudiant: { take: 1 }, startup_membres: { take: 1 } },
+      });
+      if (!candidat || candidat.affectations_etudiant.length > 0 || candidat.startup_membres.length > 0) {
+        throw new BadRequestError('Cet étudiant est déjà affecté à un autre thème');
+      }
+      await tx.startupMembre.create({ data: { affectation_id: affectationId, etudiant_id: prop.candidat_interne_id } });
+    } else if (prop.candidat_externe) {
+      const ext = prop.candidat_externe as { nom: string; prenom: string; email: string; specialite?: string; universite?: string; commentaire?: string };
+      await tx.membreExterne.create({ data: { affectation_id: affectationId, ...ext } });
+    }
+  });
+
+  const ext = prop.candidat_externe as { prenom?: string; nom?: string } | null;
+  const candidatNom = prop.candidat_interne
+    ? `${prop.candidat_interne.prenom} ${prop.candidat_interne.nom}`
+    : `${ext?.prenom ?? ''} ${ext?.nom ?? ''} (externe)`;
+
+  if (prop.candidat_interne_id) {
+    await notifyUser(prop.candidat_interne_id, 'STARTUP_PROPOSITION_ACCEPTEE',
+      `Vous avez été ajouté à l'équipe startup "${themeTitre}"`, meta);
+  }
+  await notifyUser(prop.proposeur_id, 'STARTUP_PROPOSITION_ACCEPTEE',
+    `Votre proposition pour ${candidatNom.trim()} a été acceptée`, meta);
+
+  for (const m of prop.affectation.startup_membres) {
+    if (m.etudiant_id !== prop.proposeur_id && m.etudiant_id !== prop.candidat_interne_id) {
+      await notifyUser(m.etudiant_id, 'STARTUP_MEMBRE_AJOUTE',
+        `${candidatNom.trim()} a rejoint l'équipe startup "${themeTitre}"`, meta);
+    }
+  }
+
+  return { message: 'Proposition acceptée' };
+}
+
+export async function refuserProposition(propId: string, encadrantId: string) {
+  const prop = await prisma.propositionMembre.findUnique({
+    where: { id: propId },
+    include: {
+      affectation: { select: { encadrant_id: true, theme: { select: { titre: true } } } },
+      candidat_interne: { select: { nom: true, prenom: true } },
+    },
+  });
+  if (!prop) throw new NotFoundError('Proposition');
+  if (prop.affectation.encadrant_id !== encadrantId) throw new ForbiddenError('Accès refusé');
+  if (prop.statut !== 'PENDING') throw new BadRequestError('Cette proposition a déjà été traitée');
+  if (prop.candidat_interne_id && !prop.etudiant_accepte) {
+    throw new BadRequestError("L'étudiant n'a pas encore accepté l'invitation");
+  }
+
+  await prisma.propositionMembre.update({ where: { id: propId }, data: { statut: 'REFUSED' } });
+
+  const ext = prop.candidat_externe as { prenom?: string; nom?: string } | null;
+  const candidatNom = prop.candidat_interne
+    ? `${prop.candidat_interne.prenom} ${prop.candidat_interne.nom}`
+    : `${ext?.prenom ?? ''} ${ext?.nom ?? ''}`.trim();
+
+  await notifyUser(prop.proposeur_id, 'STARTUP_PROPOSITION_REFUSEE',
+    `Votre proposition pour ${candidatNom} a été refusée`,
+    { affectation_id: prop.affectation_id, proposition_id: propId });
+
+  return { message: 'Proposition refusée' };
 }
 
 // ─── Startup : suppression d'un membre ───────────────────────────────────────

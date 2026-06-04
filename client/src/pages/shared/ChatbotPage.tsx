@@ -42,7 +42,6 @@ function AssistantMessage({ msg, isStreaming }: { msg: Message; isStreaming: boo
       <div className="flex-1 min-w-0 space-y-2">
         {!isStreaming && msg.warning && (
           <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-800/30 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-            <span className="shrink-0">⚠️</span>
             <span>{msg.warning}</span>
           </div>
         )}
@@ -62,7 +61,7 @@ function AssistantMessage({ msg, isStreaming }: { msg: Message; isStreaming: boo
           <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium px-1">✅ Source : Guide LMD officiel</p>
         )}
         {!isStreaming && msg.source_type === 'general' && (
-          <p className="text-[10px] text-orange-500 font-medium px-1">🤖 Réponse générale (non officielle)</p>
+          <p className="text-[10px] text-orange-500 font-medium px-1">Réponse générale</p>
         )}
       </div>
     </div>
@@ -131,7 +130,7 @@ export default function ChatbotPage() {
       onFallback: (content, warning) => {
         setMessages((prev) => {
           const exists = prev.some((m) => m.id === assistantMsgId);
-          const msg: Message = { id: assistantMsgId, role: 'assistant', content, source_type: 'gemini', warning };
+          const msg: Message = { id: assistantMsgId, role: 'assistant', content, source_type: 'general', warning: warning || undefined };
           return exists ? prev.map((m) => m.id === assistantMsgId ? msg : m) : [...prev, msg];
         });
         setStreamingMsgId(null);

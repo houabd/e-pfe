@@ -40,7 +40,7 @@ const confirmerAutoSchema = z.object({
   suggestions: z.array(suggestionItemSchema).min(1),
 });
 
-// ─── Route étudiant ───────────────────────────────────────────────────────────
+// ─── Routes étudiant ──────────────────────────────────────────────────────────
 
 router.get(
   '/mon-affectation',
@@ -54,6 +54,27 @@ router.get(
     }
   },
 );
+
+router.get('/mes-invitations', requireRole('ETUDIANT'), async (req, res, next) => {
+  try {
+    const invitations = await affectationService.getMesInvitationsStartup(req.user!.userId);
+    res.json({ success: true, data: invitations });
+  } catch (err) { next(err); }
+});
+
+router.patch('/propositions/:propId/etudiant-accepter', requireRole('ETUDIANT'), async (req, res, next) => {
+  try {
+    const result = await affectationService.etudiantAccepteProposition(req.params['propId'] as string, req.user!.userId);
+    res.json({ success: true, data: result });
+  } catch (err) { next(err); }
+});
+
+router.patch('/propositions/:propId/etudiant-refuser', requireRole('ETUDIANT'), async (req, res, next) => {
+  try {
+    const result = await affectationService.etudiantRefuseProposition(req.params['propId'] as string, req.user!.userId);
+    res.json({ success: true, data: result });
+  } catch (err) { next(err); }
+});
 
 // ─── Routes enseignant ────────────────────────────────────────────────────────
 
@@ -169,61 +190,126 @@ const addMembreSchema = z.object({
   role_equipe: z.string().optional(),
 });
 
+const addMembreExterneSchema = z.object({
+  nom: z.string().min(1),
+  prenom: z.string().min(1),
+  email: z.string().email(),
+  specialite: z.string().optional(),
+  universite: z.string().optional(),
+  commentaire: z.string().optional(),
+});
+
+const propositionMembreSchema = z.object({
+  candidat_interne_id: z.string().min(1).optional(),
+  candidat_externe: z.object({
+    nom: z.string().min(1),
+    prenom: z.string().min(1),
+    email: z.string().email(),
+    specialite: z.string().optional(),
+    universite: z.string().optional(),
+    commentaire: z.string().optional(),
+  }).optional(),
+}).refine((d) => d.candidat_interne_id || d.candidat_externe, {
+  message: 'Candidat interne ou externe requis',
+});
+
 router.post(
   '/startup',
   requireRespFiliere,
   validate({ body: createStartupAffectationSchema }),
   async (req, res, next) => {
     try {
-      const affectation = await affectationService.createStartupAffectation(
-        req.body,
-        req.user!.userId,
-      );
+      const affectation = await affectationService.createStartupAffectation(req.body, req.user!.userId);
       res.status(201).json({ success: true, data: affectation });
-    } catch (err) {
-      next(err);
-    }
+    } catch (err) { next(err); }
   },
 );
+
+router.get('/mes-startups', requireRole('ENSEIGNANT', 'CHEF_EQUIPE', 'CHEF_DEPT', 'RESP_SPECIALITE'), async (req, res, next) => {
+  try {
+    const startups = await affectationService.getMesStartups(req.user!.userId);
+    res.json({ success: true, data: startups });
+  } catch (err) { next(err); }
+});
 
 router.get('/:id/equipe', async (req, res, next) => {
   try {
     const equipe = await affectationService.getStartupEquipe(req.params['id'] as string);
     res.json({ success: true, data: equipe });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 router.post(
   '/:id/equipe',
-  requireRespFiliere,
+  requireRole('ENSEIGNANT', 'CHEF_EQUIPE', 'CHEF_DEPT'),
   validate({ body: addMembreSchema }),
   async (req, res, next) => {
     try {
       const { etudiant_id, role_equipe } = req.body as { etudiant_id: string; role_equipe?: string };
       const membre = await affectationService.addStartupMembre(
-        req.params['id'] as string,
-        etudiant_id,
-        role_equipe,
+        req.params['id'] as string, etudiant_id, req.user!.userId, role_equipe,
       );
       res.status(201).json({ success: true, data: membre });
-    } catch (err) {
-      next(err);
-    }
+    } catch (err) { next(err); }
   },
 );
 
-router.delete('/:id/equipe/:etudiantId', requireRespFiliere, async (req, res, next) => {
+router.post(
+  '/:id/equipe/externe',
+  requireRole('ENSEIGNANT', 'CHEF_EQUIPE', 'CHEF_DEPT'),
+  validate({ body: addMembreExterneSchema }),
+  async (req, res, next) => {
+    try {
+      const membre = await affectationService.addMembreExterne(
+        req.params['id'] as string, req.body, req.user!.userId,
+      );
+      res.status(201).json({ success: true, data: membre });
+    } catch (err) { next(err); }
+  },
+);
+
+router.delete('/:id/equipe/:etudiantId', requireRole('ENSEIGNANT', 'CHEF_EQUIPE', 'CHEF_DEPT'), async (req, res, next) => {
   try {
-    await affectationService.removeStartupMembre(
-      req.params['id'] as string,
-      req.params['etudiantId'] as string,
-    );
-    res.json({ success: true, message: 'Membre retiré de l\'équipe' });
-  } catch (err) {
-    next(err);
-  }
+    await affectationService.removeStartupMembre(req.params['id'] as string, req.params['etudiantId'] as string);
+    res.json({ success: true, message: "Membre retiré de l'équipe" });
+  } catch (err) { next(err); }
+});
+
+// ─── Propositions de membres (étudiants → encadrant) ─────────────────────────
+
+router.get('/:id/propositions', async (req, res, next) => {
+  try {
+    const propositions = await affectationService.getPropositions(req.params['id'] as string, req.user!.userId);
+    res.json({ success: true, data: propositions });
+  } catch (err) { next(err); }
+});
+
+router.post(
+  '/:id/propositions',
+  requireRole('ETUDIANT'),
+  validate({ body: propositionMembreSchema }),
+  async (req, res, next) => {
+    try {
+      const proposition = await affectationService.proposerMembre(
+        req.params['id'] as string, req.body, req.user!.userId,
+      );
+      res.status(201).json({ success: true, data: proposition });
+    } catch (err) { next(err); }
+  },
+);
+
+router.patch('/:id/propositions/:propId/accepter', requireRole('ENSEIGNANT', 'CHEF_EQUIPE', 'CHEF_DEPT'), async (req, res, next) => {
+  try {
+    const result = await affectationService.accepterProposition(req.params['propId'] as string, req.user!.userId);
+    res.json({ success: true, data: result });
+  } catch (err) { next(err); }
+});
+
+router.patch('/:id/propositions/:propId/refuser', requireRole('ENSEIGNANT', 'CHEF_EQUIPE', 'CHEF_DEPT'), async (req, res, next) => {
+  try {
+    const result = await affectationService.refuserProposition(req.params['propId'] as string, req.user!.userId);
+    res.json({ success: true, data: result });
+  } catch (err) { next(err); }
 });
 
 export default router;
