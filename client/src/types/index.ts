@@ -89,6 +89,7 @@ export interface User {
   prenom: string;
   role: Role;
   is_active: boolean;
+  must_change_password?: boolean;
   matricule?: string;
   annee_universitaire?: string;
   date_naissance?: string;

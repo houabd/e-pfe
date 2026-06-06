@@ -141,9 +141,10 @@ model User {
   specialite_id       String?
   date_naissance      DateTime
   matricule           String?  @unique
-  is_active           Boolean  @default(true)
-  annee_universitaire String?
-  created_at          DateTime @default(now())
+  is_active             Boolean  @default(true)
+  must_change_password  Boolean  @default(false)
+  annee_universitaire   String?
+  created_at            DateTime @default(now())
   updated_at          DateTime @updatedAt
 
   specialite Specialite? @relation(fields: [specialite_id], references: [id])

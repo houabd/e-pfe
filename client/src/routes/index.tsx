@@ -36,6 +36,7 @@ import ChatbotPage from '@/pages/shared/ChatbotPage';
 import SearchPage from '@/pages/shared/SearchPage';
 import ProfilePage from '@/pages/shared/ProfilePage';
 import NotificationsPage from '@/pages/shared/NotificationsPage';
+import ForceChangePasswordPage from '@/pages/shared/ForceChangePasswordPage';
 
 const ADMIN_ROLES = ['CHEF_DEPT', 'CHEF_EQUIPE', 'TECHNICIEN'] as const;
 
@@ -61,6 +62,7 @@ export const router = createBrowserRouter([
   {
     element: <ProtectedRoute />,
     children: [
+      { path: '/changer-mot-de-passe', element: <ForceChangePasswordPage /> },
       {
         element: <DashboardLayout />,
         children: [

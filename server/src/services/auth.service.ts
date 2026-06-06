@@ -10,13 +10,17 @@ export async function login(dto: LoginDto) {
     include: { specialite: true },
   });
 
-  if (!user || !user.is_active) {
-    throw new UnauthorizedError('Email ou mot de passe incorrect');
+  if (!user) {
+    throw new UnauthorizedError('Aucun compte associé à cet email');
+  }
+
+  if (!user.is_active) {
+    throw new UnauthorizedError('Ce compte est désactivé. Contactez l\'administrateur.');
   }
 
   const valid = await comparePassword(dto.password, user.password_hash);
   if (!valid) {
-    throw new UnauthorizedError('Email ou mot de passe incorrect');
+    throw new UnauthorizedError('Mot de passe incorrect');
   }
 
   const payload = { userId: user.id, role: user.role };
@@ -58,6 +62,6 @@ export async function changePassword(userId: string, dto: ChangePasswordDto) {
   const newHash = await hashPassword(dto.newPassword);
   await prisma.user.update({
     where: { id: userId },
-    data: { password_hash: newHash },
+    data: { password_hash: newHash, must_change_password: false },
   });
 }

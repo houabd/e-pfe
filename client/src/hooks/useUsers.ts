@@ -87,6 +87,14 @@ export function useHardDeleteUser() {
   });
 }
 
+export function useResetUserPassword() {
+  return useMutation({
+    mutationFn: usersApi.resetUserPassword,
+    onSuccess: () => toast.success('Mot de passe réinitialisé à la date de naissance'),
+    onError: (e) => toast.error(extractApiError(e)),
+  });
+}
+
 export function useBulkDeleteUsers() {
   const qc = useQueryClient();
   return useMutation({

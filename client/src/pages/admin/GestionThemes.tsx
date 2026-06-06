@@ -843,16 +843,14 @@ export default function GestionThemes() {
   const apiFilters = {
     search: search || undefined,
     type_pfe: (filterType || undefined) as 'CLASSIQUE' | 'STARTUP' | undefined,
-    statut_validation: quickFilter === 'attente'
-      ? ('NON_VALIDE' as const)
-      : quickFilter === 'valides' || quickFilter === 'non-affectes'
-        ? ('VALIDE' as const)
-        : undefined,
-    is_affecte: quickFilter === 'affectes'
-      ? true
-      : quickFilter === 'non-affectes'
-        ? false
-        : undefined,
+    statut_validation:
+      quickFilter === 'attente' ? ('NON_VALIDE' as const) :
+      quickFilter === 'valides'  ? ('VALIDE'    as const) :
+      undefined,
+    is_affecte:
+      quickFilter === 'affectes'     ? true  :
+      quickFilter === 'non-affectes' ? false :
+      undefined,
     specialite_id: filterSpecialite || undefined,
     page,
     limit: 20,

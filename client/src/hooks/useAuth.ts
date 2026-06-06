@@ -25,9 +25,6 @@ export function useLogin() {
       };
       navigate(redirectMap[role] ?? '/');
     },
-    onError: (error) => {
-      toast.error(extractApiError(error));
-    },
   });
 }
 

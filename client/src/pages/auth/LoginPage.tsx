@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Link } from 'react-router-dom';
 import { useLogin } from '@/hooks/useAuth';
+import { extractApiError } from '@/services/api';
 
 const loginSchema = z.object({
   email: z.string().email('Email invalide'),
@@ -24,11 +25,24 @@ export default function LoginPage() {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors },
   } = useForm<LoginForm>({ resolver: zodResolver(loginSchema) });
 
   const onSubmit = (data: LoginForm) => {
-    loginMutation.mutate({ email: data.email as string, password: data.password as string });
+    loginMutation.mutate(
+      { email: data.email, password: data.password },
+      {
+        onError: (e) => {
+          const message = extractApiError(e);
+          if (message === 'Aucun compte associé à cet email') {
+            setError('email', { message });
+          } else {
+            setError('password', { message });
+          }
+        },
+      },
+    );
   };
 
   return (
@@ -103,7 +117,8 @@ export default function LoginPage() {
         </form>
 
         <p className="text-xs text-muted-foreground text-center mt-4">
-          Mot de passe initial : votre date de naissance
+          Mot de passe initial : votre date de naissance<br />
+          Mot de passe oublié ? Contactez l'administrateur.
         </p>
       </CardContent>
     </Card>

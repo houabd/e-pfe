@@ -72,6 +72,10 @@ export async function hardDeleteUser(id: string): Promise<void> {
   await api.delete(`/users/${id}/hard`);
 }
 
+export async function resetUserPassword(id: string): Promise<void> {
+  await api.post(`/users/${id}/reset-password`);
+}
+
 export async function bulkDeleteUsers(ids: string[]): Promise<{ count: number }> {
   const { data } = await api.post<ApiResponse<{ count: number }>>('/users/bulk-delete', { ids, permanent: false });
   return data.data!;

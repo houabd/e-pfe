@@ -5,7 +5,7 @@ import { z } from 'zod';
 import {
   Users, UserPlus, Upload, Download, Search, Filter,
   MoreHorizontal, UserCheck, UserX, Trash2, ChevronLeft, ChevronRight,
-  Pencil, Loader2,
+  Pencil, Loader2, KeyRound,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,8 +26,9 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useUsers, useUpdateUser, useToggleUserActive, useDeleteUser, useHardDeleteUser, useBulkDeleteUsers, useBulkHardDeleteUsers, useExportUsers } from '@/hooks/useUsers';
+import { useUsers, useUpdateUser, useToggleUserActive, useDeleteUser, useHardDeleteUser, useBulkDeleteUsers, useBulkHardDeleteUsers, useExportUsers, useResetUserPassword } from '@/hooks/useUsers';
 import { useActiveSpecialites } from '@/hooks/useSpecialites';
+import { useAuthStore } from '@/stores/authStore';
 import AddUserDialog from '@/components/users/AddUserDialog';
 import ImportUsersDialog from '@/components/users/ImportUsersDialog';
 import type { User } from '@/types';
@@ -270,6 +271,114 @@ function EditUserDialog({
   );
 }
 
+// ─── Fiche utilisateur ────────────────────────────────────────────────────────
+
+function UserFicheDialog({
+  user,
+  open,
+  onClose,
+  onEdit,
+  onResetPassword,
+}: {
+  user: User | null;
+  open: boolean;
+  onClose: () => void;
+  onEdit: (user: User) => void;
+  onResetPassword: (user: User) => void;
+}) {
+  const currentRole = useAuthStore((s) => s.user?.role);
+  const canResetPassword = currentRole === 'TECHNICIEN' || currentRole === 'CHEF_DEPT';
+
+  if (!user) return null;
+  const initials = `${user.prenom[0]}${user.nom[0]}`.toUpperCase();
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Fiche utilisateur</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="flex items-center gap-4 p-4 bg-muted/40 rounded-lg">
+            <Avatar className="size-12">
+              <AvatarFallback className="text-sm font-bold bg-primary/10 text-primary">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <p className="font-semibold text-base">{user.prenom} {user.nom}</p>
+              <p className="text-sm text-muted-foreground">{user.email}</p>
+              <div className="mt-1.5">
+                <Badge variant={ROLE_VARIANTS[user.role] ?? 'secondary'}>
+                  {ROLE_LABELS[user.role] ?? user.role}
+                </Badge>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-0.5">Date de naissance</p>
+              <p>{user.date_naissance
+                ? new Date(user.date_naissance).toLocaleDateString('fr-FR')
+                : <span className="text-muted-foreground/50">—</span>}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-0.5">Spécialité</p>
+              <p>{user.specialite?.nom ?? <span className="text-muted-foreground/50">—</span>}</p>
+            </div>
+            {user.matricule && (
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-0.5">Matricule</p>
+                <p>{user.matricule}</p>
+              </div>
+            )}
+            {user.annee_universitaire && (
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-0.5">Année universitaire</p>
+                <p>{user.annee_universitaire}</p>
+              </div>
+            )}
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-0.5">Statut</p>
+              <div className="mt-0.5">
+                <Badge variant={user.is_active ? 'success' : 'secondary'}>
+                  {user.is_active ? 'Actif' : 'Inactif'}
+                </Badge>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <Separator />
+
+        <div className="flex flex-wrap items-center gap-2 pt-2">
+          {canResetPassword && (
+            <Button
+              type="button"
+              variant="outline"
+              className="border-amber-200 text-amber-700 hover:bg-amber-50 hover:border-amber-300"
+              onClick={() => { onClose(); onResetPassword(user); }}
+            >
+              <KeyRound className="size-4 mr-2" />
+              Réinitialiser le mot de passe
+            </Button>
+          )}
+          <div className="flex gap-2 ml-auto">
+            <Button type="button" variant="outline" onClick={onClose}>Fermer</Button>
+            <Button type="button" onClick={() => { onClose(); onEdit(user); }}>
+              <Pencil className="size-4 mr-2" />
+              Modifier les infos
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Dialogue confirmation suppression unique ─────────────────────────────────
 
 function DeleteConfirmDialog({
@@ -371,6 +480,55 @@ function HardDeleteConfirmDialog({
   );
 }
 
+// ─── Dialogue réinitialisation mot de passe ───────────────────────────────────
+
+function ResetPasswordConfirmDialog({
+  user,
+  onConfirm,
+  onCancel,
+  isPending,
+}: {
+  user: User;
+  onConfirm: () => void;
+  onCancel: () => void;
+  isPending: boolean;
+}) {
+  const dateDisplay = user.date_naissance
+    ? new Date(user.date_naissance).toLocaleDateString('fr-FR')
+    : null;
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <KeyRound className="size-4 text-amber-600" />
+            Réinitialiser le mot de passe
+          </DialogTitle>
+          <DialogDescription>
+            Le mot de passe de <strong>{user.prenom} {user.nom}</strong> sera remplacé par
+            {dateDisplay
+              ? <> sa date de naissance (<strong>{dateDisplay}</strong>, format JJMMAAAA)</>
+              : ' sa date de naissance'}
+            . L&apos;utilisateur pourra le modifier à sa prochaine connexion.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Annuler</Button>
+          <Button
+            className="bg-amber-600 hover:bg-amber-700"
+            onClick={onConfirm}
+            disabled={isPending}
+          >
+            {isPending && <Loader2 className="size-4 animate-spin mr-2" />}
+            Réinitialiser
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Ligne de tableau ─────────────────────────────────────────────────────────
 
 function UserRow({
@@ -378,7 +536,7 @@ function UserRow({
   selected,
   onSelect,
   onToggle,
-  onEdit,
+  onFiche,
   onDelete,
   onHardDelete,
 }: {
@@ -386,7 +544,7 @@ function UserRow({
   selected: boolean;
   onSelect: (id: string, checked: boolean) => void;
   onToggle: (id: string) => void;
-  onEdit: (user: User) => void;
+  onFiche: (user: User) => void;
   onDelete: (user: User) => void;
   onHardDelete: (user: User) => void;
 }) {
@@ -443,9 +601,9 @@ function UserRow({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => onEdit(user)}>
+            <DropdownMenuItem onClick={() => onFiche(user)}>
               <Pencil className="size-4 mr-2" />
-              Modifier
+              Voir / Modifier
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => onToggle(user.id)}>
@@ -505,7 +663,9 @@ export default function GestionUtilisateurs() {
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [ficheTarget, setFicheTarget] = useState<User | null>(null);
   const [editTarget, setEditTarget] = useState<User | null>(null);
+  const [resetPasswordTarget, setResetPasswordTarget] = useState<User | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [hardDeleteTarget, setHardDeleteTarget] = useState<User | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -515,6 +675,7 @@ export default function GestionUtilisateurs() {
   const { data: response, isLoading } = useUsers(filters);
   const { data: specialites } = useActiveSpecialites();
   const toggleActive = useToggleUserActive();
+  const resetPassword = useResetUserPassword();
   const deleteUser = useDeleteUser();
   const hardDeleteUser = useHardDeleteUser();
   const bulkDelete = useBulkDeleteUsers();
@@ -550,6 +711,11 @@ export default function GestionUtilisateurs() {
     e.preventDefault();
     setFilters((prev) => ({ ...prev, search: search || undefined, page: 1 }));
     setSelectedIds(new Set());
+  };
+
+  const handleResetPassword = () => {
+    if (!resetPasswordTarget) return;
+    resetPassword.mutate(resetPasswordTarget.id, { onSuccess: () => setResetPasswordTarget(null) });
   };
 
   const handleDelete = () => {
@@ -802,7 +968,7 @@ export default function GestionUtilisateurs() {
                     selected={selectedIds.has(user.id)}
                     onSelect={handleSelectOne}
                     onToggle={(id) => toggleActive.mutate(id)}
-                    onEdit={setEditTarget}
+                    onFiche={setFicheTarget}
                     onDelete={setDeleteTarget}
                     onHardDelete={setHardDeleteTarget}
                   />
@@ -850,12 +1016,27 @@ export default function GestionUtilisateurs() {
       {/* Modals */}
       <AddUserDialog open={showAdd} onOpenChange={setShowAdd} />
       <ImportUsersDialog open={showImport} onOpenChange={setShowImport} />
+      <UserFicheDialog
+        open={!!ficheTarget}
+        user={ficheTarget}
+        onClose={() => setFicheTarget(null)}
+        onEdit={setEditTarget}
+        onResetPassword={setResetPasswordTarget}
+      />
       <EditUserDialog
         open={!!editTarget}
         user={editTarget}
         onClose={() => setEditTarget(null)}
         specialites={specialites ?? []}
       />
+      {resetPasswordTarget && (
+        <ResetPasswordConfirmDialog
+          user={resetPasswordTarget}
+          onConfirm={handleResetPassword}
+          onCancel={() => setResetPasswordTarget(null)}
+          isPending={resetPassword.isPending}
+        />
+      )}
       {deleteTarget && (
         <DeleteConfirmDialog
           user={deleteTarget}

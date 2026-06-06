@@ -15,6 +15,7 @@ const USER_SELECT = {
   prenom: true,
   role: true,
   is_active: true,
+  must_change_password: true,
   matricule: true,
   annee_universitaire: true,
   date_naissance: true,
@@ -72,7 +73,7 @@ export async function createUser(dto: CreateUserDto) {
   const password_hash = await hashPassword(initialPassword);
 
   return prisma.user.create({
-    data: { ...dto, password_hash },
+    data: { ...dto, password_hash, must_change_password: true },
     select: USER_SELECT,
   });
 }
@@ -113,8 +114,6 @@ export async function updateUser(id: string, dto: UpdateUserDto) {
   if (dto.annee_universitaire !== undefined) data.annee_universitaire = dto.annee_universitaire;
   if (dto.date_naissance !== undefined) {
     data.date_naissance = dto.date_naissance;
-    // Le mot de passe initial étant la date de naissance, on le réinitialise
-    data.password_hash = await hashPassword(generateInitialPassword(dto.date_naissance));
   }
 
   return prisma.user.update({ where: { id }, data, select: USER_SELECT });
@@ -131,6 +130,20 @@ export async function toggleUserActive(id: string) {
     data: { is_active: !user.is_active },
     select: { id: true, is_active: true, email: true, nom: true, prenom: true },
   });
+}
+
+// ─── Réinitialisation du mot de passe ────────────────────────────────────────
+
+export async function resetUserPassword(id: string) {
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user) throw new NotFoundError('Utilisateur');
+  if (!user.date_naissance) throw new BadRequestError('Date de naissance manquante — impossible de réinitialiser le mot de passe');
+
+  const newPassword = generateInitialPassword(user.date_naissance);
+  const password_hash = await hashPassword(newPassword);
+
+  await prisma.user.update({ where: { id }, data: { password_hash, must_change_password: true } });
+  return { message: 'Mot de passe réinitialisé à la date de naissance actuelle' };
 }
 
 // ─── Suppression (soft delete) ────────────────────────────────────────────────
@@ -283,7 +296,7 @@ export async function importUsers(buffer: Buffer) {
       const password_hash = await hashPassword(initialPassword);
 
       await prisma.user.create({
-        data: { email, nom, prenom, role: roleRaw, date_naissance: dateNaissance, password_hash, matricule, annee_universitaire: anneeUniv, specialite_id },
+        data: { email, nom, prenom, role: roleRaw, date_naissance: dateNaissance, password_hash, matricule, annee_universitaire: anneeUniv, specialite_id, must_change_password: true },
       });
 
       existingEmails.add(email);

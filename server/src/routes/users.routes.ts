@@ -98,6 +98,15 @@ router.patch('/:id/toggle-active', requireTechnicien, async (req, res, next) => 
   }
 });
 
+router.post('/:id/reset-password', requireTechnicien, async (req, res, next) => {
+  try {
+    const result = await userService.resetUserPassword(req.params['id'] as string);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post('/bulk-delete', requireChefDept, async (req, res, next) => {
   try {
     const schema = z.object({

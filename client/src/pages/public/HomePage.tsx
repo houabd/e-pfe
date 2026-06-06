@@ -77,15 +77,15 @@ export default function HomePage() {
         <div className="relative max-w-4xl mx-auto px-6 py-20 flex flex-col items-center text-center">
 
           {/* Dual logos */}
-          <div className="flex items-center justify-center gap-8 sm:gap-14 mb-8">
+          <div className="flex items-center justify-center gap-6 sm:gap-10 mb-8">
             {/* UB logo */}
             <div className="flex flex-col items-center gap-2">
-              <div className="size-28 sm:size-36 flex items-center justify-center">
+              <div className="size-20 sm:size-28 flex items-center justify-center">
                 <img
                   src="/logo/univ.png"
                   alt="Université de Béjaïa"
-                  width={140}
-                  height={140}
+                  width={110}
+                  height={110}
                   style={{
                     width: '100%',
                     height: '100%',
@@ -96,19 +96,20 @@ export default function HomePage() {
               </div>
             </div>
 
+            
+
             {/* e-PFE logo */}
             <div className="flex flex-col items-center gap-2">
-              <div className="size-28 sm:size-36 flex items-center justify-center">
+              <div className="size-20 sm:size-28 flex items-center justify-center">
                 <img
-                  src="/logo/logo1.png"
+                  src="/logo.png"
                   alt="e-PFE"
-                  width={140}
-                  height={140}
+                  width={110}
+                  height={110}
                   style={{
                     width: '100%',
                     height: '100%',
-                    objectFit: 'contain',
-                    filter: 'brightness(0) invert(1)'
+                    objectFit: 'contain'
                   }}
                 />
               </div>
