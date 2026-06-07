@@ -1,5 +1,5 @@
 ﻿import type { Response } from 'express';
-import * as xlsx from 'xlsx';
+import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import { prisma } from '../config/database';
 import { Prisma } from '@prisma/client';
@@ -23,11 +23,42 @@ const THEME_INCLUDE = {
 export async function getThemes(filters: ThemeFilters) {
   const {
     page = 1, limit = 20,
-    specialite_id, type_pfe, statut_validation,
+    specialite_id, etudiant_specialite_id, type_pfe, statut_validation,
     is_affecte, besoin_encadrant, session_id, enseignant_id,
     annee_universitaire, search,
   } = filters;
   const skip = (page - 1) * limit;
+
+  // Conditions composées (plusieurs OR) groupées dans un AND pour éviter les conflits
+  const andConditions: Prisma.ThemeWhereInput[] = [];
+
+  if (search) {
+    andConditions.push({
+      OR: [
+        { titre: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+        { mots_cles: { has: search } },
+      ],
+    });
+  }
+
+  if (etudiant_specialite_id) {
+    // Thèmes visibles par cet étudiant : sans spécialité définie OU spécialité correspondante
+    andConditions.push({
+      OR: [
+        { theme_specialites: { none: {} } },
+        { theme_specialites: { some: { specialite_id: etudiant_specialite_id } } },
+      ],
+    });
+  }
+
+  // Masquer les thèmes proposés par enseignants dont le co-encadrant n'a pas encore confirmé
+  andConditions.push({
+    OR: [
+      { propose_par: { role: 'ETUDIANT' } },
+      { encadrant_valide: true },
+    ],
+  });
 
   const where: Prisma.ThemeWhereInput = {
     ...(type_pfe ? { type_pfe } : {}),
@@ -38,15 +69,7 @@ export async function getThemes(filters: ThemeFilters) {
     ...(enseignant_id ? { propose_par_id: enseignant_id } : {}),
     ...(specialite_id ? { theme_specialites: { some: { specialite_id } } } : {}),
     ...(annee_universitaire ? { session: { annee_universitaire } } : {}),
-    ...(search
-      ? {
-          OR: [
-            { titre: { contains: search, mode: 'insensitive' } },
-            { description: { contains: search, mode: 'insensitive' } },
-            { mots_cles: { has: search } },
-          ],
-        }
-      : {}),
+    ...(andConditions.length > 0 ? { AND: andConditions } : {}),
   };
 
   const [total, themes] = await Promise.all([
@@ -63,10 +86,23 @@ export async function getThemes(filters: ThemeFilters) {
   return { data: themes, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
 }
 
+const ETUDIANT_SELECT_DETAIL = {
+  id: true, nom: true, prenom: true, email: true,
+  matricule: true, specialite: { select: { id: true, nom: true } },
+} as const;
+
 export async function getThemeById(id: string) {
   const theme = await prisma.theme.findUnique({
     where: { id },
-    include: THEME_INCLUDE,
+    include: {
+      ...THEME_INCLUDE,
+      affectation: {
+        include: {
+          etudiants: { include: { etudiant: { select: ETUDIANT_SELECT_DETAIL } } },
+          startup_membres: { include: { etudiant: { select: ETUDIANT_SELECT_DETAIL } } },
+        },
+      },
+    },
   });
   if (!theme) throw new NotFoundError('Thème');
   return theme;
@@ -171,13 +207,22 @@ export async function createTheme(dto: CreateThemeDto, user: TokenPayload) {
     where: { type: 'CHOIX', is_active: true, date_debut: { lte: new Date() }, date_fin: { gte: new Date() } },
   });
 
-  // Si besoin_encadrant → null. Sinon : encadrant explicite → proposeur enseignant → null
-  const encadrantId = rest.besoin_encadrant
-    ? null
-    : (rest.encadrant_id ?? (TEACHER_ROLES.includes(user.role) ? user.userId : null));
+  // Logique encadrant : enseignant = proposant toujours encadrant principal
+  const isTeacher = TEACHER_ROLES.includes(user.role);
+  let encadrantId: string | null;
+  let coEncadrantId: string | null;
+  let encadrantValide: boolean;
 
-  // Encadrant interne doit confirmer si c'est un étudiant qui propose avec un encadrant désigné
-  const encadrantValide = user.role === 'ETUDIANT' && !!encadrantId ? false : true;
+  if (isTeacher) {
+    encadrantId = user.userId;
+    coEncadrantId = rest.encadrant_id ?? null;
+    encadrantValide = !coEncadrantId;
+  } else {
+    // Étudiant
+    encadrantId = rest.besoin_encadrant ? null : (rest.encadrant_id ?? null);
+    coEncadrantId = null;
+    encadrantValide = !!encadrantId ? false : true;
+  }
 
   // STARTUP avec encadrant externe fourni → affectation automatique (CLAUDE.md)
   const isAffecteAuto = dto.type_pfe === 'STARTUP' && !!encadrant_externe;
@@ -206,6 +251,7 @@ export async function createTheme(dto: CreateThemeDto, user: TokenPayload) {
         propose_par_id: user.userId,
         session_id: session!.id,
         encadrant_id: encadrantId,
+        co_encadrant_id: coEncadrantId,
         encadrant_valide: encadrantValide,
         is_affecte: isAffecteAuto,
         encadrant_externe: encadrant_externe
@@ -241,7 +287,7 @@ export async function createTheme(dto: CreateThemeDto, user: TokenPayload) {
     return theme;
   }).then(async (theme) => {
     // Notifier l'encadrant désigné par l'étudiant pour qu'il confirme
-    if (!encadrantValide && encadrantId) {
+    if (!isTeacher && !encadrantValide && encadrantId) {
       const etudiant = await prisma.user.findUnique({
         where: { id: user.userId },
         select: { nom: true, prenom: true },
@@ -251,6 +297,20 @@ export async function createTheme(dto: CreateThemeDto, user: TokenPayload) {
         encadrantId,
         'ENCADRANT_CONFIRM_REQUEST',
         `${who} vous désigne comme encadrant pour le thème "${theme.titre}". Veuillez confirmer ou refuser.`,
+        { theme_id: theme.id },
+      );
+    }
+    // Notifier le co-encadrant désigné par l'enseignant pour qu'il confirme
+    if (isTeacher && coEncadrantId) {
+      const enseignant = await prisma.user.findUnique({
+        where: { id: user.userId },
+        select: { nom: true, prenom: true },
+      });
+      const whoEns = enseignant ? `${enseignant.prenom} ${enseignant.nom}` : 'Un enseignant';
+      await notifyUser(
+        coEncadrantId,
+        'ENCADRANT_CONFIRM_REQUEST',
+        `${whoEns} vous a désigné co-encadrant du thème "${theme.titre}".`,
         { theme_id: theme.id },
       );
     }
@@ -292,10 +352,9 @@ export async function createThemeAsAdmin(
   });
   if (!session) throw new BadRequestError('Aucune session de type CHOIX trouvée');
 
-  // Si besoin_encadrant → null. Sinon : encadrant explicite → proposeur enseignant → null
-  const encadrantId = rest.besoin_encadrant
-    ? null
-    : (rest.encadrant_id ?? (TEACHER_ROLES.includes(proposant.role) ? proposeParId : null));
+  // Proposant est toujours l'encadrant principal ; encadrant_id du DTO devient co-encadrant
+  const encadrantId = proposeParId;
+  const coEncadrantId = rest.encadrant_id ?? null;
   const isAffecteAuto = dto.type_pfe === 'STARTUP' && !!encadrant_externe;
 
   return prisma.$transaction(async (tx) => {
@@ -305,6 +364,7 @@ export async function createThemeAsAdmin(
         propose_par_id: proposeParId,
         session_id: session.id,
         encadrant_id: encadrantId,
+        co_encadrant_id: coEncadrantId,
         is_affecte: isAffecteAuto,
         encadrant_externe: encadrant_externe
           ? (encadrant_externe as unknown as Prisma.InputJsonValue)
@@ -434,23 +494,88 @@ export async function getThemesAwaitingMyConfirmation(encadrantId: string) {
 }
 
 export async function confirmEncadrant(themeId: string, encadrantId: string) {
-  const theme = await prisma.theme.findUnique({ where: { id: themeId } });
+  const theme = await prisma.theme.findUnique({
+    where: { id: themeId },
+    include: { propose_par: { select: { role: true } } },
+  });
   if (!theme) throw new NotFoundError('Thème');
   if (theme.encadrant_id !== encadrantId) throw new ForbiddenError('Vous n\'êtes pas l\'encadrant désigné pour ce thème');
   if (theme.encadrant_valide) throw new BadRequestError('Ce thème est déjà confirmé');
 
-  const updated = await prisma.theme.update({
-    where: { id: themeId },
-    data: { encadrant_valide: true },
-    include: THEME_INCLUDE,
+  const proposerIsEtudiant = theme.propose_par.role === 'ETUDIANT';
+
+  let partnerId: string | null = null;
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const themeUpdate = await tx.theme.update({
+      where: { id: themeId },
+      data: {
+        encadrant_valide: true,
+        ...(proposerIsEtudiant ? { is_affecte: true } : {}),
+      },
+      include: THEME_INCLUDE,
+    });
+
+    if (proposerIsEtudiant) {
+      const existing = await tx.affectation.findFirst({ where: { theme_id: themeId } });
+      if (!existing) {
+        const binomeActif = await tx.binome.findFirst({
+          where: {
+            OR: [{ etud1_id: theme.propose_par_id }, { etud2_id: theme.propose_par_id }],
+            statut: 'ACCEPTED',
+          },
+          select: { id: true, etud1_id: true, etud2_id: true },
+        });
+        const binomeId = binomeActif?.id ?? null;
+        partnerId = binomeActif
+          ? (binomeActif.etud1_id === theme.propose_par_id ? binomeActif.etud2_id : binomeActif.etud1_id)
+          : null;
+
+        const affectation = await tx.affectation.create({
+          data: {
+            theme_id: themeId,
+            encadrant_id: encadrantId,
+            session_id: theme.session_id,
+            affecte_par: encadrantId,
+            type: 'LIBRE',
+          },
+        });
+
+        if (theme.type_pfe === 'STARTUP') {
+          const membres = [theme.propose_par_id, ...(partnerId ? [partnerId] : [])];
+          await tx.startupMembre.createMany({
+            data: membres.map((etudiant_id) => ({ affectation_id: affectation.id, etudiant_id })),
+          });
+        } else {
+          await tx.affectationEtudiant.create({
+            data: { affectation_id: affectation.id, etudiant_id: theme.propose_par_id, binome_id: binomeId },
+          });
+          if (partnerId) {
+            await tx.affectationEtudiant.create({
+              data: { affectation_id: affectation.id, etudiant_id: partnerId, binome_id: binomeId },
+            });
+          }
+        }
+      }
+    }
+
+    return themeUpdate;
   });
 
-  await notifyUser(
-    theme.propose_par_id,
-    'ENCADRANT_CONFIRM_RESPONSE',
-    `L'encadrant a confirmé sa supervision pour votre thème "${theme.titre}". Il est maintenant en attente de validation par le responsable.`,
-    { theme_id: themeId, confirmed: true },
-  );
+  const msg = proposerIsEtudiant
+    ? `L'encadrant a confirmé sa supervision pour votre thème "${theme.titre}" — vous êtes maintenant affecté.`
+    : `L'encadrant a confirmé sa supervision pour votre thème "${theme.titre}".`;
+
+  await notifyUser(theme.propose_par_id, 'ENCADRANT_CONFIRM_RESPONSE', msg, { theme_id: themeId, confirmed: true });
+
+  if (partnerId) {
+    await notifyUser(
+      partnerId,
+      'ENCADRANT_CONFIRM_RESPONSE',
+      `L'encadrant a confirmé sa supervision pour le thème "${theme.titre}" de votre binôme — vous êtes maintenant affecté.`,
+      { theme_id: themeId, confirmed: true },
+    );
+  }
 
   return updated;
 }
@@ -475,6 +600,67 @@ export async function refuseEncadrant(themeId: string, encadrantId: string) {
     { theme_id: themeId, confirmed: false },
   );
 
+  return updated;
+}
+
+// ─── Co-encadrant (confirmation / refus par l'enseignant désigné) ────────────
+
+export async function getThemesAwaitingCoEncadrantConfirmation(userId: string) {
+  return prisma.theme.findMany({
+    where: { co_encadrant_id: userId, encadrant_valide: false },
+    include: THEME_INCLUDE,
+    orderBy: { created_at: 'desc' },
+  });
+}
+
+export async function confirmCoEncadrant(themeId: string, coEncadrantId: string) {
+  const theme = await prisma.theme.findUnique({ where: { id: themeId } });
+  if (!theme) throw new NotFoundError('Thème');
+  if (theme.co_encadrant_id !== coEncadrantId) throw new ForbiddenError("Vous n'êtes pas le co-encadrant désigné pour ce thème");
+  if (theme.encadrant_valide) throw new BadRequestError('Ce thème est déjà confirmé');
+
+  const updated = await prisma.theme.update({
+    where: { id: themeId },
+    data: { encadrant_valide: true },
+    include: THEME_INCLUDE,
+  });
+
+  if (theme.encadrant_id) {
+    const coEnc = updated.co_encadrant;
+    await notifyUser(
+      theme.encadrant_id,
+      'ENCADRANT_CONFIRM_RESPONSE',
+      `${coEnc ? `${coEnc.prenom} ${coEnc.nom}` : 'Le co-encadrant'} a accepté de co-encadrer le thème "${theme.titre}".`,
+      { theme_id: theme.id },
+    );
+  }
+  return updated;
+}
+
+export async function refuseCoEncadrant(themeId: string, coEncadrantId: string) {
+  const theme = await prisma.theme.findUnique({
+    where: { id: themeId },
+    include: { co_encadrant: { select: { prenom: true, nom: true } } },
+  });
+  if (!theme) throw new NotFoundError('Thème');
+  if (theme.co_encadrant_id !== coEncadrantId) throw new ForbiddenError("Vous n'êtes pas le co-encadrant désigné pour ce thème");
+  if (theme.encadrant_valide) throw new BadRequestError('Ce thème est déjà confirmé');
+
+  const updated = await prisma.theme.update({
+    where: { id: themeId },
+    data: { co_encadrant_id: null, encadrant_valide: true },
+    include: THEME_INCLUDE,
+  });
+
+  if (theme.encadrant_id) {
+    const coEnc = theme.co_encadrant;
+    await notifyUser(
+      theme.encadrant_id,
+      'ENCADRANT_CONFIRM_RESPONSE',
+      `${coEnc ? `${coEnc.prenom} ${coEnc.nom}` : 'Le co-encadrant'} a refusé de co-encadrer le thème "${theme.titre}".`,
+      { theme_id: theme.id },
+    );
+  }
   return updated;
 }
 
@@ -648,8 +834,6 @@ export async function getThemesCherchandBinome(filters: {
   const where: Prisma.ThemeWhereInput = {
     cherche_binome: true,
     statut_validation: 'VALIDE',
-    is_affecte: false,
-    // Uniquement les thèmes proposés par des étudiants (annonces de recherche de binôme)
     propose_par: { role: 'ETUDIANT' },
     ...(specialite_id ? { theme_specialites: { some: { specialite_id } } } : {}),
   };
@@ -680,6 +864,131 @@ export async function getThemesCherchandBinome(filters: {
   return { data: themes, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
 }
 
+// ─── Thèmes cherchant un encadrant (annonces enseignants) ────────────────────
+
+export async function getThemesNeedingEncadrant(filters: {
+  specialite_id?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const { page = 1, limit = 50, specialite_id } = filters;
+  const skip = (page - 1) * limit;
+
+  const where: Prisma.ThemeWhereInput = {
+    besoin_encadrant: true,
+    statut_validation: 'VALIDE',
+    is_affecte: false,
+    propose_par: { role: 'ETUDIANT' },
+    ...(specialite_id ? { theme_specialites: { some: { specialite_id } } } : {}),
+  };
+
+  const [total, themes] = await Promise.all([
+    prisma.theme.count({ where }),
+    prisma.theme.findMany({
+      where,
+      skip,
+      take: limit,
+      include: {
+        propose_par: {
+          select: {
+            id: true,
+            nom: true,
+            prenom: true,
+            email: true,
+            specialite: { select: { id: true, nom: true } },
+          },
+        },
+        theme_specialites: { include: { specialite: { select: { id: true, nom: true } } } },
+        session: { select: { id: true, type: true, annee_universitaire: true } },
+      },
+      orderBy: { created_at: 'desc' },
+    }),
+  ]);
+
+  return { data: themes, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+}
+
+export async function postulerEncadrant(themeId: string, enseignantId: string) {
+  const theme = await prisma.theme.findUnique({ where: { id: themeId } });
+  if (!theme) throw new NotFoundError('Thème introuvable');
+  if (!theme.besoin_encadrant) throw new BadRequestError('Ce thème ne cherche pas d\'encadrant');
+  if (theme.statut_validation !== 'VALIDE') throw new BadRequestError('Ce thème n\'est pas encore validé');
+
+  let partnerId: string | null = null;
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const themeUpdate = await tx.theme.update({
+      where: { id: themeId },
+      data: { encadrant_id: enseignantId, besoin_encadrant: false, encadrant_valide: true, is_affecte: true },
+      include: THEME_INCLUDE,
+    });
+
+    const existing = await tx.affectation.findFirst({ where: { theme_id: themeId } });
+    if (!existing) {
+      const binomeActif = await tx.binome.findFirst({
+        where: {
+          OR: [{ etud1_id: theme.propose_par_id }, { etud2_id: theme.propose_par_id }],
+          statut: 'ACCEPTED',
+        },
+        select: { id: true, etud1_id: true, etud2_id: true },
+      });
+      const binomeId = binomeActif?.id ?? null;
+      partnerId = binomeActif
+        ? (binomeActif.etud1_id === theme.propose_par_id ? binomeActif.etud2_id : binomeActif.etud1_id)
+        : null;
+
+      const affectation = await tx.affectation.create({
+        data: {
+          theme_id: themeId,
+          encadrant_id: enseignantId,
+          session_id: theme.session_id,
+          affecte_par: enseignantId,
+          type: 'LIBRE',
+        },
+      });
+
+      if (theme.type_pfe === 'STARTUP') {
+        const membres = [theme.propose_par_id, ...(partnerId ? [partnerId] : [])];
+        await tx.startupMembre.createMany({
+          data: membres.map((etudiant_id) => ({ affectation_id: affectation.id, etudiant_id })),
+        });
+      } else {
+        await tx.affectationEtudiant.create({
+          data: { affectation_id: affectation.id, etudiant_id: theme.propose_par_id, binome_id: binomeId },
+        });
+        if (partnerId) {
+          await tx.affectationEtudiant.create({
+            data: { affectation_id: affectation.id, etudiant_id: partnerId, binome_id: binomeId },
+          });
+        }
+      }
+    }
+
+    return themeUpdate;
+  });
+
+  const enseignant = await prisma.user.findUnique({ where: { id: enseignantId }, select: { nom: true, prenom: true } });
+  const nomEnseignant = enseignant ? `${enseignant.prenom} ${enseignant.nom}` : 'Un enseignant';
+
+  await notifyUser(
+    theme.propose_par_id,
+    'ENCADRANT_CONFIRM_RESPONSE',
+    `${nomEnseignant} a accepté d'encadrer votre thème "${theme.titre}" — vous êtes maintenant affecté.`,
+    { theme_id: themeId, confirmed: true },
+  );
+
+  if (partnerId) {
+    await notifyUser(
+      partnerId,
+      'ENCADRANT_CONFIRM_RESPONSE',
+      `${nomEnseignant} a accepté d'encadrer le thème "${theme.titre}" de votre binôme — vous êtes maintenant affecté.`,
+      { theme_id: themeId, confirmed: true },
+    );
+  }
+
+  return updated;
+}
+
 // ─── Export Excel / PDF ───────────────────────────────────────────────────────
 
 export async function exportThemes(
@@ -697,30 +1006,78 @@ export async function exportThemes(
   };
 
   if (format === 'excel') {
-    const rows = themes.map((t) => ({
-      Titre: t.titre,
-      Type: t.type_pfe,
-      Statut: statut(t),
-      'Proposé par': `${t.propose_par.prenom} ${t.propose_par.nom}`,
-      Encadrant: t.encadrant ? `${t.encadrant.prenom} ${t.encadrant.nom}` : '—',
-      Spécialités: t.theme_specialites.map((ts) => ts.specialite.nom).join(', '),
-      'Année universitaire': t.session.annee_universitaire,
-      Affecté: t.is_affecte ? 'Oui' : 'Non',
-      Soutenu: t.is_soutenu ? 'Oui' : 'Non',
-    }));
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Thèmes PFE');
 
-    const wb = xlsx.utils.book_new();
-    const ws = xlsx.utils.json_to_sheet(rows);
-    ws['!cols'] = [
-      { wch: 50 }, { wch: 12 }, { wch: 12 }, { wch: 22 },
-      { wch: 22 }, { wch: 28 }, { wch: 18 }, { wch: 10 }, { wch: 10 },
+    ws.columns = [
+      { header: 'Titre',               key: 'titre',       width: 55 },
+      { header: 'Type',                key: 'type',        width: 13 },
+      { header: 'Statut',              key: 'statut',      width: 13 },
+      { header: 'Proposé par',         key: 'propose_par', width: 24 },
+      { header: 'Encadrant',           key: 'encadrant',   width: 24 },
+      { header: 'Spécialités',         key: 'specialites', width: 30 },
+      { header: 'Année universitaire', key: 'annee',       width: 20 },
+      { header: 'Affecté',             key: 'affecte',     width: 10 },
+      { header: 'Soutenu',             key: 'soutenu',     width: 10 },
     ];
-    xlsx.utils.book_append_sheet(wb, ws, 'Thèmes PFE');
-    const buf = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    // Style de l'en-tête
+    const headerRow = ws.getRow(1);
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: false };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FF1E40AF' } },
+        bottom: { style: 'thin', color: { argb: 'FF1E40AF' } },
+        left: { style: 'thin', color: { argb: 'FF1E40AF' } },
+        right: { style: 'thin', color: { argb: 'FF1E40AF' } },
+      };
+    });
+    headerRow.height = 22;
+
+    themes.forEach((t, idx) => {
+      const row = ws.addRow({
+        titre:       t.titre,
+        type:        t.type_pfe,
+        statut:      statut(t),
+        propose_par: `${t.propose_par.prenom} ${t.propose_par.nom}`,
+        encadrant:   t.encadrant ? `${t.encadrant.prenom} ${t.encadrant.nom}` : '—',
+        specialites: t.theme_specialites.map((ts) => ts.specialite.nom).join(', '),
+        annee:       t.session.annee_universitaire,
+        affecte:     t.is_affecte ? 'Oui' : 'Non',
+        soutenu:     t.is_soutenu ? 'Oui' : 'Non',
+      });
+
+      const bg: ExcelJS.Fill = {
+        type: 'pattern', pattern: 'solid',
+        fgColor: { argb: idx % 2 === 0 ? 'FFF8FAFC' : 'FFFFFFFF' },
+      };
+      const border: Partial<ExcelJS.Borders> = {
+        top:    { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        left:   { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        right:  { style: 'thin', color: { argb: 'FFE2E8F0' } },
+      };
+
+      row.eachCell((cell) => {
+        cell.fill = bg;
+        cell.border = border;
+        cell.alignment = { vertical: 'top', wrapText: false };
+      });
+
+      // wrapText uniquement sur la colonne Titre
+      const titreCell = row.getCell('titre');
+      titreCell.alignment = { vertical: 'top', wrapText: true };
+      // Calibri 11pt dans une colonne de 55 unités ≈ 38 caractères par ligne
+      // 20pt par ligne pour inclure l'interligne
+      const estimatedLines = Math.ceil(t.titre.length / 38);
+      row.height = Math.max(20, estimatedLines * 20);
+    });
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="themes_pfe_${Date.now()}.xlsx"`);
-    res.send(buf);
+    await wb.xlsx.write(res);
     return;
   }
 

@@ -505,9 +505,12 @@ export default function ChoixThemes() {
     return () => clearTimeout(t);
   }, [searchInput]);
 
+  const currentUser = useCurrentUser();
+
   const { data: themesResponse, isLoading: loadingThemes } = useThemes({
     statut_validation: 'VALIDE',
     is_affecte: false,
+    etudiant_specialite_id: currentUser?.specialite?.id,
     search: debouncedSearch || undefined,
     limit: 50,
   });
@@ -524,6 +527,16 @@ export default function ChoixThemes() {
   const filteredThemes = useMemo(() => {
     let list = allThemes.filter((t) => !excludedIds.has(t.id));
 
+    // Sécurité client-side : ne jamais afficher un thème hors spécialité de l'étudiant
+    const studentSpecialiteId = currentUser?.specialite?.id;
+    if (studentSpecialiteId) {
+      list = list.filter(
+        (t) =>
+          t.theme_specialites.length === 0 ||
+          t.theme_specialites.some((ts) => ts.specialite.id === studentSpecialiteId),
+      );
+    }
+
     if (selectedSpecialites.length > 0) {
       list = list.filter((t) =>
         t.theme_specialites.some((ts) => selectedSpecialites.includes(ts.specialite.id)),
@@ -533,7 +546,7 @@ export default function ChoixThemes() {
       list = list.filter((t) => selectedTypes.includes(t.type_pfe as 'CLASSIQUE' | 'STARTUP'));
     }
     return list;
-  }, [allThemes, excludedIds, selectedSpecialites, selectedTypes]);
+  }, [allThemes, excludedIds, selectedSpecialites, selectedTypes, currentUser]);
 
   const submitMutation = useSubmitChoix();
 

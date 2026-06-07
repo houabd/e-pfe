@@ -32,6 +32,7 @@ const createThemeSchema = z.object({
 
 const themeFiltersSchema = z.object({
   specialite_id: z.string().optional(),
+  etudiant_specialite_id: z.string().optional(),
   type_pfe: z.enum(['CLASSIQUE', 'STARTUP']).optional(),
   statut_validation: z.enum(['NON_VALIDE', 'VALIDE']).optional(),
   is_affecte: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
@@ -112,6 +113,39 @@ router.get('/export/:format', requireRespFiliere, validate({ query: themeFilters
     next(err);
   }
 });
+
+router.get(
+  '/awaiting-co-encadrant',
+  requireRole('ENSEIGNANT', 'CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_SPECIALITE'),
+  async (req, res, next) => {
+    try {
+      const data = await themeService.getThemesAwaitingCoEncadrantConfirmation(req.user!.userId);
+      res.json({ success: true, data });
+    } catch (err) { next(err); }
+  },
+);
+
+router.patch(
+  '/:id/confirm-co-encadrant',
+  requireRole('ENSEIGNANT', 'CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_SPECIALITE'),
+  async (req, res, next) => {
+    try {
+      const theme = await themeService.confirmCoEncadrant(req.params['id'] as string, req.user!.userId);
+      res.json({ success: true, data: theme, message: 'Co-encadrement accepté' });
+    } catch (err) { next(err); }
+  },
+);
+
+router.patch(
+  '/:id/refuse-co-encadrant',
+  requireRole('ENSEIGNANT', 'CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_SPECIALITE'),
+  async (req, res, next) => {
+    try {
+      const theme = await themeService.refuseCoEncadrant(req.params['id'] as string, req.user!.userId);
+      res.json({ success: true, data: theme, message: 'Co-encadrement refusé' });
+    } catch (err) { next(err); }
+  },
+);
 
 router.get('/awaiting-confirmation', requireRole('ENSEIGNANT', 'CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_SPECIALITE'), async (req, res, next) => {
   try {
@@ -220,6 +254,17 @@ router.delete('/:id', requireRespFiliere, async (req, res, next) => {
     next(err);
   }
 });
+
+router.patch(
+  '/:id/postuler-encadrant',
+  requireRole('ENSEIGNANT', 'CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_SPECIALITE'),
+  async (req, res, next) => {
+    try {
+      const theme = await themeService.postulerEncadrant(req.params['id'] as string, req.user!.userId);
+      res.json({ success: true, data: theme, message: 'Vous êtes désormais l\'encadrant de ce thème' });
+    } catch (err) { next(err); }
+  },
+);
 
 router.patch(
   '/:id/confirm-encadrant',

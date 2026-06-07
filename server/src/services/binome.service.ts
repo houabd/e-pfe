@@ -56,13 +56,23 @@ export async function demanderBinome(demandeurId: string, cibleId: string) {
     throw new BadRequestError('Cet étudiant a déjà une demande de binôme en cours ou un binôme actif');
   }
 
-  // Vérifier que la cible n'est pas déjà formellement affectée à un autre thème
+  // Vérifier que la cible n'est pas déjà formellement affectée à un thème complet
   const [cibleAffectation, cibleStartup] = await Promise.all([
-    prisma.affectationEtudiant.findFirst({ where: { etudiant_id: cibleId }, select: { id: true } }),
+    prisma.affectationEtudiant.findFirst({
+      where: { etudiant_id: cibleId },
+      select: { affectation: { select: { theme: { select: { cherche_binome: true } } } } },
+    }),
     prisma.startupMembre.findFirst({ where: { etudiant_id: cibleId }, select: { id: true } }),
   ]);
-  if (cibleAffectation || cibleStartup) {
-    throw new BadRequestError('Cet étudiant est déjà affecté à un thème');
+  if (cibleStartup) {
+    throw new BadRequestError('Cet étudiant est déjà affecté à un thème STARTUP');
+  }
+  // Bloquer seulement si affecté à un thème qui ne cherche plus de binôme
+  if (cibleAffectation) {
+    const theme = cibleAffectation.affectation.theme;
+    if (!theme || !theme.cherche_binome) {
+      throw new BadRequestError('Cet étudiant est déjà affecté à un thème');
+    }
   }
 
   const binome = await prisma.binome.create({

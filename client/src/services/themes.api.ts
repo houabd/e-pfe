@@ -3,6 +3,7 @@ import type { Theme, ApiResponse, CreateThemeForm, DemandeModification } from '@
 
 export interface ThemeFilters {
   specialite_id?: string;
+  etudiant_specialite_id?: string;
   type_pfe?: string;
   statut_validation?: string;
   is_affecte?: boolean;
@@ -134,10 +135,35 @@ export async function getDemandesModification(statut?: 'PENDING' | 'ACCEPTED' | 
   return data.data ?? [];
 }
 
+export async function getAnnoncesEncadrement(filters?: { specialite_id?: string }): Promise<AnnoncesResult> {
+  const { data } = await api.get<{ success: boolean } & AnnoncesResult>('/annonces/encadrement', { params: filters });
+  return { data: data.data, meta: data.meta };
+}
+
+export async function postulerEncadrant(id: string): Promise<Theme> {
+  const { data } = await api.patch<ApiResponse<Theme>>(`/themes/${id}/postuler-encadrant`);
+  return data.data!;
+}
+
 export async function traiterDemandeModification(
   demandeId: string,
   decision: 'ACCEPTED' | 'REFUSED',
   commentaire?: string,
 ): Promise<void> {
   await api.patch(`/themes/demandes-modification/${demandeId}`, { decision, commentaire });
+}
+
+export async function getThemesAwaitingCoEncadrant(): Promise<Theme[]> {
+  const { data } = await api.get<ApiResponse<Theme[]>>('/themes/awaiting-co-encadrant');
+  return data.data ?? [];
+}
+
+export async function confirmCoEncadrant(id: string): Promise<Theme> {
+  const { data } = await api.patch<ApiResponse<Theme>>(`/themes/${id}/confirm-co-encadrant`);
+  return data.data!;
+}
+
+export async function refuseCoEncadrant(id: string): Promise<Theme> {
+  const { data } = await api.patch<ApiResponse<Theme>>(`/themes/${id}/refuse-co-encadrant`);
+  return data.data!;
 }

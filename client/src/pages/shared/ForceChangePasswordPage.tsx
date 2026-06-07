@@ -86,8 +86,8 @@ export default function ForceChangePasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
-      <div className="w-full max-w-md space-y-4">
+    <div className="min-h-screen flex bg-muted/30 px-4 py-8">
+      <div className="w-full max-w-md space-y-4 m-auto">
         <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800">
           <ShieldAlert className="size-5 shrink-0 mt-0.5 text-amber-600" />
           <p className="text-sm font-medium leading-snug">
@@ -134,19 +134,19 @@ export default function ForceChangePasswordPage() {
                 Définir mon nouveau mot de passe
               </Button>
             </form>
+
+            <p className="text-center text-sm text-muted-foreground mt-4">
+              Pas vous ?{' '}
+              <button
+                type="button"
+                onClick={logout}
+                className="font-medium text-destructive underline underline-offset-2 hover:text-destructive/80 transition-colors"
+              >
+                Se déconnecter
+              </button>
+            </p>
           </CardContent>
         </Card>
-
-        <p className="text-center text-sm text-muted-foreground">
-          Pas vous ?{' '}
-          <button
-            type="button"
-            onClick={logout}
-            className="underline underline-offset-2 hover:text-foreground transition-colors"
-          >
-            Se déconnecter
-          </button>
-        </p>
       </div>
     </div>
   );

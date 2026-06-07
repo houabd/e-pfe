@@ -85,6 +85,7 @@ export async function createChoix(dto: CreateChoixDto, etudiantId: string) {
       id: true, titre: true, statut_validation: true, is_affecte: true,
       encadrant_id: true, co_encadrant_id: true, propose_par_id: true,
       besoin_encadrant: true, encadrant_valide: true,
+      theme_specialites: { select: { specialite_id: true } },
     },
   });
   if (!theme) throw new NotFoundError('Thème');
@@ -99,6 +100,18 @@ export async function createChoix(dto: CreateChoixDto, etudiantId: string) {
   }
   if (theme.besoin_encadrant) {
     throw new BadRequestError('Ce thème cherche encore un encadrant et n\'est pas disponible');
+  }
+
+  // Vérification de spécialité : si le thème définit des spécialités, l'étudiant doit en faire partie
+  const themeSpecialiteIds = theme.theme_specialites.map((ts) => ts.specialite_id);
+  if (themeSpecialiteIds.length > 0) {
+    const etudiant = await prisma.user.findUnique({
+      where: { id: etudiantId },
+      select: { specialite_id: true },
+    });
+    if (!etudiant?.specialite_id || !themeSpecialiteIds.includes(etudiant.specialite_id)) {
+      throw new ForbiddenError('Votre spécialité ne correspond pas aux spécialités de ce thème');
+    }
   }
 
   const choix = await prisma.themeChoix.create({

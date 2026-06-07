@@ -126,6 +126,15 @@ export interface Session {
 
 // ─── Thème ──────────────────────────────────────────────────────────────────
 
+export interface EtudiantAffecte {
+  id: string;
+  nom: string;
+  prenom: string;
+  email: string;
+  matricule?: string | null;
+  specialite?: Specialite | null;
+}
+
 export interface Theme {
   id: string;
   titre: string;
@@ -148,6 +157,10 @@ export interface Theme {
   session: Pick<Session, 'id' | 'type' | 'annee_universitaire'>;
   theme_specialites: Array<{ specialite: Specialite }>;
   created_at: string;
+  affectation?: {
+    etudiants: Array<{ id: string; etudiant: EtudiantAffecte }>;
+    startup_membres: Array<{ id: string; etudiant: EtudiantAffecte }>;
+  } | null;
 }
 
 export interface EncadrantExterne {

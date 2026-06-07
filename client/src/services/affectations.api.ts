@@ -4,6 +4,8 @@ import type { ApiResponse } from '@/types';
 // ─── Types partagés ──────────────────────────────────────────────────────────
 
 export interface EtudiantEncadre {
+  id: string;
+  binome_id?: string | null;
   etudiant: {
     id: string;
     nom: string;
@@ -113,7 +115,7 @@ export interface StartupEquipe {
     id: string;
     titre: string;
     type_pfe: string;
-    encadrant_externe: unknown;
+    encadrant_externe: { nom?: string; prenom?: string; email?: string; institution?: string } | null;
     theme_specialites: Array<{ specialite: { id: string; nom: string } }>;
   } | null;
   encadrant: { id: string; nom: string; prenom: string; email: string } | null;

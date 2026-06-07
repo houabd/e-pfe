@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   Rocket, Users, Mail, Globe, UserPlus, Clock, CheckCircle2, XCircle,
-  Building2, GraduationCap, ChevronDown, ChevronUp,
+  Building2, GraduationCap, ChevronDown, ChevronUp, Search, X,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -79,15 +79,128 @@ function StatutBadge({ statut }: { statut: PropositionMembre['statut'] }) {
   );
 }
 
+// ─── Recherche étudiant (autocomplete) ────────────────────────────────────────
+
+type EtudiantItem = { id: string; prenom: string; nom: string; email: string; specialite?: { id: string; nom: string } | null };
+
+function EtudiantSearchInput({ value, onChange, etudiants, excludeIds = [], allowedSpecialiteIds }: {
+  value: string;
+  onChange: (id: string) => void;
+  etudiants: EtudiantItem[];
+  excludeIds?: string[];
+  allowedSpecialiteIds?: string[];
+}) {
+  const [search, setSearch] = useState('');
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const selected = useMemo(() => etudiants.find((e) => e.id === value), [value, etudiants]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return [];
+    return etudiants
+      .filter((e) => {
+        if (excludeIds.includes(e.id)) return false;
+        if (allowedSpecialiteIds?.length && !allowedSpecialiteIds.includes(e.specialite?.id ?? '')) return false;
+        return (
+          `${e.prenom} ${e.nom}`.toLowerCase().includes(q) ||
+          e.email.toLowerCase().includes(q)
+        );
+      })
+      .slice(0, 8);
+  }, [search, etudiants, excludeIds, allowedSpecialiteIds]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  if (selected) {
+    return (
+      <div className="flex items-center justify-between rounded-lg border p-3 bg-primary/5">
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+            <span className="text-xs font-semibold text-primary">{selected.prenom[0]}{selected.nom[0]}</span>
+          </div>
+          <div>
+            <p className="text-sm font-medium">{selected.prenom} {selected.nom}</p>
+            <p className="text-xs text-muted-foreground">{selected.email}</p>
+          </div>
+        </div>
+        <Button type="button" variant="ghost" size="sm" onClick={() => onChange('')}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+        <Input
+          value={search}
+          onChange={(e) => { setSearch(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          placeholder="Chercher par nom, prénom ou email..."
+          className="pl-9"
+          autoComplete="off"
+        />
+      </div>
+      {open && filtered.length > 0 && (
+        <div className="absolute z-50 top-full mt-1 w-full rounded-lg border bg-popover shadow-lg max-h-52 overflow-y-auto">
+          {filtered.map((e) => (
+            <button
+              key={e.id}
+              type="button"
+              onClick={() => { onChange(e.id); setSearch(''); setOpen(false); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-accent text-left transition-colors"
+            >
+              <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <span className="text-[10px] font-semibold text-primary">{e.prenom[0]}{e.nom[0]}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{e.prenom} {e.nom}</p>
+                <p className="text-xs text-muted-foreground truncate">{e.email}</p>
+              </div>
+              {e.specialite && (
+                <span className="text-[10px] border rounded px-1.5 py-0.5 text-muted-foreground shrink-0">
+                  {e.specialite.nom}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+      {open && search.trim().length > 0 && filtered.length === 0 && (
+        <div className="absolute z-50 top-full mt-1 w-full rounded-lg border bg-popover shadow-lg p-3">
+          <p className="text-sm text-muted-foreground text-center">Aucun résultat pour « {search} »</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Dialog proposition ───────────────────────────────────────────────────────
 
-function ProposerDialog({ affectationId, onClose }: { affectationId: string; onClose: () => void }) {
+function ProposerDialog({ affectationId, onClose, excludeIds = [], allowedSpecialiteIds }: {
+  affectationId: string;
+  onClose: () => void;
+  excludeIds?: string[];
+  allowedSpecialiteIds?: string[];
+}) {
   const proposer = useProposerMembre();
-  const { data: etudiantsData } = useUsers({ role: 'ETUDIANT', limit: 500 });
+  const { data: etudiantsData } = useUsers({ role: 'ETUDIANT', sans_affectation: true, limit: 500 });
   const etudiants = etudiantsData?.data ?? [];
 
   const formInterne = useForm<z.infer<typeof schemaInterne>>({ resolver: zodResolver(schemaInterne) });
   const formExterne = useForm<z.infer<typeof schemaExterne>>({ resolver: zodResolver(schemaExterne) });
+
+  const selectedId = formInterne.watch('candidat_interne_id') ?? '';
 
   const onSubmitInterne = (values: z.infer<typeof schemaInterne>) => {
     proposer.mutate({ affectationId, dto: { candidat_interne_id: values.candidat_interne_id } }, { onSuccess: onClose });
@@ -115,15 +228,13 @@ function ProposerDialog({ affectationId, onClose }: { affectationId: string; onC
             <form onSubmit={formInterne.handleSubmit(onSubmitInterne)} className="space-y-4">
               <div className="space-y-1.5">
                 <Label>Étudiant <span className="text-destructive">*</span></Label>
-                <select
-                  {...formInterne.register('candidat_interne_id')}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="">Sélectionner un étudiant...</option>
-                  {etudiants.map((e) => (
-                    <option key={e.id} value={e.id}>{e.prenom} {e.nom} — {e.email}</option>
-                  ))}
-                </select>
+                <EtudiantSearchInput
+                  value={selectedId}
+                  onChange={(id) => formInterne.setValue('candidat_interne_id', id, { shouldValidate: true })}
+                  etudiants={etudiants}
+                  excludeIds={excludeIds}
+                  allowedSpecialiteIds={allowedSpecialiteIds}
+                />
                 {formInterne.formState.errors.candidat_interne_id && (
                   <p className="text-xs text-destructive">{formInterne.formState.errors.candidat_interne_id.message}</p>
                 )}
@@ -393,7 +504,15 @@ export default function MonStartup() {
 
       {/* Dialog */}
       {showProposer && (
-        <ProposerDialog affectationId={monAffectation!.id} onClose={() => setShowProposer(false)} />
+        <ProposerDialog
+          affectationId={monAffectation!.id}
+          onClose={() => setShowProposer(false)}
+          excludeIds={[
+            ...(equipe?.startup_membres?.map((m) => m.etudiant.id) ?? []),
+            ...(equipe?.etudiants?.map((ae) => ae.etudiant.id) ?? []),
+          ]}
+          allowedSpecialiteIds={equipe?.theme?.theme_specialites?.map((ts) => ts.specialite.id)}
+        />
       )}
     </div>
   );

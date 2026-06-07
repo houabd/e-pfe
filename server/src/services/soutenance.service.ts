@@ -251,7 +251,7 @@ export async function getEnseignantsDisponibles(filters: {
 
   return prisma.user.findMany({
     where: {
-      role: { in: ['ENSEIGNANT', 'CHEF_EQUIPE'] },
+      role: { in: ['ENSEIGNANT', 'CHEF_EQUIPE', 'CHEF_DEPT', 'RESP_SPECIALITE'] as import('@prisma/client').Role[] },
       is_active: true,
       ...(notIn.length > 0 ? { id: { notIn } } : {}),
     },

@@ -44,6 +44,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/enseignant/themes',     label: 'Mes thèmes',        icon: <BookOpen className="size-4" />,        roles: ['ENSEIGNANT', 'RESP_SPECIALITE', 'CHEF_EQUIPE', 'CHEF_DEPT'], section: 'Espace Enseignant' },
   { to: '/enseignant/demandes',   label: 'Demandes reçues',   icon: <ClipboardList className="size-4" />,   roles: ['ENSEIGNANT', 'RESP_SPECIALITE', 'CHEF_EQUIPE', 'CHEF_DEPT'], section: 'Espace Enseignant' },
   { to: '/enseignant/etudiants',  label: 'Étudiants encadrés',icon: <GraduationCap className="size-4" />,   roles: ['ENSEIGNANT', 'RESP_SPECIALITE', 'CHEF_EQUIPE', 'CHEF_DEPT'], section: 'Espace Enseignant' },
+  { to: '/enseignant/annonces',   label: 'Offres d\'encadrement', icon: <Layers className="size-4" />,      roles: ['ENSEIGNANT', 'RESP_SPECIALITE', 'CHEF_EQUIPE', 'CHEF_DEPT'], section: 'Espace Enseignant' },
   { to: '/responsable',           label: 'Ma spécialité',     icon: <BarChart2 className="size-4" />,       roles: ['RESP_SPECIALITE'],                                              section: 'Espace Enseignant' },
 
   // Administration

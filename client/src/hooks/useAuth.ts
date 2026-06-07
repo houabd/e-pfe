@@ -14,6 +14,10 @@ export function useLogin() {
     mutationFn: ({ email, password }: { email: string; password: string }) => loginApi(email, password),
     onSuccess: (data) => {
       setAuth(data.user, data.accessToken, data.refreshToken);
+      if (data.user.must_change_password) {
+        navigate('/changer-mot-de-passe');
+        return;
+      }
       const role: Role = data.user.role;
       const redirectMap: Record<Role, string> = {
         CHEF_DEPT: '/admin',

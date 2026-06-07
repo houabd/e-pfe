@@ -33,6 +33,8 @@ const userFiltersSchema = z.object({
   role: z.enum(['CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_SPECIALITE', 'TECHNICIEN', 'ENSEIGNANT', 'ETUDIANT']).optional(),
   specialite_id: z.string().optional(),
   is_active: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
+  sans_affectation: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
+  is_teacher: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
   search: z.string().optional(),
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(500).default(20),

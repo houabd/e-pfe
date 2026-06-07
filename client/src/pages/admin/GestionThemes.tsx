@@ -709,15 +709,7 @@ function ThemeRow({
 
 // ─── Page principale ──────────────────────────────────────────────────────────
 
-type QuickFilter = 'tous' | 'attente' | 'valides' | 'affectes' | 'non-affectes';
-
-const QUICK_FILTERS: { key: QuickFilter; label: string }[] = [
-  { key: 'tous', label: 'Tous' },
-  { key: 'attente', label: 'En attente' },
-  { key: 'valides', label: 'Validés' },
-  { key: 'affectes', label: 'Affectés' },
-  { key: 'non-affectes', label: 'Non affectés' },
-];
+type QuickFilter = 'tous' | 'attente' | 'valides' | 'valides-affectes' | 'valides-non-affectes';
 
 // ─── Traitement d'une demande de modification ─────────────────────────────────
 
@@ -844,12 +836,14 @@ export default function GestionThemes() {
     search: search || undefined,
     type_pfe: (filterType || undefined) as 'CLASSIQUE' | 'STARTUP' | undefined,
     statut_validation:
-      quickFilter === 'attente' ? ('NON_VALIDE' as const) :
-      quickFilter === 'valides'  ? ('VALIDE'    as const) :
+      quickFilter === 'attente'                                           ? ('NON_VALIDE' as const) :
+      quickFilter === 'valides' || quickFilter === 'valides-affectes' ||
+      quickFilter === 'valides-non-affectes'                              ? ('VALIDE'     as const) :
       undefined,
     is_affecte:
-      quickFilter === 'affectes'     ? true  :
-      quickFilter === 'non-affectes' ? false :
+      quickFilter === 'attente'              ? false :
+      quickFilter === 'valides-affectes'     ? true  :
+      quickFilter === 'valides-non-affectes' ? false :
       undefined,
     specialite_id: filterSpecialite || undefined,
     page,
@@ -902,20 +896,53 @@ export default function GestionThemes() {
       <DemandesModificationSection />
 
       {/* Filtres rapides */}
-      <div className="flex gap-2 flex-wrap">
-        {QUICK_FILTERS.map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => { setQuickFilter(key); resetFiltersAndPage(); }}
-            className={`rounded-full border px-4 py-1.5 text-sm font-medium transition-all ${
-              quickFilter === key
-                ? 'border-primary bg-primary text-primary-foreground'
-                : 'border-border hover:border-muted-foreground/40 hover:bg-muted/50'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="space-y-2">
+        <div className="flex gap-2 flex-wrap">
+          {([
+            { key: 'tous' as const, label: 'Tous' },
+            { key: 'attente' as const, label: 'En attente' },
+            { key: 'valides' as const, label: 'Validés' },
+          ]).map(({ key, label }) => {
+            const isActive = key === 'valides'
+              ? quickFilter === 'valides' || quickFilter === 'valides-affectes' || quickFilter === 'valides-non-affectes'
+              : quickFilter === key;
+            return (
+              <button
+                key={key}
+                onClick={() => { setQuickFilter(key); resetFiltersAndPage(); }}
+                className={`rounded-full border px-4 py-1.5 text-sm font-medium transition-all ${
+                  isActive
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border hover:border-muted-foreground/40 hover:bg-muted/50'
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        {(quickFilter === 'valides' || quickFilter === 'valides-affectes' || quickFilter === 'valides-non-affectes') && (
+          <div className="flex gap-2 flex-wrap pl-2 border-l-2 border-primary/20">
+            {([
+              { key: 'valides' as const, label: 'Tous les validés' },
+              { key: 'valides-affectes' as const, label: 'Affectés' },
+              { key: 'valides-non-affectes' as const, label: 'Non affectés' },
+            ]).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => { setQuickFilter(key); resetFiltersAndPage(); }}
+                className={`rounded-full border px-3 py-1 text-xs font-medium transition-all ${
+                  quickFilter === key
+                    ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                    : 'border-border hover:border-muted-foreground/40 hover:bg-muted/50'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Barre de filtres */}

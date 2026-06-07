@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   ArrowLeft, BookOpen, Rocket, Tag, X, ChevronDown,
-  HelpCircle, Users, UserSearch, UserCheck, Briefcase, Megaphone,
+  HelpCircle, Users, UserSearch, UserCheck, Briefcase, Megaphone, Lock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { useCreateTheme } from '@/hooks/useThemes';
+import { useCurrentUser } from '@/stores/authStore';
 import { useActiveSpecialites } from '@/hooks/useSpecialites';
 import { useUsers } from '@/hooks/useUsers';
 import { useActiveSession } from '@/hooks/useSession';
@@ -79,11 +80,13 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function ProposerTheme() {
   const navigate = useNavigate();
+  const currentUser = useCurrentUser();
+  const mySpecialiteId = currentUser?.specialite?.id;
   const activeSession = useActiveSession();
   const { data: monAffectation } = useMonAffectation();
   const { data: monBinome } = useMonBinome();
   const { data: specialites } = useActiveSpecialites();
-  const { data: enseignantsData } = useUsers({ role: 'ENSEIGNANT', limit: 200 });
+  const { data: enseignantsData } = useUsers({ is_teacher: true, limit: 200 });
   const enseignants = enseignantsData?.data ?? [];
   const createTheme = useCreateTheme();
   const isAffecte = !!monAffectation;
@@ -95,10 +98,11 @@ export default function ProposerTheme() {
     register, handleSubmit, control, watch, setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as Resolver<FormValues>,
     defaultValues: {
       titre: '', description: '', mots_cles: [], necessite_stage: false,
-      type_pfe: 'CLASSIQUE', sous_types: [], specialite_ids: [],
+      type_pfe: 'CLASSIQUE', sous_types: [],
+      specialite_ids: mySpecialiteId ? [mySpecialiteId] : [],
       besoin_encadrant: false, cherche_binome: false,
     },
   });
@@ -123,12 +127,14 @@ export default function ProposerTheme() {
     }
   };
 
-  const toggleSpecialite = (id: string) =>
+  const toggleSpecialite = (id: string) => {
+    if (id === mySpecialiteId) return;
     setValue('specialite_ids',
       specialiteIds.includes(id)
         ? specialiteIds.filter((s) => s !== id)
         : [...specialiteIds, id],
     );
+  };
 
   const toggleSousType = (st: SousTypeTheme) =>
     setValue('sous_types',
@@ -344,25 +350,32 @@ export default function ProposerTheme() {
         {/* ── Spécialités ── */}
         <Section title="Spécialités concernées">
           <div className="flex flex-wrap gap-2">
-            {specialites?.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => toggleSpecialite(s.id)}
-                className={`rounded-lg border px-4 py-2 text-sm font-medium transition-all ${
-                  specialiteIds.includes(s.id)
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-border hover:border-muted-foreground/40'
-                }`}
-              >
-                {s.nom}
-              </button>
-            ))}
+            {specialites?.map((s) => {
+              const isOwn = s.id === mySpecialiteId;
+              const isSelected = specialiteIds.includes(s.id);
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => toggleSpecialite(s.id)}
+                  className={`flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium transition-all ${
+                    isSelected
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-border hover:border-muted-foreground/40'
+                  } ${isOwn ? 'cursor-default' : ''}`}
+                >
+                  {s.nom}
+                  {isOwn && <Lock className="h-3 w-3 opacity-70" />}
+                </button>
+              );
+            })}
           </div>
           {errors.specialite_ids && (
             <p className="text-xs text-destructive">{errors.specialite_ids.message}</p>
           )}
-          <Hint>Un thème peut couvrir plusieurs spécialités (ex : GL + IA).</Hint>
+          <Hint>
+            Votre spécialité est automatiquement sélectionnée et obligatoire. Vous pouvez ajouter d'autres spécialités si le thème les concerne.
+          </Hint>
         </Section>
 
         <Separator />
@@ -450,8 +463,8 @@ export default function ProposerTheme() {
             </div>
           ) : (
             <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-              Le responsable de filière sera informé que ce thème a besoin d'un encadrant et en désignera
-              un après validation.
+              Une fois votre thème validé par le responsable de filière, il sera publié dans les annonces
+              visibles aux enseignants. Un enseignant intéressé pourra alors postuler pour vous encadrer.
             </div>
           )}
 

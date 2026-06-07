@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, Search, Pencil, Trash2, CheckCircle, Clock,
-  BookOpen, Rocket, Tag, Mail, X, ChevronDown, Eye, MessageSquarePlus,
+  BookOpen, Rocket, Tag, Mail, X, ChevronDown, Eye, MessageSquarePlus, UserCheck,
 } from 'lucide-react';
 import { ThemeDetailDialog } from '@/components/themes/ThemeDetailDialog';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,11 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useMyThemes, useCreateTheme, useUpdateTheme, useRespFiliereInfo, useDemanderModification } from '@/hooks/useThemes';
+import {
+  useMyThemes, useCreateTheme, useUpdateTheme, useRespFiliereInfo,
+  useDemanderModification, useConfirmCoEncadrant, useRefuseCoEncadrant,
+  useThemesAwaitingCoEncadrant,
+} from '@/hooks/useThemes';
 import { useActiveSpecialites } from '@/hooks/useSpecialites';
 import { useCurrentUser } from '@/stores/authStore';
 import { api } from '@/services/api';
@@ -39,7 +43,7 @@ const themeSchema = z.object({
   mots_cles: z.array(z.string()).default([]),
   necessite_stage: z.boolean().default(false),
   type_pfe: z.enum(['CLASSIQUE', 'STARTUP']),
-  sous_types: z.array(z.enum(['RECHERCHE', 'PROFESSIONNEL'])).default([]),
+  sous_types: z.array(z.enum(['RECHERCHE', 'PROFESSIONNEL', 'LES_DEUX'])).default([]),
   specialite_ids: z.array(z.string()).min(1, 'Choisir au moins une spécialité'),
   encadrant_id: z.string().optional(),
   encadrant_externe: z.object({
@@ -91,8 +95,8 @@ function ThemeFormDialog({
   const [showExterne, setShowExterne] = useState(!!editingTheme?.encadrant_externe);
 
   useEffect(() => {
-    api.get<{ data: User[] }>('/users', { params: { limit: 500 } })
-      .then((res) => setEnseignants(res.data.data.filter((u) => SUPERVISOR_ROLES.includes(u.role))))
+    api.get<{ data: User[] }>('/users', { params: { is_teacher: true, limit: 500 } })
+      .then((res) => setEnseignants(res.data.data))
       .catch((err) => console.error('[GestionThemes] Erreur chargement enseignants:', err));
   }, []);
 
@@ -122,7 +126,7 @@ function ThemeFormDialog({
   const {
     register, handleSubmit, control, watch, setValue,
     formState: { errors, isSubmitting },
-  } = useForm<ThemeFormValues>({ resolver: zodResolver(themeSchema), defaultValues });
+  } = useForm<ThemeFormValues>({ resolver: zodResolver(themeSchema) as Resolver<ThemeFormValues>, defaultValues });
 
   const typePfe = watch('type_pfe');
   const motsCles = watch('mots_cles');
@@ -517,8 +521,12 @@ function ThemeCard({
   onDemandeModif: (t: Theme) => void;
   currentUserId: string;
 }) {
+  const confirmCoEnc = useConfirmCoEncadrant();
+  const refuseCoEnc = useRefuseCoEncadrant();
   const isProposant = theme.propose_par.id === currentUserId;
   const isCoEncadrant = !isProposant && theme.co_encadrant?.id === currentUserId;
+  const isPendingCoEnc = isCoEncadrant && !theme.encadrant_valide;
+  const coEncPending = isProposant && !!theme.co_encadrant && !theme.encadrant_valide;
   const isLocked = (theme.statut_validation === 'VALIDE' || theme.is_affecte) && !theme.modification_autorisee;
   const canEdit = isProposant && !isLocked;
   const canDelete = isProposant && !theme.is_affecte;
@@ -574,8 +582,13 @@ function ThemeCard({
         )}
 
         {theme.co_encadrant && !isCoEncadrant && (
-          <p className="text-xs text-muted-foreground">
-            Co-encadrant : <span className="font-medium text-foreground">{theme.co_encadrant.prenom} {theme.co_encadrant.nom}</span>
+          <p className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
+            Co-encadrant :&nbsp;<span className="font-medium text-foreground">{theme.co_encadrant.prenom} {theme.co_encadrant.nom}</span>
+            {coEncPending && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 border border-amber-200">
+                en attente
+              </span>
+            )}
           </p>
         )}
 
@@ -598,6 +611,12 @@ function ThemeCard({
           </div>
         )}
 
+        {isPendingCoEnc && (
+          <div className="rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-xs text-violet-700 font-medium">
+            En attente de votre confirmation comme co-encadrant
+          </div>
+        )}
+
         <div className="flex gap-2 pt-2 border-t mt-auto flex-wrap">
           <Button
             size="sm" variant="outline"
@@ -607,7 +626,26 @@ function ThemeCard({
           >
             <Eye className="h-3.5 w-3.5" />Détails
           </Button>
-          {isProposant ? (
+          {isPendingCoEnc ? (
+            <>
+              <Button
+                size="sm"
+                className="flex-1 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                disabled={confirmCoEnc.isPending}
+                onClick={() => confirmCoEnc.mutate(theme.id)}
+              >
+                Accepter
+              </Button>
+              <Button
+                size="sm" variant="outline"
+                className="flex-1 gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/5"
+                disabled={refuseCoEnc.isPending}
+                onClick={() => refuseCoEnc.mutate(theme.id)}
+              >
+                Refuser
+              </Button>
+            </>
+          ) : isProposant ? (
             <>
               {canRequestModif ? (
                 <Button
@@ -669,6 +707,10 @@ export default function GestionThemes() {
   const themes: Theme[] = (data?.data as Theme[]) ?? [];
   const total = data?.meta?.total ?? themes.length;
 
+  const { data: pendingCoEnc = [] } = useThemesAwaitingCoEncadrant();
+  const confirmCoEnc = useConfirmCoEncadrant();
+  const refuseCoEnc = useRefuseCoEncadrant();
+
   const stats = {
     total: themes.length,
     valides: themes.filter((t) => t.statut_validation === 'VALIDE').length,
@@ -694,6 +736,50 @@ export default function GestionThemes() {
           <Plus className="h-4 w-4" />Proposer un thème
         </Button>
       </div>
+
+      {/* Confirmation co-encadrant en attente */}
+      {pendingCoEnc.length > 0 && (
+        <div className="rounded-xl border-2 border-violet-300 bg-violet-50 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <UserCheck className="h-5 w-5 text-violet-600 shrink-0" />
+            <p className="font-semibold text-violet-800">
+              {pendingCoEnc.length === 1
+                ? 'Vous avez été désigné co-encadrant d\'un thème'
+                : `Vous avez été désigné co-encadrant pour ${pendingCoEnc.length} thèmes`}
+            </p>
+          </div>
+          <div className="space-y-2">
+            {pendingCoEnc.map((t) => (
+              <div key={t.id} className="flex items-center justify-between gap-3 rounded-lg border border-violet-200 bg-white px-4 py-3 flex-wrap">
+                <div className="min-w-0">
+                  <p className="font-medium text-sm truncate">{t.titre}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Proposé par {t.propose_par.prenom} {t.propose_par.nom}
+                  </p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                    disabled={confirmCoEnc.isPending}
+                    onClick={() => confirmCoEnc.mutate(t.id)}
+                  >
+                    Accepter
+                  </Button>
+                  <Button
+                    size="sm" variant="outline"
+                    className="text-destructive border-destructive/30 hover:bg-destructive/5 gap-1.5"
+                    disabled={refuseCoEnc.isPending}
+                    onClick={() => refuseCoEnc.mutate(t.id)}
+                  >
+                    Refuser
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Stats rapides */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

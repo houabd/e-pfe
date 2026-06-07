@@ -24,7 +24,7 @@ import type { SousTypeTheme, CreateThemeForm, User } from '@/types';
 
 // ─── Schéma ───────────────────────────────────────────────────────────────────
 
-const schema = z.object({
+const baseSchema = z.object({
   titre: z.string().min(5, 'Titre trop court (min 5 caractères)'),
   description: z.string().min(20, 'Description trop courte (min 20 caractères)'),
   mots_cles: z.array(z.string()).default([]),
@@ -39,15 +39,20 @@ const schema = z.object({
     email: z.string().email('Email invalide'),
     institution: z.string().min(1, 'Requis'),
   }).optional(),
-}).refine(
+  besoin_encadrant: z.boolean().default(false),
+  cherche_binome: z.boolean().default(false),
+});
+
+// FormValues uses the output of the base object (defaults resolved → required fields)
+type FormValues = z.output<typeof baseSchema>;
+
+const schema = baseSchema.refine(
   (d) => !(d.type_pfe === 'STARTUP' && d.sous_types.length > 0),
   { message: 'Un thème STARTUP ne peut pas avoir de sous-types', path: ['sous_types'] },
 ).refine(
   (d) => !(d.type_pfe === 'CLASSIQUE' && d.sous_types.length === 0),
   { message: 'Choisissez au moins un sous-type pour un thème CLASSIQUE', path: ['sous_types'] },
 );
-
-type FormValues = z.infer<typeof schema>;
 
 // ─── Composant info-bulle ─────────────────────────────────────────────────────
 
@@ -101,6 +106,7 @@ export default function ProposeThemePage() {
     defaultValues: {
       titre: '', description: '', mots_cles: [], necessite_stage: false,
       type_pfe: 'CLASSIQUE', sous_types: [], specialite_ids: [],
+      besoin_encadrant: false, cherche_binome: false,
     },
   });
 
@@ -341,11 +347,14 @@ export default function ProposeThemePage() {
 
         <Separator />
 
-        {/* ── Encadrement ── */}
-        <Section title="Encadrement">
-          {/* Encadrant interne */}
+        {/* ── Co-encadrement ── */}
+        <Section title="Co-encadrement (optionnel)">
+          <p className="text-sm text-muted-foreground rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+            En tant que proposant, vous êtes automatiquement l'encadrant principal de ce thème.
+          </p>
+          {/* Co-encadrant interne */}
           <div className="space-y-1.5">
-            <Label>Encadrant interne (optionnel)</Label>
+            <Label>Co-encadrant interne (optionnel)</Label>
             <Controller
               name="encadrant_id"
               control={control}
@@ -355,10 +364,10 @@ export default function ProposeThemePage() {
                   onValueChange={(v) => field.onChange(v === '__none__' ? undefined : v)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un enseignant..." />
+                    <SelectValue placeholder="Sélectionner un co-encadrant..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">Aucun pour l'instant</SelectItem>
+                    <SelectItem value="__none__">Aucun co-encadrant</SelectItem>
                     {enseignants.map((e) => (
                       <SelectItem key={e.id} value={e.id}>
                         {e.prenom} {e.nom}
@@ -369,8 +378,7 @@ export default function ProposeThemePage() {
               )}
             />
             <Hint>
-              Désignez un co-encadrant si un autre enseignant supervise le projet avec vous.
-              Si vous êtes le seul encadrant, laissez ce champ vide.
+              Si vous désignez un co-encadrant, le thème sera masqué jusqu'à ce qu'il accepte. Une notification lui sera envoyée.
             </Hint>
           </div>
 

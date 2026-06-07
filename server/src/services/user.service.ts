@@ -26,13 +26,21 @@ const USER_SELECT = {
 // ─── Lecture ──────────────────────────────────────────────────────────────────
 
 export async function getUsers(filters: UserFilters) {
-  const { page = 1, limit = 20, role, specialite_id, is_active, search } = filters;
+  const { page = 1, limit = 20, role, specialite_id, is_active, search, sans_affectation, is_teacher } = filters;
   const skip = (page - 1) * limit;
 
+  const TEACHER_ROLES: import('@prisma/client').Role[] = ['ENSEIGNANT', 'CHEF_EQUIPE', 'CHEF_DEPT', 'RESP_SPECIALITE'];
+
   const where = {
-    ...(role ? { role } : {}),
+    ...(is_teacher ? { role: { in: TEACHER_ROLES } } : role ? { role } : {}),
     ...(specialite_id ? { specialite_id } : {}),
     ...(is_active !== undefined ? { is_active } : {}),
+    ...(sans_affectation
+      ? {
+          affectations_etudiant: { none: {} },
+          startup_membres: { none: {} },
+        }
+      : {}),
     ...(search
       ? {
           OR: [
@@ -72,8 +80,9 @@ export async function createUser(dto: CreateUserDto) {
   const initialPassword = generateInitialPassword(new Date(dto.date_naissance));
   const password_hash = await hashPassword(initialPassword);
 
+  const NO_FORCE_CHANGE_ROLES: Role[] = ['CHEF_DEPT', 'TECHNICIEN'];
   return prisma.user.create({
-    data: { ...dto, password_hash, must_change_password: true },
+    data: { ...dto, password_hash, must_change_password: !NO_FORCE_CHANGE_ROLES.includes(dto.role as Role) },
     select: USER_SELECT,
   });
 }
@@ -142,7 +151,8 @@ export async function resetUserPassword(id: string) {
   const newPassword = generateInitialPassword(user.date_naissance);
   const password_hash = await hashPassword(newPassword);
 
-  await prisma.user.update({ where: { id }, data: { password_hash, must_change_password: true } });
+  const NO_FORCE_CHANGE_ROLES: Role[] = ['CHEF_DEPT', 'TECHNICIEN'];
+  await prisma.user.update({ where: { id }, data: { password_hash, must_change_password: !NO_FORCE_CHANGE_ROLES.includes(user.role) } });
   return { message: 'Mot de passe réinitialisé à la date de naissance actuelle' };
 }
 
@@ -296,7 +306,7 @@ export async function importUsers(buffer: Buffer) {
       const password_hash = await hashPassword(initialPassword);
 
       await prisma.user.create({
-        data: { email, nom, prenom, role: roleRaw, date_naissance: dateNaissance, password_hash, matricule, annee_universitaire: anneeUniv, specialite_id, must_change_password: true },
+        data: { email, nom, prenom, role: roleRaw, date_naissance: dateNaissance, password_hash, matricule, annee_universitaire: anneeUniv, specialite_id, must_change_password: !(['CHEF_DEPT', 'TECHNICIEN'] as Role[]).includes(roleRaw) },
       });
 
       existingEmails.add(email);

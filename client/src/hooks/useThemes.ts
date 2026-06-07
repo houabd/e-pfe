@@ -185,6 +185,58 @@ export function useTraiterDemandeModification() {
   });
 }
 
+export function useAnnoncesEncadrement(filters?: { specialite_id?: string }) {
+  return useQuery({
+    queryKey: ['annonces-encadrement', filters],
+    queryFn: () => themesApi.getAnnoncesEncadrement(filters),
+    staleTime: 30 * 1000,
+  });
+}
+
+export function usePostulerEncadrant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (themeId: string) => themesApi.postulerEncadrant(themeId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['annonces-encadrement'] });
+      void qc.invalidateQueries({ queryKey: ['themes'] });
+      toast.success('Vous êtes désormais encadrant de ce thème');
+    },
+    onError: (e) => toast.error(extractApiError(e)),
+  });
+}
+
+export function useThemesAwaitingCoEncadrant() {
+  return useQuery({
+    queryKey: ['themes', 'awaiting-co-encadrant'],
+    queryFn: themesApi.getThemesAwaitingCoEncadrant,
+  });
+}
+
+export function useConfirmCoEncadrant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => themesApi.confirmCoEncadrant(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['themes'] });
+      toast.success('Co-encadrement accepté');
+    },
+    onError: (e) => toast.error(extractApiError(e)),
+  });
+}
+
+export function useRefuseCoEncadrant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => themesApi.refuseCoEncadrant(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['themes'] });
+      toast.success('Co-encadrement refusé');
+    },
+    onError: (e) => toast.error(extractApiError(e)),
+  });
+}
+
 export function useExportThemes() {
   return useMutation({
     mutationFn: ({ format, filters }: { format: 'excel' | 'pdf'; filters?: Omit<themesApi.ThemeFilters, 'page' | 'limit'> }) =>

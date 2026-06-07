@@ -5,6 +5,8 @@ export interface UserFilters {
   role?: string;
   specialite_id?: string;
   is_active?: boolean;
+  sans_affectation?: boolean;
+  is_teacher?: boolean;
   search?: string;
   page?: number;
   limit?: number;

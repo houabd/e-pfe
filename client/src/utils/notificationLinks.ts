@@ -70,8 +70,10 @@ export function getNotificationLink(
       return null;
 
     case 'ENCADRANT_CONFIRM_REQUEST':
+      return '/enseignant/themes';
+
     case 'ENCADRANT_CONFIRM_RESPONSE':
-      return null;
+      return '/enseignant/themes';
 
     case 'NEW_DOCUMENT':
       return null;

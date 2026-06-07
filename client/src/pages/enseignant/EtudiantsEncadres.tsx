@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -186,6 +186,85 @@ function EtudiantCard({
             <Mail className="h-3.5 w-3.5" />
             Contacter
           </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Carte binôme ────────────────────────────────────────────────────────────
+
+function BinomeCard({
+  items,
+  onContact,
+}: {
+  items: [EtudiantEncadre, EtudiantEncadre];
+  onContact: (e: EtudiantEncadre['etudiant']) => void;
+}) {
+  const theme = items[0].affectation.theme;
+
+  return (
+    <Card className="hover:shadow-md transition-shadow border-violet-200">
+      <CardContent className="p-4 space-y-3">
+        {/* Binôme badge + thème */}
+        <div className="flex items-center gap-2">
+          <Badge className="text-xs bg-violet-100 text-violet-700 border-violet-200 gap-1 shrink-0">
+            <Users className="h-3 w-3" />Binôme
+          </Badge>
+          {theme ? (
+            <span className="text-xs text-muted-foreground line-clamp-1 flex-1">{theme.titre}</span>
+          ) : (
+            <span className="text-xs text-muted-foreground italic flex-1">Thème à définir</span>
+          )}
+        </div>
+
+        {/* Les deux étudiants */}
+        <div className="space-y-2 divide-y">
+          {items.map((item) => {
+            const { etudiant } = item;
+            return (
+              <div key={etudiant.id} className="flex items-center gap-3 pt-2 first:pt-0">
+                <div className="h-9 w-9 rounded-full bg-violet-100 flex items-center justify-center shrink-0">
+                  <span className="text-xs font-semibold text-violet-700">
+                    {etudiant.prenom[0]}{etudiant.nom[0]}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm truncate">{etudiant.prenom} {etudiant.nom}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {etudiant.matricule && (
+                      <span className="text-xs text-muted-foreground font-mono">{etudiant.matricule}</span>
+                    )}
+                    {etudiant.specialite && (
+                      <Badge variant="outline" className="text-[10px] py-0">{etudiant.specialite.nom}</Badge>
+                    )}
+                  </div>
+                </div>
+                <button
+                  className="text-muted-foreground hover:text-primary transition-colors p-1 shrink-0"
+                  title={`Contacter ${etudiant.prenom}`}
+                  onClick={() => onContact(etudiant)}
+                >
+                  <Mail className="h-4 w-4" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Type badge */}
+        <div className="pt-1 border-t">
+          {theme?.type_pfe === 'STARTUP' ? (
+            <Badge className="text-xs bg-orange-100 text-orange-700 border-orange-200 gap-1">
+              <Rocket className="h-3 w-3" />Startup
+            </Badge>
+          ) : theme ? (
+            <Badge className="text-xs bg-blue-100 text-blue-700 border-blue-200 gap-1">
+              <BookOpen className="h-3 w-3" />Classique
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-xs text-muted-foreground">En attente</Badge>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -527,6 +606,25 @@ export default function EtudiantsEncadres() {
     );
   });
 
+  const groups: Array<
+    | { type: 'binome'; items: [EtudiantEncadre, EtudiantEncadre] }
+    | { type: 'solo'; item: EtudiantEncadre }
+  > = [];
+  const seenGroups = new Set<string>();
+  for (const item of filtered) {
+    if (seenGroups.has(item.id)) continue;
+    seenGroups.add(item.id);
+    if (item.binome_id) {
+      const partner = filtered.find((x) => x.id !== item.id && x.binome_id === item.binome_id);
+      if (partner) {
+        seenGroups.add(partner.id);
+        groups.push({ type: 'binome', items: [item, partner] as [EtudiantEncadre, EtudiantEncadre] });
+        continue;
+      }
+    }
+    groups.push({ type: 'solo', item });
+  }
+
   return (
     <div className="space-y-6">
       {/* En-tête */}
@@ -582,13 +680,21 @@ export default function EtudiantsEncadres() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((item) => (
-            <EtudiantCard
-              key={item.etudiant.id}
-              item={item}
-              onContact={setContactTarget}
-            />
-          ))}
+          {groups.map((group) =>
+            group.type === 'binome' ? (
+              <BinomeCard
+                key={`binome-${group.items[0].id}-${group.items[1].id}`}
+                items={group.items}
+                onContact={setContactTarget}
+              />
+            ) : (
+              <EtudiantCard
+                key={group.item.id}
+                item={group.item}
+                onContact={setContactTarget}
+              />
+            )
+          )}
         </div>
       )}
 

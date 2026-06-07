@@ -56,6 +56,8 @@ export interface UserFilters extends PaginationQuery {
   specialite_id?: string;
   is_active?: boolean;
   search?: string;
+  sans_affectation?: boolean;
+  is_teacher?: boolean;
 }
 
 // ─── Themes ─────────────────────────────────────────────────────────────────
@@ -84,6 +86,7 @@ export interface EncadrantExterne {
 
 export interface ThemeFilters extends PaginationQuery {
   specialite_id?: string;
+  etudiant_specialite_id?: string;
   type_pfe?: ThemeType;
   statut_validation?: StatutValidation;
   is_affecte?: boolean;

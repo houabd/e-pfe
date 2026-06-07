@@ -29,6 +29,7 @@ async function main() {
       prenom: 'Mohamed',
       role: 'CHEF_DEPT',
       date_naissance: new Date('1970-01-01'),
+      must_change_password: true,
     },
   });
 
@@ -44,6 +45,7 @@ async function main() {
       role: 'CHEF_EQUIPE',
       specialite_id: specialites[1].id, // IA
       date_naissance: new Date('1975-03-15'),
+      must_change_password: true,
     },
   });
 
@@ -59,6 +61,7 @@ async function main() {
       role: 'RESP_SPECIALITE',
       specialite_id: specialites[0].id, // ASR
       date_naissance: new Date('1982-07-22'),
+      must_change_password: true,
     },
   });
 
@@ -73,6 +76,7 @@ async function main() {
       prenom: 'Salim',
       role: 'TECHNICIEN',
       date_naissance: new Date('1985-06-20'),
+      must_change_password: true,
     },
   });
 
@@ -88,6 +92,7 @@ async function main() {
       role: 'ENSEIGNANT',
       specialite_id: specialites[1].id, // IA
       date_naissance: new Date('1980-04-10'),
+      must_change_password: true,
     },
   });
 
@@ -102,6 +107,7 @@ async function main() {
       role: 'ENSEIGNANT',
       specialite_id: specialites[0].id, // ASR
       date_naissance: new Date('1978-09-05'),
+      must_change_password: true,
     },
   });
 
@@ -119,6 +125,7 @@ async function main() {
       date_naissance: new Date('2002-02-12'),
       matricule: '202210001',
       annee_universitaire: '2025-2026',
+      must_change_password: true,
     },
   });
 
@@ -135,6 +142,7 @@ async function main() {
       date_naissance: new Date('2001-11-08'),
       matricule: '202210002',
       annee_universitaire: '2025-2026',
+      must_change_password: true,
     },
   });
 

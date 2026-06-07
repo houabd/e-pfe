@@ -116,26 +116,42 @@ export async function getMesEtudiants(enseignantId: string) {
     ],
   };
 
-  const etudiantSelect = {
-    id: true, nom: true, prenom: true, email: true, matricule: true,
-    specialite: { select: { id: true, nom: true } },
-  } as const;
-
-  const affectationSelect = {
-    select: { theme: { select: { id: true, titre: true, type_pfe: true } } },
-  } as const;
-
   // Étudiants classiques (via affectation_etudiants)
   const classiques = await prisma.affectationEtudiant.findMany({
     where: { affectation: teacherCondition },
-    include: { etudiant: { select: etudiantSelect }, affectation: affectationSelect },
+    select: {
+      id: true,
+      binome_id: true,
+      etudiant_id: true,
+      etudiant: {
+        select: {
+          id: true, nom: true, prenom: true, email: true, matricule: true,
+          specialite: { select: { id: true, nom: true } },
+        },
+      },
+      affectation: {
+        select: { theme: { select: { id: true, titre: true, type_pfe: true } } },
+      },
+    },
     orderBy: [{ affectation: { theme: { titre: 'asc' } } }],
   });
 
   // Membres STARTUP (via startup_membres)
   const startupMembres = await prisma.startupMembre.findMany({
     where: { affectation: teacherCondition },
-    include: { etudiant: { select: etudiantSelect }, affectation: affectationSelect },
+    select: {
+      id: true,
+      etudiant_id: true,
+      etudiant: {
+        select: {
+          id: true, nom: true, prenom: true, email: true, matricule: true,
+          specialite: { select: { id: true, nom: true } },
+        },
+      },
+      affectation: {
+        select: { theme: { select: { id: true, titre: true, type_pfe: true } } },
+      },
+    },
     orderBy: [{ affectation: { theme: { titre: 'asc' } } }],
   });
 
@@ -153,7 +169,7 @@ export async function getMesEtudiants(enseignantId: string) {
 export async function getEnseignantsDisponibles(filters: { specialite_id?: string }) {
   const enseignants = await prisma.user.findMany({
     where: {
-      role: { in: ['ENSEIGNANT', 'CHEF_EQUIPE'] },
+      role: { in: ['ENSEIGNANT', 'CHEF_EQUIPE', 'CHEF_DEPT', 'RESP_SPECIALITE'] as import('@prisma/client').Role[] },
       is_active: true,
       ...(filters.specialite_id ? { specialite_id: filters.specialite_id } : {}),
     },

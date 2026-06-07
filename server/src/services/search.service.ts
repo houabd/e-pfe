@@ -41,7 +41,7 @@ export async function getSuggestions(q: string): Promise<Suggestion[]> {
       take: 4,
     }),
     prisma.user.findMany({
-      where: { role: { in: ['ENSEIGNANT', 'CHEF_EQUIPE'] }, is_active: true, OR: buildNameOR(term, 'startsWith') },
+      where: { role: { in: ['ENSEIGNANT', 'CHEF_EQUIPE', 'CHEF_DEPT', 'RESP_SPECIALITE'] as import('@prisma/client').Role[] }, is_active: true, OR: buildNameOR(term, 'startsWith') },
       select: { nom: true, prenom: true },
       take: 3,
     }),
@@ -115,7 +115,7 @@ export async function globalSearch({ q, page = 1, limit = 20 }: SearchQuery) {
     // ── Enseignants ────────────────────────────────────────────────────────
     prisma.user.findMany({
       where: {
-        role: { in: ['ENSEIGNANT', 'CHEF_EQUIPE'] },
+        role: { in: ['ENSEIGNANT', 'CHEF_EQUIPE', 'CHEF_DEPT', 'RESP_SPECIALITE'] as import('@prisma/client').Role[] },
         is_active: true,
         OR: buildNameOR(q, 'contains', ['email']),
       },

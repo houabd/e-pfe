@@ -56,7 +56,11 @@ export function useNotifications() {
         void qc.invalidateQueries({ queryKey: ['mes-etudiants'] });
       }
       if (notif.type === 'ENCADRANT_CONFIRM_REQUEST') {
-        void qc.invalidateQueries({ queryKey: ['themes', 'awaiting-confirmation'] });
+        void qc.invalidateQueries({ queryKey: ['themes', 'my'] });
+        void qc.invalidateQueries({ queryKey: ['themes', 'awaiting-co-encadrant'] });
+      }
+      if (notif.type === 'ENCADRANT_CONFIRM_RESPONSE') {
+        void qc.invalidateQueries({ queryKey: ['themes', 'my'] });
       }
       // Étudiant affecté (par enseignant ou admin) : mettre à jour son statut immédiatement
       if (notif.type === 'THEME_RESPONSE' || notif.type === 'AFFECTATION') {
