@@ -453,7 +453,9 @@ export default function GestionBinome() {
   const { data: demandesEnvoyees = [], isLoading: loadingEnvoyees } = useDemandesEnvoyees();
 
   const isStartupMember = affectation?.theme?.type_pfe === 'STARTUP';
-  const hasBinomeActif = !!binome;
+  // Étudiant co-affecté = déjà associé à un partenaire par l'admin (même affectation, 2 étudiants)
+  const isCoAffecte = !!affectation && (affectation.nb_coequipiers ?? 1) > 1;
+  const hasBinomeActif = !!binome || isCoAffecte;
   const hasDemandePending = demandesEnvoyees.length > 0;
 
   if (loadingAff) {
@@ -503,11 +505,52 @@ export default function GestionBinome() {
 
       {!isStartupMember && (
         <>
-          {/* Statut binôme actif */}
-          {loadingBinome
-            ? <Skeleton className="h-28 w-full rounded-xl" />
-            : <BinomeActif />
-          }
+          {/* Binôme co-affecté par l'administration */}
+          {isCoAffecte && (affectation?.coequipiers ?? []).length > 0 && (
+            <Card className="border-emerald-200 bg-emerald-50">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-emerald-700 text-base">
+                  <UserCheck className="h-4 w-4" />
+                  Votre binôme
+                  <Badge className="ml-auto bg-emerald-600 hover:bg-emerald-600 text-white text-xs">Affecté</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {(affectation?.coequipiers ?? []).map((partner) => (
+                  <div key={partner.id} className="flex items-center gap-4">
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-xl font-bold">
+                      {partner.prenom[0]}{partner.nom[0]}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-lg font-semibold text-emerald-900 truncate">
+                        {partner.prenom} {partner.nom}
+                      </p>
+                      <p className="flex items-center gap-1.5 text-sm text-emerald-700 truncate">
+                        <Mail className="h-3.5 w-3.5 shrink-0" />
+                        {partner.email}
+                      </p>
+                      {partner.specialite && (
+                        <p className="flex items-center gap-1.5 text-sm text-emerald-600 mt-0.5">
+                          <BookOpen className="h-3.5 w-3.5 shrink-0" />
+                          {partner.specialite.nom}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <p className="text-xs text-emerald-600 border-t border-emerald-200 pt-2 mt-2">
+                  Ce binôme a été constitué par l'administration lors de l'affectation.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Statut binôme actif (binôme formel via demande) */}
+          {!isCoAffecte && (
+            loadingBinome
+              ? <Skeleton className="h-28 w-full rounded-xl" />
+              : <BinomeActif />
+          )}
 
           {/* Demandes reçues */}
           {!hasBinomeActif && <DemandesRecues />}

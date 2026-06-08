@@ -121,20 +121,23 @@ export async function getEnseignantsStats(filters: EnseignantFilters) {
       email: true,
       specialite: { select: { id: true, nom: true } },
       _count: { select: { themes_proposes: true } },
-      // Affectés où le teacher est le proposeur
       themes_proposes: { where: { is_affecte: true }, select: { id: true } },
-      // Affectés où le teacher est l'encadrant déclaré sur le thème
       themes_encadres: { where: { is_affecte: true }, select: { id: true } },
+      themes_co_encadres: { where: { is_affecte: true }, select: { id: true } },
+      // Thèmes assignés par l'admin via Affectation.encadrant_id
+      affectations_encadrant: { select: { theme_id: true } },
     },
     orderBy: [{ nom: 'asc' }, { prenom: 'asc' }],
   });
 
   const mapped = rows.map(e => {
     const nb_proposes = e._count.themes_proposes;
-    // Dédoublonnage : un thème proposé ET encadré par la même personne ne compte qu'une fois
+    // Dédoublonnage : propose_par, encadrant sur thème, co-encadrant, encadrant sur affectation
     const affectesIds = new Set([
       ...e.themes_proposes.map(t => t.id),
       ...e.themes_encadres.map(t => t.id),
+      ...e.themes_co_encadres.map(t => t.id),
+      ...e.affectations_encadrant.map(a => a.theme_id),
     ]);
     const nb_affectes = affectesIds.size;
 
@@ -287,10 +290,18 @@ export async function getEtudiantsStats(filters: EtudiantFilters) {
       affectations_etudiant: {
         take: 1,
         select: {
+          etudiant_id: true,
           affectation: {
             select: {
               theme: { select: { id: true, titre: true, type_pfe: true } },
               encadrant: { select: { id: true, nom: true, prenom: true } },
+              // Pour détecter un co-affecté (binôme constitué par l'admin)
+              etudiants: {
+                select: {
+                  etudiant_id: true,
+                  etudiant: { select: { id: true, nom: true, prenom: true } },
+                },
+              },
             },
           },
         },
@@ -323,22 +334,31 @@ export async function getEtudiantsStats(filters: EtudiantFilters) {
 
   const mapped = rows.map(e => {
     // Affectation via classique (affectation_etudiants) OU via STARTUP (startup_membres)
-    const affectationClassique = e.affectations_etudiant[0]?.affectation ?? null;
+    const affEtudRow = e.affectations_etudiant[0];
+    const affectationClassique = affEtudRow?.affectation ?? null;
     const affectationStartup = e.startup_membres[0]?.affectation ?? null;
     const affectation = affectationClassique ?? affectationStartup ?? null;
 
+    // Binôme formel (via demande acceptée)
     const b1 = e.binomes_comme_etud1[0];
     const b2 = e.binomes_comme_etud2[0];
-    const binome = b1
-      ? { id: b1.id, partenaire: b1.etud2 }
+    const binomeFormal = b1
+      ? { id: b1.id as string | null, partenaire: b1.etud2 }
       : b2
-      ? { id: b2.id, partenaire: b2.etud1 }
+      ? { id: b2.id as string | null, partenaire: b2.etud1 }
+      : null;
+
+    // Co-affecté : un autre étudiant dans la même affectation classique (binôme admin)
+    const is_startup = affectation?.theme?.type_pfe === 'STARTUP';
+    const coEquipier = (!is_startup && affectationClassique)
+      ? (affectationClassique.etudiants.find(ae => ae.etudiant_id !== e.id)?.etudiant ?? null)
       : null;
 
     const has_theme = !!affectation;
-    const is_startup = affectation?.theme?.type_pfe === 'STARTUP';
-    // Monôme = affecté à un thème classique sans binôme (travaille seul)
-    const is_monome = has_theme && !is_startup && !binome;
+    const has_binome = !!binomeFormal || !!coEquipier;
+    const binome = binomeFormal ?? (coEquipier ? { id: null as string | null, partenaire: coEquipier } : null);
+    // Monôme = affecté à un thème classique sans partenaire (ni formel ni admin)
+    const is_monome = has_theme && !is_startup && !has_binome;
     const has_encadrant = !!affectation?.encadrant;
 
     return {
@@ -356,7 +376,7 @@ export async function getEtudiantsStats(filters: EtudiantFilters) {
       affectation: affectation
         ? { theme: affectation.theme, encadrant: affectation.encadrant }
         : null,
-      has_binome: !!binome,
+      has_binome,
       binome,
       nb_themes_proposes: e._count.themes_proposes,
       nb_choix: e._count.choix_themes,

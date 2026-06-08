@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BookOpen, Users, ClipboardList, Megaphone,
-  CheckCircle2, Clock, XCircle, ArrowRight, AlertCircle, Info,
+  CheckCircle2, Clock, XCircle, ArrowRight, AlertCircle, Info, GraduationCap, MapPin,
 } from 'lucide-react';
 import { ThemeDetailDialog } from '@/components/themes/ThemeDetailDialog';
 import { Card, CardContent } from '@/components/ui/card';
@@ -14,6 +14,7 @@ import { useActiveSession } from '@/hooks/useSession';
 import { useMesChoix } from '@/hooks/useChoix';
 import { useMyThemes } from '@/hooks/useThemes';
 import { useMonAffectation, useMesInvitationsStartup, useEtudiantAccepteProposition, useEtudiantRefuseProposition } from '@/hooks/useAffectations';
+import { useMaSoutenance } from '@/hooks/useSoutenances';
 
 function StatutBadge({ statut }: { statut: 'PENDING' | 'ACCEPTED' | 'REFUSED' }) {
   if (statut === 'ACCEPTED') {
@@ -50,6 +51,8 @@ export default function DashboardEtudiant() {
   const accepterInvitation = useEtudiantAccepteProposition();
   const refuserInvitation = useEtudiantRefuseProposition();
   const navigate = useNavigate();
+
+  const { data: maSoutenance } = useMaSoutenance();
 
   const acceptedChoix = choix.find((c) => c.statut === 'ACCEPTED');
   const pendingChoix = choix.filter((c) => c.statut === 'PENDING');
@@ -368,6 +371,48 @@ export default function DashboardEtudiant() {
                 </CardContent>
               </Card>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Ma soutenance planifiée */}
+      {maSoutenance && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+            Ma soutenance
+          </h2>
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <GraduationCap className="h-5 w-5 text-blue-600 shrink-0" />
+              <span className="font-semibold text-blue-800 text-sm">Soutenance planifiée</span>
+            </div>
+            <p className="text-sm font-medium text-blue-900 line-clamp-2">{maSoutenance.theme.titre}</p>
+            <div className="grid grid-cols-2 gap-2 text-xs text-blue-700">
+              <span className="flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5 shrink-0" />
+                {new Date(maSoutenance.date_soutenance).toLocaleDateString('fr-FR', {
+                  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+                })} à {maSoutenance.heure}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5 shrink-0" />
+                Salle {maSoutenance.salle}
+              </span>
+            </div>
+            {maSoutenance.jury.length > 0 && (
+              <div className="border-t border-blue-200 pt-2.5 space-y-1">
+                <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Jury</p>
+                {maSoutenance.jury.map((j) => (
+                  <div key={j.enseignant.id} className="flex items-center gap-2 text-xs text-blue-800">
+                    <div className="h-5 w-5 rounded-full bg-blue-200 flex items-center justify-center text-[10px] font-bold shrink-0">
+                      {j.enseignant.prenom[0]}{j.enseignant.nom[0]}
+                    </div>
+                    <span>{j.enseignant.prenom} {j.enseignant.nom}</span>
+                    <span className="text-blue-500">— {j.role === 'PRESIDENT' ? 'Président' : 'Examinateur'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

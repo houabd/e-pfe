@@ -80,7 +80,7 @@ router.patch('/propositions/:propId/etudiant-refuser', requireRole('ETUDIANT'), 
 
 router.get(
   '/mes-etudiants',
-  requireRole('ENSEIGNANT', 'CHEF_EQUIPE', 'CHEF_DEPT'),
+  requireRole('ENSEIGNANT', 'CHEF_EQUIPE', 'CHEF_DEPT', 'RESP_SPECIALITE'),
   async (req, res, next) => {
     try {
       const etudiants = await affectationService.getMesEtudiants(req.user!.userId);
@@ -171,6 +171,25 @@ router.post(
         req.user!.userId,
       );
       res.status(201).json({ success: true, data: result });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// PATCH /:id/theme — enseignant définit le thème d'une affectation sans thème
+router.patch(
+  '/:id/theme',
+  requireRole('ENSEIGNANT', 'CHEF_EQUIPE', 'CHEF_DEPT', 'RESP_SPECIALITE'),
+  validate({ body: z.object({ theme_id: z.string().min(1) }) }),
+  async (req, res, next) => {
+    try {
+      const result = await affectationService.updateAffectationTheme(
+        req.params['id'] as string,
+        (req.body as { theme_id: string }).theme_id,
+        req.user!.userId,
+      );
+      res.json({ success: true, data: result });
     } catch (err) {
       next(err);
     }

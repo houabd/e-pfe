@@ -136,7 +136,7 @@ export default function ForceChangePasswordPage() {
             </form>
 
             <p className="text-center text-sm text-muted-foreground mt-4">
-              Pas vous ?{' '}
+              
               <button
                 type="button"
                 onClick={logout}

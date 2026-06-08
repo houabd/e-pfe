@@ -84,11 +84,23 @@ export async function getMonAffectation(etudiantId: string) {
           type: true,
           theme: { select: { id: true, titre: true, type_pfe: true } },
           encadrant: { select: { id: true, nom: true, prenom: true } },
+          _count: { select: { etudiants: true } },
+          etudiants: {
+            select: {
+              etudiant: { select: { id: true, nom: true, prenom: true, email: true, specialite: { select: { id: true, nom: true } } } },
+            },
+          },
         },
       },
     },
   });
-  if (affEtudiant) return affEtudiant.affectation;
+  if (affEtudiant) {
+    const { _count, etudiants, ...rest } = affEtudiant.affectation;
+    const coequipiers = etudiants
+      .filter((e) => e.etudiant.id !== etudiantId)
+      .map((e) => e.etudiant);
+    return { ...rest, nb_coequipiers: _count.etudiants, coequipiers };
+  }
 
   const startup = await prisma.startupMembre.findFirst({
     where: { etudiant_id: etudiantId },
@@ -107,55 +119,75 @@ export async function getMonAffectation(etudiantId: string) {
 }
 
 export async function getMesEtudiants(enseignantId: string) {
-  const teacherCondition = {
-    OR: [
-      { encadrant_id: enseignantId },
-      { theme: { propose_par_id: enseignantId } },
-      { theme: { encadrant_id: enseignantId } },
-      { theme: { co_encadrant_id: enseignantId } },
-    ],
-  };
+  // Étape 1 : récupérer tous les IDs d'affectation liées à cet enseignant
+  // (encadrant direct, ou via le thème : proposant / encadrant / co-encadrant)
+  const [directAff, themeAff] = await Promise.all([
+    prisma.affectation.findMany({
+      where: { encadrant_id: enseignantId },
+      select: { id: true },
+    }),
+    prisma.theme.findMany({
+      where: {
+        OR: [
+          { propose_par_id: enseignantId },
+          { encadrant_id: enseignantId },
+          { co_encadrant_id: enseignantId },
+        ],
+        affectation: { isNot: null },
+      },
+      select: { affectation: { select: { id: true } } },
+    }),
+  ]);
 
-  // Étudiants classiques (via affectation_etudiants)
-  const classiques = await prisma.affectationEtudiant.findMany({
-    where: { affectation: teacherCondition },
-    select: {
-      id: true,
-      binome_id: true,
-      etudiant_id: true,
-      etudiant: {
-        select: {
-          id: true, nom: true, prenom: true, email: true, matricule: true,
-          specialite: { select: { id: true, nom: true } },
+  const affIds = new Set<string>([
+    ...directAff.map((a) => a.id),
+    ...themeAff.flatMap((t) => (t.affectation ? [t.affectation.id] : [])),
+  ]);
+
+  if (affIds.size === 0) return [];
+
+  const affIdsArr = [...affIds];
+
+  // Étape 2 : récupérer les étudiants de ces affectations
+  const [classiques, startupMembres] = await Promise.all([
+    prisma.affectationEtudiant.findMany({
+      where: { affectation_id: { in: affIdsArr } },
+      select: {
+        id: true,
+        binome_id: true,
+        etudiant_id: true,
+        etudiant: {
+          select: {
+            id: true, nom: true, prenom: true, email: true, matricule: true,
+            specialite: { select: { id: true, nom: true } },
+          },
+        },
+        affectation: {
+          select: { id: true, theme: { select: { id: true, titre: true, type_pfe: true } } },
         },
       },
-      affectation: {
-        select: { theme: { select: { id: true, titre: true, type_pfe: true } } },
-      },
-    },
-    orderBy: [{ affectation: { theme: { titre: 'asc' } } }],
-  });
-
-  // Membres STARTUP (via startup_membres)
-  const startupMembres = await prisma.startupMembre.findMany({
-    where: { affectation: teacherCondition },
-    select: {
-      id: true,
-      etudiant_id: true,
-      etudiant: {
-        select: {
-          id: true, nom: true, prenom: true, email: true, matricule: true,
-          specialite: { select: { id: true, nom: true } },
+      orderBy: [{ affectation: { theme: { titre: 'asc' } } }],
+    }),
+    prisma.startupMembre.findMany({
+      where: { affectation_id: { in: affIdsArr } },
+      select: {
+        id: true,
+        etudiant_id: true,
+        etudiant: {
+          select: {
+            id: true, nom: true, prenom: true, email: true, matricule: true,
+            specialite: { select: { id: true, nom: true } },
+          },
+        },
+        affectation: {
+          select: { id: true, theme: { select: { id: true, titre: true, type_pfe: true } } },
         },
       },
-      affectation: {
-        select: { theme: { select: { id: true, titre: true, type_pfe: true } } },
-      },
-    },
-    orderBy: [{ affectation: { theme: { titre: 'asc' } } }],
-  });
+      orderBy: [{ affectation: { theme: { titre: 'asc' } } }],
+    }),
+  ]);
 
-  // Fusion avec déduplication par etudiant_id (données legacy peuvent avoir les deux)
+  // Fusion avec déduplication par etudiant_id
   const seen = new Set<string>();
   return [...classiques, ...startupMembres].filter((r) => {
     if (seen.has(r.etudiant_id)) return false;
@@ -184,24 +216,21 @@ export async function getEnseignantsDisponibles(filters: { specialite_id?: strin
           theme_specialites: { include: { specialite: { select: { id: true, nom: true } } } },
         },
       },
-      // Compter les étudiants supervisés (1 binôme = 2 étudiants = 2 places)
-      affectations_encadrant: {
-        select: { etudiants: { select: { id: true } } },
-      },
+      affectations_encadrant: { select: { id: true } },
     },
     orderBy: [{ nom: 'asc' }],
   });
 
   return enseignants
     .map(({ _count, affectations_encadrant, ...e }) => {
-      const nb_etudiants = affectations_encadrant.reduce((sum, a) => sum + a.etudiants.length, 0);
+      const nb_affectations = affectations_encadrant.length;
       return {
         ...e,
-        nb_etudiants,
+        nb_affectations,
         sans_proposition: _count.themes_proposes === 0,
       };
     })
-    .filter((e) => e.nb_etudiants < 4);
+    .filter((e) => e.nb_affectations < 2);
 }
 
 // ─── Étudiants sans thème ─────────────────────────────────────────────────────
@@ -290,9 +319,38 @@ export async function createAffectation(
   if (!encadrant) throw new NotFoundError('Encadrant');
 
   // Résoudre le thème (optionnel — peut être défini plus tard par l'enseignant)
+  let resolvedThemeId = dto.theme_id;
+
+  // Auto-résolution : thème validé besoin_encadrant de l'étudiant, puis thème de l'enseignant
+  if (!resolvedThemeId) {
+    const etudiantTheme = await prisma.theme.findFirst({
+      where: {
+        propose_par_id: { in: dto.etudiant_ids },
+        besoin_encadrant: true,
+        statut_validation: 'VALIDE',
+        is_affecte: false,
+      },
+      select: { id: true },
+    });
+    if (etudiantTheme) {
+      resolvedThemeId = etudiantTheme.id;
+    } else {
+      const encadrantTheme = await prisma.theme.findFirst({
+        where: {
+          encadrant_id: dto.encadrant_id,
+          statut_validation: 'VALIDE',
+          is_affecte: false,
+          besoin_encadrant: false,
+        },
+        select: { id: true },
+      });
+      if (encadrantTheme) resolvedThemeId = encadrantTheme.id;
+    }
+  }
+
   let theme: { id: string; titre: string; is_affecte: boolean; encadrant_id: string | null } | null = null;
-  if (dto.theme_id) {
-    theme = await prisma.theme.findUnique({ where: { id: dto.theme_id } });
+  if (resolvedThemeId) {
+    theme = await prisma.theme.findUnique({ where: { id: resolvedThemeId } });
     if (!theme) throw new NotFoundError('Thème');
     if (theme.is_affecte) throw new BadRequestError('Ce thème est déjà affecté');
   }
@@ -335,19 +393,12 @@ export async function createAffectation(
     }
   }
 
-  // Vérifier la capacité de l'encadrant (max 2 étudiants supervisés au total)
-  const currentStudentCount = await prisma.affectationEtudiant.count({
-    where: { affectation: { encadrant_id: dto.encadrant_id } },
+  // Vérifier la capacité de l'encadrant (max 2 thèmes encadrés)
+  const currentAffectationCount = await prisma.affectation.count({
+    where: { encadrant_id: dto.encadrant_id },
   });
-  const newStudentCount = effectiveEtudiantIds.length;
-  if (currentStudentCount + newStudentCount > 4) {
-    const remaining = 4 - currentStudentCount;
-    if (newStudentCount > remaining) {
-      throw new BadRequestError(
-        `Cet enseignant ne peut accueillir que ${remaining} étudiant${remaining !== 1 ? 's' : ''} supplémentaire${remaining !== 1 ? 's' : ''} (capacité max : 4)`,
-      );
-    }
-    throw new BadRequestError('Cet enseignant a atteint sa capacité maximale (4 étudiants encadrés)');
+  if (currentAffectationCount >= 2) {
+    throw new BadRequestError('Cet enseignant a atteint sa capacité maximale (2 thèmes encadrés)');
   }
 
   // Vérifier que les étudiants existent et ne sont pas déjà affectés
@@ -377,7 +428,7 @@ export async function createAffectation(
   const affectation = await prisma.$transaction(async (tx) => {
     const a = await tx.affectation.create({
       data: {
-        theme_id: dto.theme_id ?? null,
+        theme_id: resolvedThemeId ?? null,
         encadrant_id: dto.encadrant_id,
         session_id: session.id,
         affecte_par: affectePar,
@@ -454,6 +505,55 @@ export async function createAffectation(
   return affectation;
 }
 
+// ─── Définir / modifier le thème d'une affectation existante ─────────────────
+
+export async function updateAffectationTheme(
+  affectationId: string,
+  theme_id: string,
+  encadrantId: string,
+) {
+  const affectation = await prisma.affectation.findUnique({
+    where: { id: affectationId },
+    select: { id: true, encadrant_id: true, theme_id: true, etudiants: { select: { etudiant_id: true } } },
+  });
+  if (!affectation) throw new NotFoundError('Affectation');
+  if (affectation.encadrant_id !== encadrantId) throw new ForbiddenError('Vous ne pouvez modifier que vos propres affectations');
+  if (affectation.theme_id) throw new BadRequestError('Un thème est déjà défini pour cette affectation');
+
+  const theme = await prisma.theme.findUnique({ where: { id: theme_id } });
+  if (!theme) throw new NotFoundError('Thème');
+  if (theme.statut_validation !== 'VALIDE') throw new BadRequestError('Ce thème n\'est pas encore validé');
+  if (theme.is_affecte) throw new BadRequestError('Ce thème est déjà affecté');
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const a = await tx.affectation.update({
+      where: { id: affectationId },
+      data: { theme_id },
+      include: AFFECTATION_INCLUDE,
+    });
+    await tx.theme.update({
+      where: { id: theme_id },
+      data: {
+        is_affecte: true,
+        ...(theme.encadrant_id ? {} : { encadrant_id: encadrantId, besoin_encadrant: false }),
+      },
+    });
+    return a;
+  });
+
+  // Notifier les étudiants
+  for (const { etudiant_id } of affectation.etudiants) {
+    await notifyUser(
+      etudiant_id,
+      'AFFECTATION',
+      `Votre thème a été défini : "${theme.titre}"`,
+      { affectation_id: affectationId, theme_id },
+    );
+  }
+
+  return updated;
+}
+
 // ─── Algorithme de suggestion (aucune écriture en BD) ─────────────────────────
 
 type EtudiantRow = {
@@ -505,15 +605,15 @@ export async function affectationAutomatique() {
     }) as Promise<EtudiantRow[]>,
   ]);
 
-  // Compter les étudiants déjà supervisés par encadrant (1 binôme = 2 places)
+  // Compter les affectations (thèmes) déjà encadrées par enseignant (max 2 thèmes)
   const encadrantIds = [...new Set(themesRaw.map((t) => t.encadrant_id!))];
-  const existingStudentRecords = await prisma.affectationEtudiant.findMany({
-    where: { affectation: { encadrant_id: { in: encadrantIds } } },
-    select: { affectation: { select: { encadrant_id: true } } },
+  const existingAffectations = await prisma.affectation.findMany({
+    where: { encadrant_id: { in: encadrantIds } },
+    select: { encadrant_id: true },
   });
   const countByEncadrant = new Map<string, number>();
-  for (const r of existingStudentRecords) {
-    const encId = r.affectation.encadrant_id!;
+  for (const r of existingAffectations) {
+    const encId = r.encadrant_id!;
     countByEncadrant.set(encId, (countByEncadrant.get(encId) ?? 0) + 1);
   }
 
@@ -536,13 +636,13 @@ export async function affectationAutomatique() {
   const suggestions: Suggestion[] = [];
   const etudiantMap = new Map(etudiants.map((e) => [e.id, e]));
 
-  function findTheme(specialiteId: string, nbStudents: number = 1): ThemeRow | null {
+  function findTheme(specialiteId: string): ThemeRow | null {
     return (
       themesRaw.find(
         (t) =>
           !assignedThemes.has(t.id) &&
           t.encadrant_id !== null &&
-          (algoCount.get(t.encadrant_id) ?? 0) + nbStudents <= 4 &&
+          (algoCount.get(t.encadrant_id) ?? 0) < 2 &&
           t.theme_specialites.some((ts) => ts.specialite_id === specialiteId),
       ) ?? null
     );
@@ -563,8 +663,8 @@ export async function affectationAutomatique() {
       })),
     });
     assignedThemes.add(theme.id);
-    // Incrémenter par nombre d'étudiants (binôme = 2 places, solo = 1 place)
-    algoCount.set(theme.encadrant_id!, (algoCount.get(theme.encadrant_id!) ?? 0) + etudiantIds.length);
+    // Incrémenter de 1 par thème suggéré (pas par nombre d'étudiants)
+    algoCount.set(theme.encadrant_id!, (algoCount.get(theme.encadrant_id!) ?? 0) + 1);
     etudiantIds.forEach((id) => assignedStudents.add(id));
   }
 
@@ -582,18 +682,18 @@ export async function affectationAutomatique() {
     if (assignedStudents.has(partnerId)) continue;
     if (!etudiantMap.has(partnerId)) continue;
 
-    const theme = findTheme(etudiant.specialite_id, 2); // binôme = 2 places
+    const theme = findTheme(etudiant.specialite_id);
     if (!theme) continue;
 
     pushSuggestion(theme, [etudiant.id, partnerId], binome.id);
   }
 
-  // Passe 2 : étudiants seuls (cherchent un thème avec au moins 1 place libre)
+  // Passe 2 : étudiants seuls
   for (const etudiant of etudiants) {
     if (assignedStudents.has(etudiant.id)) continue;
     if (!etudiant.specialite_id) continue;
 
-    const theme = findTheme(etudiant.specialite_id, 1); // solo = 1 place
+    const theme = findTheme(etudiant.specialite_id);
     if (!theme) continue;
 
     pushSuggestion(theme, [etudiant.id]);

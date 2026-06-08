@@ -203,12 +203,24 @@ export async function createTheme(dto: CreateThemeDto, user: TokenPayload) {
   validateThemeType(dto.type_pfe, dto.sous_types ?? []);
   await assertTitreUnique(dto.titre);
 
-  const session = await prisma.session.findFirst({
-    where: { type: 'CHOIX', is_active: true, date_debut: { lte: new Date() }, date_fin: { gte: new Date() } },
-  });
-
   // Logique encadrant : enseignant = proposant toujours encadrant principal
   const isTeacher = TEACHER_ROLES.includes(user.role);
+
+  // Les enseignants peuvent proposer dans n'importe quelle session active (CHOIX ou AFFECTATION)
+  // Les étudiants uniquement pendant la session CHOIX
+  const sessionWhere = isTeacher
+    ? { is_active: true, date_debut: { lte: new Date() }, date_fin: { gte: new Date() } }
+    : { type: 'CHOIX' as const, is_active: true, date_debut: { lte: new Date() }, date_fin: { gte: new Date() } };
+
+  const session = await prisma.session.findFirst({ where: sessionWhere });
+
+  if (!session) {
+    throw new BadRequestError(
+      isTeacher
+        ? 'Aucune session active. Impossible de proposer un thème.'
+        : 'La session de choix des thèmes n\'est pas ouverte.',
+    );
+  }
   let encadrantId: string | null;
   let coEncadrantId: string | null;
   let encadrantValide: boolean;

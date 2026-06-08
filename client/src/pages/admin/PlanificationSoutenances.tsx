@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/select';
 import {
   Calendar, List, Download, Plus, X, ChevronLeft, ChevronRight,
-  GraduationCap, User, Users, Clock, MapPin, BookOpen, Pencil, CheckCircle2, Trash2,
+  GraduationCap, User, Users, MapPin, BookOpen, Pencil, CheckCircle2, Trash2,
 } from 'lucide-react';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -32,7 +32,7 @@ import {
 } from '@/hooks/useSoutenances';
 import { useMarkAsSoutenu } from '@/hooks/useThemes';
 import type { AffectationFull } from '@/services/affectations.api';
-import type { SoutenanceFull, EnseignantDispoSoutenance } from '@/services/soutenances.api';
+import type { SoutenanceFull } from '@/services/soutenances.api';
 
 // ─── Utilitaires ─────────────────────────────────────────────────────────────
 
@@ -85,6 +85,7 @@ function SpecialiteSelect({
 
 interface JuryBuilderProps {
   themeId: string;
+  soutenanceId?: string;
   date: string;
   heure: string;
   presidentId: string;
@@ -95,14 +96,14 @@ interface JuryBuilderProps {
 }
 
 function JuryBuilder({
-  themeId, date, heure,
+  themeId, soutenanceId, date, heure,
   presidentId, onPresidentChange,
   examinateurIds, onExaminateursChange,
   errors,
 }: JuryBuilderProps) {
   const canQuery = !!(date && heure);
   const { data: enseignants = [], isLoading } = useEnseignantsDisponibles(
-    { date, heure, theme_id: themeId },
+    { date, heure, theme_id: themeId, soutenance_id: soutenanceId },
     canQuery,
   );
 
@@ -301,6 +302,20 @@ function SoutenanceFormDialog({
     },
   });
 
+  // Pré-remplir le formulaire à chaque ouverture (création ou édition d'une soutenance différente)
+  useEffect(() => {
+    if (open) {
+      reset({
+        date_soutenance: soutenance?.date_soutenance.slice(0, 10) ?? '',
+        heure: soutenance?.heure ?? '',
+        salle: soutenance?.salle ?? '',
+        annee_universitaire: soutenance?.annee_universitaire ?? currentAnneeUniversitaire(),
+        president_id: soutenance?.jury.find((j) => j.role === 'PRESIDENT')?.enseignant.id ?? '',
+        examinateur_ids: soutenance?.jury.filter((j) => j.role === 'EXAMINATEUR').map((j) => j.enseignant.id) ?? [],
+      });
+    }
+  }, [open, soutenance?.id]);
+
   const dateVal = watch('date_soutenance');
   const heureVal = watch('heure');
   const presidentId = watch('president_id');
@@ -438,6 +453,7 @@ function SoutenanceFormDialog({
             <h4 className="font-semibold text-sm">Composition du jury</h4>
             <JuryBuilder
               themeId={themeId}
+              soutenanceId={soutenance?.id}
               date={dateVal}
               heure={heureVal}
               presidentId={presidentId}

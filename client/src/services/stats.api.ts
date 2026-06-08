@@ -34,7 +34,7 @@ export interface EtudiantStatRow {
     encadrant: { id: string; nom: string; prenom: string } | null;
   } | null;
   has_binome: boolean;
-  binome: { id: string; partenaire: { id: string; nom: string; prenom: string } } | null;
+  binome: { id: string | null; partenaire: { id: string; nom: string; prenom: string } } | null;
   nb_themes_proposes: number;
   nb_choix: number;
 }

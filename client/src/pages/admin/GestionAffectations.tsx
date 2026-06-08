@@ -119,9 +119,7 @@ function AffectationDialog({
 
   // Par affectation : max 2 étudiants (CLASSIQUE) ou 6 (STARTUP)
   const maxStudents = selectedTheme?.type_pfe === 'STARTUP' ? 6 : 2;
-  // Capacité restante de l'enseignant (total max 4 étudiants encadrés)
-  const placesRestantes = selectedEnseignant ? 4 - selectedEnseignant.nb_etudiants : 4;
-  const capaciteOk = selectedEtudiants.length === 0 || selectedEtudiants.length <= placesRestantes;
+  const capaciteOk = true; // validée côté serveur (max 2 affectations/enseignant)
 
   const filteredEtudiants = useMemo(() => {
     const selectedIds = new Set(selectedEtudiants.map((e) => e.id));
@@ -203,10 +201,7 @@ function AffectationDialog({
                   <p className="text-xs text-muted-foreground">{preselectedEnseignant.specialite?.nom ?? 'Spécialité non définie'}</p>
                 </div>
                 <div className="ml-auto flex flex-col items-end gap-0.5">
-                  <Badge variant="outline" className="text-xs">{preselectedEnseignant.nb_etudiants}/4 étudiants</Badge>
-                  {placesRestantes === 1 && (
-                    <span className="text-[10px] text-amber-600">1 place — solo uniquement</span>
-                  )}
+                  <Badge variant="outline" className="text-xs">{preselectedEnseignant.nb_affectations}/2 thèmes</Badge>
                 </div>
               </div>
             ) : (
@@ -227,10 +222,7 @@ function AffectationDialog({
                       <p className="text-xs text-muted-foreground">{e.specialite?.nom ?? '—'}</p>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {e.nb_etudiants === 3 && (
-                        <span className="text-[10px] text-amber-600">solo seul.</span>
-                      )}
-                      <Badge variant="secondary" className="text-xs">{e.nb_etudiants}/4</Badge>
+                      <Badge variant="secondary" className="text-xs">{e.nb_affectations}/2</Badge>
                     </div>
                     {selectedEnseignant?.id === e.id && <Check className="h-4 w-4 text-primary shrink-0" />}
                   </button>
@@ -302,11 +294,9 @@ function AffectationDialog({
                 <SpecialiteSelect value={etudFilter} onChange={setEtudFilter} />
               </div>
               {!capaciteOk && (
-                <div className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                <div className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
                   <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                  Capacité insuffisante : {selectedEnseignant.prenom} {selectedEnseignant.nom} n'a que{' '}
-                  <strong>{placesRestantes} place{placesRestantes !== 1 ? 's' : ''}</strong> disponible{placesRestantes !== 1 ? 's' : ''}, mais {selectedEtudiants.length} étudiant{selectedEtudiants.length !== 1 ? 's' : ''}{' '}
-                  {selectedEtudiants.length !== 1 ? 'sont' : 'est'} sélectionné{selectedEtudiants.length !== 1 ? 's' : ''}.
+                  La capacité maximale (2 thèmes) sera vérifiée à la soumission.
                 </div>
               )}
 
@@ -439,14 +429,14 @@ function VueDisponibilites({
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
                     <div className="flex items-center gap-1">
-                      {[0, 1, 2, 3].map((i) => (
+                      {[0, 1].map((i) => (
                         <div
                           key={i}
-                          className={`h-2 w-2 rounded-full ${i < ens.nb_etudiants ? 'bg-primary' : 'bg-muted'}`}
+                          className={`h-2 w-2 rounded-full ${i < ens.nb_affectations ? 'bg-primary' : 'bg-muted'}`}
                         />
                       ))}
                     </div>
-                    <span className="text-[11px] text-muted-foreground">{ens.nb_etudiants}/4 étud.</span>
+                    <span className="text-[11px] text-muted-foreground">{ens.nb_affectations}/2 thèmes</span>
                   </div>
                 </div>
 

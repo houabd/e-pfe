@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   Search, Users, Mail, GraduationCap, BookOpen, Rocket, Copy, Check, X,
-  UserPlus, Building2, ChevronDown, ChevronUp, Clock, CheckCircle2, XCircle, Globe,
+  UserPlus, Building2, ChevronDown, ChevronUp, Clock, CheckCircle2, XCircle, Globe, PenLine,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -21,7 +21,9 @@ import {
   useMesStartups, usePropositions,
   useAddMembreInterne, useAddMembreExterne,
   useAccepterProposition, useRefuserProposition,
+  useUpdateAffectationTheme,
 } from '@/hooks/useAffectations';
+import { useMyThemes } from '@/hooks/useThemes';
 import { useUsers } from '@/hooks/useUsers';
 import type { EtudiantEncadre, StartupEquipe, PropositionMembre } from '@/services/affectations.api';
 
@@ -107,6 +109,74 @@ function ContactDialog({
   );
 }
 
+// ─── Dialog définir thème ─────────────────────────────────────────────────────
+
+function DefinirThemeDialog({
+  affectationId,
+  onClose,
+}: {
+  affectationId: string;
+  onClose: () => void;
+}) {
+  const updateTheme = useUpdateAffectationTheme();
+  const { data: themesResponse, isLoading } = useMyThemes({ statut_validation: 'VALIDE', is_affecte: false });
+  const themes = themesResponse?.data ?? [];
+  const [selectedThemeId, setSelectedThemeId] = useState<string | null>(null);
+
+  function handleConfirm() {
+    if (!selectedThemeId) return;
+    updateTheme.mutate({ affectationId, theme_id: selectedThemeId }, { onSuccess: onClose });
+  }
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <PenLine className="h-5 w-5 text-primary" />
+            Définir le thème de l'affectation
+          </DialogTitle>
+        </DialogHeader>
+
+        {isLoading ? (
+          <Skeleton className="h-32 rounded-lg" />
+        ) : themes.length === 0 ? (
+          <div className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">
+            Vous n'avez aucun thème validé disponible.<br />
+            Proposez d'abord un thème depuis «&nbsp;Mes thèmes&nbsp;».
+          </div>
+        ) : (
+          <div className="max-h-72 overflow-y-auto space-y-2">
+            {themes.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setSelectedThemeId(t.id)}
+                className={`w-full flex items-start gap-3 rounded-md border px-3 py-2.5 text-left transition-colors ${selectedThemeId === t.id ? 'border-primary/40 bg-primary/5' : 'hover:bg-muted'}`}
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{t.titre}</p>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    <Badge variant={t.type_pfe === 'STARTUP' ? 'default' : 'secondary'} className="text-xs">{t.type_pfe}</Badge>
+                  </div>
+                </div>
+                {selectedThemeId === t.id && <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Annuler</Button>
+          <Button onClick={handleConfirm} disabled={!selectedThemeId || updateTheme.isPending}>
+            Confirmer
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Carte étudiant ──────────────────────────────────────────────────────────
 
 function EtudiantCard({
@@ -117,8 +187,10 @@ function EtudiantCard({
   onContact: (e: EtudiantEncadre['etudiant']) => void;
 }) {
   const { etudiant, affectation } = item;
+  const [definirTheme, setDefinirTheme] = useState(false);
 
   return (
+    <>
     <Card className="hover:shadow-md transition-shadow">
       <CardContent className="p-4">
         <div className="flex items-start gap-4">
@@ -175,12 +247,23 @@ function EtudiantCard({
           </div>
         </div>
 
-        {/* Action */}
-        <div className="mt-4 pt-3 border-t">
+        {/* Actions */}
+        <div className="mt-4 pt-3 border-t flex gap-2">
+          {!affectation.theme && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 gap-2 border-primary/40 text-primary hover:bg-primary/5"
+              onClick={() => setDefinirTheme(true)}
+            >
+              <PenLine className="h-3.5 w-3.5" />
+              Définir thème
+            </Button>
+          )}
           <Button
             size="sm"
             variant="outline"
-            className="w-full gap-2"
+            className="flex-1 gap-2"
             onClick={() => onContact(etudiant)}
           >
             <Mail className="h-3.5 w-3.5" />
@@ -189,6 +272,14 @@ function EtudiantCard({
         </div>
       </CardContent>
     </Card>
+
+    {definirTheme && (
+      <DefinirThemeDialog
+        affectationId={affectation.id}
+        onClose={() => setDefinirTheme(false)}
+      />
+    )}
+  </>
   );
 }
 
@@ -202,8 +293,11 @@ function BinomeCard({
   onContact: (e: EtudiantEncadre['etudiant']) => void;
 }) {
   const theme = items[0].affectation.theme;
+  const affectationId = items[0].affectation.id;
+  const [definirTheme, setDefinirTheme] = useState(false);
 
   return (
+    <>
     <Card className="hover:shadow-md transition-shadow border-violet-200">
       <CardContent className="p-4 space-y-3">
         {/* Binôme badge + thème */}
@@ -252,22 +346,42 @@ function BinomeCard({
           })}
         </div>
 
-        {/* Type badge */}
-        <div className="pt-1 border-t">
-          {theme?.type_pfe === 'STARTUP' ? (
-            <Badge className="text-xs bg-orange-100 text-orange-700 border-orange-200 gap-1">
-              <Rocket className="h-3 w-3" />Startup
-            </Badge>
-          ) : theme ? (
-            <Badge className="text-xs bg-blue-100 text-blue-700 border-blue-200 gap-1">
-              <BookOpen className="h-3 w-3" />Classique
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="text-xs text-muted-foreground">En attente</Badge>
+        {/* Type badge + action */}
+        <div className="pt-1 border-t flex items-center justify-between gap-2">
+          <div>
+            {theme?.type_pfe === 'STARTUP' ? (
+              <Badge className="text-xs bg-orange-100 text-orange-700 border-orange-200 gap-1">
+                <Rocket className="h-3 w-3" />Startup
+              </Badge>
+            ) : theme ? (
+              <Badge className="text-xs bg-blue-100 text-blue-700 border-blue-200 gap-1">
+                <BookOpen className="h-3 w-3" />Classique
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-xs text-muted-foreground">En attente</Badge>
+            )}
+          </div>
+          {!theme && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1 border-primary/40 text-primary hover:bg-primary/5"
+              onClick={() => setDefinirTheme(true)}
+            >
+              <PenLine className="h-3 w-3" />Définir thème
+            </Button>
           )}
         </div>
       </CardContent>
     </Card>
+
+    {definirTheme && (
+      <DefinirThemeDialog
+        affectationId={affectationId}
+        onClose={() => setDefinirTheme(false)}
+      />
+    )}
+  </>
   );
 }
 
@@ -614,15 +728,22 @@ export default function EtudiantsEncadres() {
   for (const item of filtered) {
     if (seenGroups.has(item.id)) continue;
     seenGroups.add(item.id);
-    if (item.binome_id) {
-      const partner = filtered.find((x) => x.id !== item.id && x.binome_id === item.binome_id);
-      if (partner) {
-        seenGroups.add(partner.id);
-        groups.push({ type: 'binome', items: [item, partner] as [EtudiantEncadre, EtudiantEncadre] });
-        continue;
-      }
+
+    // Grouper par binome_id (lien social formel) OU par affectation.id
+    // (2 étudiants affectés ensemble par l'admin sans binôme formel préalable)
+    const partner = filtered.find((x) => {
+      if (x.id === item.id) return false;
+      if (item.binome_id && x.binome_id === item.binome_id) return true;
+      if (!item.binome_id && x.affectation.id === item.affectation.id) return true;
+      return false;
+    });
+
+    if (partner) {
+      seenGroups.add(partner.id);
+      groups.push({ type: 'binome', items: [item, partner] as [EtudiantEncadre, EtudiantEncadre] });
+    } else {
+      groups.push({ type: 'solo', item });
     }
-    groups.push({ type: 'solo', item });
   }
 
   return (

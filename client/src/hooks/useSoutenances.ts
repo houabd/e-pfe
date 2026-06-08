@@ -39,7 +39,7 @@ export function useUpdateSoutenance() {
 }
 
 export function useEnseignantsDisponibles(
-  filters: { date?: string; heure?: string; theme_id?: string },
+  filters: { date?: string; heure?: string; theme_id?: string; soutenance_id?: string },
   enabled = true,
 ) {
   return useQuery({
@@ -85,6 +85,22 @@ export function useExportSoutenancesExcel() {
       toast.success('Planning Excel téléchargé');
     },
     onError: (e) => toast.error(extractApiError(e)),
+  });
+}
+
+export function useMaSoutenance() {
+  return useQuery({
+    queryKey: ['ma-soutenance'],
+    queryFn: soutenancesApi.getMaSoutenance,
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useMesSoutenancesJury() {
+  return useQuery({
+    queryKey: ['mes-jurys'],
+    queryFn: soutenancesApi.getMesSoutenancesJury,
+    staleTime: 60 * 1000,
   });
 }
 

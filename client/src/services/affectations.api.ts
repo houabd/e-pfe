@@ -15,6 +15,7 @@ export interface EtudiantEncadre {
     specialite?: { id: string; nom: string };
   };
   affectation: {
+    id: string;
     theme: { id: string; titre: string; type_pfe: string } | null;
   };
 }
@@ -32,7 +33,7 @@ export interface EnseignantDispo {
   prenom: string;
   email: string;
   specialite: { id: string; nom: string } | null;
-  nb_etudiants: number;
+  nb_affectations: number;
   sans_proposition: boolean;
   themes_encadres: ThemeDispo[];
 }
@@ -186,6 +187,8 @@ export interface MonAffectation {
   type: 'LIBRE' | 'AUTO';
   theme: { id: string; titre: string; type_pfe: string } | null;
   encadrant: { id: string; nom: string; prenom: string } | null;
+  nb_coequipiers: number;
+  coequipiers: Array<{ id: string; nom: string; prenom: string; email: string; specialite?: { id: string; nom: string } | null }>;
 }
 
 export async function getMonAffectation(): Promise<MonAffectation | null> {
@@ -298,6 +301,11 @@ export async function accepterProposition(affectationId: string, propId: string)
 
 export async function refuserProposition(affectationId: string, propId: string): Promise<void> {
   await api.patch(`/affectations/${affectationId}/propositions/${propId}/refuser`);
+}
+
+export async function updateAffectationTheme(affectationId: string, theme_id: string): Promise<AffectationFull> {
+  const { data } = await api.patch<ApiResponse<AffectationFull>>(`/affectations/${affectationId}/theme`, { theme_id });
+  return data.data!;
 }
 
 export async function getMesInvitationsStartup(): Promise<InvitationStartup[]> {

@@ -217,6 +217,21 @@ export function useEtudiantRefuseProposition() {
   });
 }
 
+export function useUpdateAffectationTheme() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ affectationId, theme_id }: { affectationId: string; theme_id: string }) =>
+      affApi.updateAffectationTheme(affectationId, theme_id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['mes-etudiants'] });
+      void qc.invalidateQueries({ queryKey: ['affectations'] });
+      void qc.invalidateQueries({ queryKey: ['themes', 'my'] });
+      toast.success('Thème défini avec succès — les étudiants ont été notifiés');
+    },
+    onError: (e) => toast.error(extractApiError(e)),
+  });
+}
+
 export function useConfirmerAffectationsAuto() {
   const qc = useQueryClient();
   return useMutation({

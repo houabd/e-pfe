@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, CheckCircle, Clock, Users, Bell, ArrowRight, Rocket, AlertCircle, Info } from 'lucide-react';
+import { BookOpen, CheckCircle, Clock, Users, Bell, ArrowRight, Rocket, AlertCircle, Info, GraduationCap, MapPin } from 'lucide-react';
 import { ThemeDetailDialog } from '@/components/themes/ThemeDetailDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Separator } from '@/components/ui/separator';
 import { useEnseignantStats, useDemandesEnseignant } from '@/hooks/useStats';
+import { useMesSoutenancesJury } from '@/hooks/useSoutenances';
 import { useCurrentUser } from '@/stores/authStore';
 
 function StatCard({
@@ -52,7 +54,12 @@ export default function DashboardEnseignant() {
   const user = useCurrentUser();
   const { data: stats, isLoading } = useEnseignantStats();
   const { data: demandes = [] } = useDemandesEnseignant();
+  const { data: jurys = [] } = useMesSoutenancesJury();
   const navigate = useNavigate();
+
+  const upcomingSoutenances = jurys.filter(
+    (s) => new Date(s.date_soutenance) >= new Date(new Date().toDateString()),
+  );
 
   const statCards = [
     {
@@ -194,6 +201,47 @@ export default function DashboardEnseignant() {
           )}
         </CardContent>
       </Card>
+
+      {/* Mes soutenances (rôle jury) */}
+      {upcomingSoutenances.length > 0 && (
+        <Card className="border-indigo-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2 text-indigo-700">
+              <GraduationCap className="h-4 w-4" />
+              Mes soutenances à venir (jury)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-0 divide-y">
+            {upcomingSoutenances.map((s) => {
+              const roleLabel = s.role_jury === 'PRESIDENT' ? 'Président' : 'Examinateur';
+              const dateLabel = new Date(s.date_soutenance).toLocaleDateString('fr-FR', {
+                weekday: 'short', day: 'numeric', month: 'short',
+              });
+              return (
+                <div key={s.id} className="py-3 flex items-start gap-3">
+                  <div className="min-w-[52px] text-center">
+                    <p className="text-xs font-semibold text-indigo-700 capitalize">{dateLabel}</p>
+                    <p className="text-xs text-muted-foreground">{s.heure}</p>
+                  </div>
+                  <Separator orientation="vertical" className="h-10 bg-indigo-100" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{s.theme.titre}</p>
+                    <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <MapPin className="h-3 w-3" />
+                        Salle {s.salle}
+                      </span>
+                      <Badge className="text-[10px] h-4 px-1.5 bg-indigo-100 text-indigo-700 border-indigo-200 hover:bg-indigo-100">
+                        {roleLabel}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       <ThemeDetailDialog
         themeId={detailThemeId}

@@ -67,10 +67,11 @@ export async function demanderBinome(demandeurId: string, cibleId: string) {
   if (cibleStartup) {
     throw new BadRequestError('Cet étudiant est déjà affecté à un thème STARTUP');
   }
-  // Bloquer seulement si affecté à un thème qui ne cherche plus de binôme
+  // Bloquer si affecté à un thème défini qui ne cherche plus de binôme
+  // (pas de blocage si affecté sans thème — l'encadrant n'a pas encore défini le thème)
   if (cibleAffectation) {
     const theme = cibleAffectation.affectation.theme;
-    if (!theme || !theme.cherche_binome) {
+    if (theme && !theme.cherche_binome) {
       throw new BadRequestError('Cet étudiant est déjà affecté à un thème');
     }
   }

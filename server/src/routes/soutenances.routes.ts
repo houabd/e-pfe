@@ -32,9 +32,26 @@ const enseignantsDisponiblesSchema = z.object({
   date: z.string().optional(),
   heure: z.string().optional(),
   theme_id: z.string().optional(),
+  soutenance_id: z.string().optional(),
 });
 
 // ⚠️ Static routes must come before dynamic /:id
+
+// Soutenance de l'étudiant connecté
+router.get('/ma-soutenance', async (req, res, next) => {
+  try {
+    const soutenance = await soutenanceService.getMaSoutenance(req.user!.userId);
+    res.json({ success: true, data: soutenance });
+  } catch (err) { next(err); }
+});
+
+// Jurys de l'enseignant connecté
+router.get('/mes-jurys', async (req, res, next) => {
+  try {
+    const jurys = await soutenanceService.getMesSoutenancesJury(req.user!.userId);
+    res.json({ success: true, data: jurys });
+  } catch (err) { next(err); }
+});
 
 const exportFiltersSchema = soutenanceFiltersSchema.pick({
   annee_universitaire: true,

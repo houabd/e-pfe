@@ -89,6 +89,7 @@ export async function getEnseignantsDisponibles(filters: {
   date?: string;
   heure?: string;
   theme_id?: string;
+  soutenance_id?: string;
 }): Promise<EnseignantDispoSoutenance[]> {
   const { data } = await api.get<ApiResponse<EnseignantDispoSoutenance[]>>(
     '/soutenances/enseignants-disponibles',
@@ -119,4 +120,18 @@ export async function exportSoutenancesExcel(
 
 export async function deleteSoutenance(id: string): Promise<void> {
   await api.delete(`/soutenances/${id}`);
+}
+
+export async function getMaSoutenance(): Promise<SoutenanceFull | null> {
+  const { data } = await api.get<ApiResponse<SoutenanceFull | null>>('/soutenances/ma-soutenance');
+  return data.data ?? null;
+}
+
+export interface SoutenanceJury extends SoutenanceFull {
+  role_jury: 'PRESIDENT' | 'EXAMINATEUR';
+}
+
+export async function getMesSoutenancesJury(): Promise<SoutenanceJury[]> {
+  const { data } = await api.get<ApiResponse<SoutenanceJury[]>>('/soutenances/mes-jurys');
+  return data.data ?? [];
 }

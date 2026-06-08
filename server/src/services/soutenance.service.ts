@@ -108,22 +108,40 @@ export async function createSoutenance(dto: CreateSoutenanceDto) {
     include: SOUTENANCE_INCLUDE,
   });
 
-  const dateStr = new Date(dto.date_soutenance).toLocaleDateString('fr-FR');
-  const baseMsg = `Soutenance planifiée le ${dateStr} à ${dto.heure} — Salle ${dto.salle}`;
+  const dateStr = new Date(dto.date_soutenance).toLocaleDateString('fr-FR', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  });
+  const details = `le ${dateStr} à ${dto.heure} — Salle ${dto.salle}`;
+  const titre = soutenance.theme.titre;
 
   // Notifier les étudiants
   if (theme.affectation) {
     for (const ae of theme.affectation.etudiants) {
-      await notifyUser(ae.etudiant_id, 'SOUTENANCE_PLANIFIEE', baseMsg, { soutenance_id: soutenance.id });
+      await notifyUser(
+        ae.etudiant_id,
+        'SOUTENANCE_PLANIFIEE',
+        `Votre soutenance a été planifiée. Thème : "${titre}" — ${details}`,
+        { soutenance_id: soutenance.id },
+      );
+    }
+    // Notifier l'encadrant
+    if (theme.affectation.encadrant?.id) {
+      await notifyUser(
+        theme.affectation.encadrant.id,
+        'SOUTENANCE_PLANIFIEE',
+        `La soutenance de votre étudiant a été planifiée. Thème : "${titre}" — ${details}`,
+        { soutenance_id: soutenance.id },
+      );
     }
   }
 
   // Notifier les membres du jury
   for (const juryMembre of dto.jury) {
+    const roleLabel = juryMembre.role === 'PRESIDENT' ? 'Président du jury' : 'Examinateur';
     await notifyUser(
       juryMembre.enseignant_id,
       'SOUTENANCE_PLANIFIEE',
-      `Vous êtes membre du jury (${juryMembre.role}) — ${baseMsg}`,
+      `Vous êtes ${roleLabel} pour la soutenance : "${titre}" — ${details}`,
       { soutenance_id: soutenance.id },
     );
   }
@@ -137,6 +155,7 @@ export async function updateSoutenance(id: string, dto: Partial<CreateSoutenance
   const soutenance = await prisma.soutenance.findUnique({
     where: { id },
     include: {
+      jury: { select: { enseignant_id: true, role: true } },
       theme: {
         select: {
           encadrant_id: true,
@@ -146,6 +165,9 @@ export async function updateSoutenance(id: string, dto: Partial<CreateSoutenance
     },
   });
   if (!soutenance) throw new NotFoundError('Soutenance');
+
+  // Mémoriser l'ancien jury pour détecter les membres retirés
+  const oldJuryIds = new Set(soutenance.jury.map((j) => j.enseignant_id));
 
   if (dto.jury) {
     const encadrantIds = [
@@ -171,17 +193,51 @@ export async function updateSoutenance(id: string, dto: Partial<CreateSoutenance
     include: SOUTENANCE_INCLUDE,
   });
 
-  const dateStr = new Date(updated.date_soutenance).toLocaleDateString('fr-FR');
-  const msg = `Votre soutenance a été modifiée — ${dateStr} à ${updated.heure}, Salle ${updated.salle} — "${updated.theme.titre}"`;
+  const dateStr = new Date(updated.date_soutenance).toLocaleDateString('fr-FR', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  });
+  const details = `le ${dateStr} à ${updated.heure} — Salle ${updated.salle}`;
+  const titre = updated.theme.titre;
 
   for (const ae of updated.theme.affectation?.etudiants ?? []) {
-    await notifyUser(ae.etudiant_id, 'SOUTENANCE_MODIFIEE', msg, { soutenance_id: id });
+    await notifyUser(
+      ae.etudiant_id,
+      'SOUTENANCE_MODIFIEE',
+      `Votre soutenance a été modifiée. Thème : "${titre}" — ${details}`,
+      { soutenance_id: id },
+    );
   }
   for (const j of updated.jury) {
+    const roleLabel = j.role === 'PRESIDENT' ? 'Président du jury' : 'Examinateur';
     await notifyUser(
       j.enseignant.id,
       'SOUTENANCE_MODIFIEE',
-      `Modification soutenance (rôle : ${j.role}) — ${dateStr} à ${updated.heure}, Salle ${updated.salle}`,
+      `Soutenance modifiée (vous êtes ${roleLabel}). Thème : "${titre}" — ${details}`,
+      { soutenance_id: id },
+    );
+  }
+
+  // Notifier les membres retirés du jury
+  if (jury) {
+    const newJuryIds = new Set(jury.map((j) => j.enseignant_id));
+    const removedIds = [...oldJuryIds].filter((eid) => !newJuryIds.has(eid));
+    for (const eid of removedIds) {
+      await notifyUser(
+        eid,
+        'SOUTENANCE_MODIFIEE',
+        `Vous avez été retiré du jury pour la soutenance du thème "${titre}" (${details}).`,
+        { soutenance_id: id },
+      );
+    }
+  }
+
+  // Notifier l'encadrant du thème
+  const encadrantId = updated.theme.affectation?.encadrant?.id;
+  if (encadrantId) {
+    await notifyUser(
+      encadrantId,
+      'SOUTENANCE_MODIFIEE',
+      `La soutenance de votre étudiant a été modifiée. Thème : "${titre}" — ${details}`,
       { soutenance_id: id },
     );
   }
@@ -211,12 +267,48 @@ export async function deleteSoutenance(id: string): Promise<void> {
   await prisma.soutenance.delete({ where: { id } });
 }
 
+// ─── Ma soutenance (étudiant) ────────────────────────────────────────────────
+
+export async function getMaSoutenance(etudiantId: string) {
+  const ae = await prisma.affectationEtudiant.findFirst({
+    where: { etudiant_id: etudiantId },
+    select: {
+      affectation: {
+        select: {
+          theme: {
+            select: {
+              id: true,
+              soutenance: { include: SOUTENANCE_INCLUDE },
+            },
+          },
+        },
+      },
+    },
+  });
+  return ae?.affectation?.theme?.soutenance ?? null;
+}
+
+// ─── Mes jurys (enseignant) ───────────────────────────────────────────────────
+
+export async function getMesSoutenancesJury(enseignantId: string) {
+  const jurys = await prisma.soutenanceJury.findMany({
+    where: { enseignant_id: enseignantId },
+    select: {
+      role: true,
+      soutenance: { include: SOUTENANCE_INCLUDE },
+    },
+    orderBy: [{ soutenance: { date_soutenance: 'asc' } }, { soutenance: { heure: 'asc' } }],
+  });
+  return jurys.map((j) => ({ ...j.soutenance, role_jury: j.role }));
+}
+
 // ─── Enseignants disponibles pour le jury ─────────────────────────────────────
 
 export async function getEnseignantsDisponibles(filters: {
   date?: string;
   heure?: string;
   theme_id?: string;
+  soutenance_id?: string; // exclure uniquement les conflits des AUTRES soutenances
 }) {
   // Encadrant(s) à exclure du jury
   const excludeIds = new Set<string>();
@@ -232,7 +324,7 @@ export async function getEnseignantsDisponibles(filters: {
     if (theme?.affectation?.encadrant_id) excludeIds.add(theme.affectation.encadrant_id);
   }
 
-  // Enseignants déjà dans un jury à ce créneau
+  // Enseignants déjà dans un jury à ce créneau (sauf la soutenance en cours d'édition)
   const busyIds = new Set<string>();
   if (filters.date && filters.heure) {
     const conflits = await prisma.soutenanceJury.findMany({
@@ -240,6 +332,7 @@ export async function getEnseignantsDisponibles(filters: {
         soutenance: {
           date_soutenance: new Date(filters.date),
           heure: filters.heure,
+          ...(filters.soutenance_id ? { id: { not: filters.soutenance_id } } : {}),
         },
       },
       select: { enseignant_id: true },

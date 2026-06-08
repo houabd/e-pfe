@@ -98,7 +98,7 @@ function OverviewCards({ specialiteId }: { specialiteId: string }) {
                   <Pie data={pieThemes} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={4} dataKey="value">
                     {pieThemes.map((e, i) => <Cell key={i} fill={e.fill} />)}
                   </Pie>
-                  <Tooltip formatter={(v: number) => [v, '']} />
+                  <Tooltip formatter={(v) => [v ?? 0, '']} />
                   <Legend iconType="circle" iconSize={8} />
                 </PieChart>
               </ResponsiveContainer>
@@ -114,7 +114,7 @@ function OverviewCards({ specialiteId }: { specialiteId: string }) {
                   <Pie data={pieEtu} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={4} dataKey="value">
                     {pieEtu.map((e, i) => <Cell key={i} fill={e.fill} />)}
                   </Pie>
-                  <Tooltip formatter={(v: number) => [v, '']} />
+                  <Tooltip formatter={(v) => [v ?? 0, '']} />
                   <Legend iconType="circle" iconSize={8} />
                 </PieChart>
               </ResponsiveContainer>
@@ -253,7 +253,7 @@ function EnseignantsTab({ specialiteId }: { specialiteId: string }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {sorted.map((e: EnseignantStatRow, i) => (
+                  {sorted.map((e: EnseignantStatRow) => (
                     <tr key={e.id} className="border-b last:border-0 hover:bg-muted/30">
                       <td className="px-4 py-2.5">
                         <p className="font-medium">{e.prenom} {e.nom}</p>
@@ -295,7 +295,9 @@ function EtudiantsTab({ specialiteId }: { specialiteId: string }) {
   const avecTheme = allData.filter(e => e.has_theme).length;
   const sansTheme = allData.length - avecTheme;
   const enStartup = allData.filter(e => e.is_startup).length;
+  const avecBinome = allData.filter(e => e.has_binome).length;
   const monomes = allData.filter(e => e.is_monome).length;
+  const avecEncadrant = allData.filter(e => e.has_encadrant).length;
 
   const toggleSort = (col: EtuSort) => {
     if (sort === col) setDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -310,9 +312,14 @@ function EtudiantsTab({ specialiteId }: { specialiteId: string }) {
     return dir === 'asc' ? c : -c;
   });
 
-  const pieData = [
+  const pieAffectation = [
     { name: 'Avec thème', value: avecTheme, fill: C.blue },
     { name: 'Sans thème', value: sansTheme, fill: C.amber },
+  ];
+  const pieBinome = [
+    { name: 'Avec binôme', value: avecBinome, fill: C.teal },
+    { name: 'Monômes', value: monomes, fill: C.orange },
+    { name: 'Équipe Startup', value: enStartup, fill: C.purple },
   ];
 
   function EtudiantStatutBadge({ row }: { row: typeof allData[0] }) {
@@ -329,17 +336,34 @@ function EtudiantsTab({ specialiteId }: { specialiteId: string }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+      {/* Charts */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-1"><CardTitle className="text-sm">Affectation</CardTitle></CardHeader>
           <CardContent>
             {isLoading ? <ChartSkeleton h={180} /> : (
               <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={3} dataKey="value">
-                    {pieData.map((e, i) => <Cell key={i} fill={e.fill} />)}
+                  <Pie data={pieAffectation} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={3} dataKey="value">
+                    {pieAffectation.map((e, i) => <Cell key={i} fill={e.fill} />)}
                   </Pie>
-                  <Tooltip formatter={(v: number) => [v, '']} />
+                  <Tooltip formatter={(v) => [v ?? 0, '']} />
+                  <Legend iconType="circle" iconSize={8} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-1"><CardTitle className="text-sm">Binômes</CardTitle></CardHeader>
+          <CardContent>
+            {isLoading ? <ChartSkeleton h={180} /> : (
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie data={pieBinome} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={3} dataKey="value">
+                    {pieBinome.map((e, i) => <Cell key={i} fill={e.fill} />)}
+                  </Pie>
+                  <Tooltip formatter={(v) => [v ?? 0, '']} />
                   <Legend iconType="circle" iconSize={8} />
                 </PieChart>
               </ResponsiveContainer>
@@ -350,13 +374,13 @@ function EtudiantsTab({ specialiteId }: { specialiteId: string }) {
           <CardHeader className="pb-1"><CardTitle className="text-sm">Résumé</CardTitle></CardHeader>
           <CardContent className="space-y-3 pt-3">
             {[
-              { label: 'Total', value: allData.length, color: 'text-foreground' },
-              { label: 'Affectés', value: avecTheme, color: 'text-blue-600' },
+              { label: 'Total étudiants', value: allData.length, color: 'text-foreground' },
+              { label: 'Avec thème affecté', value: avecTheme, color: 'text-blue-600' },
               { label: 'Sans thème', value: sansTheme, color: 'text-amber-600' },
-              { label: 'Avec binôme', value: allData.filter(e => e.has_binome).length, color: 'text-teal-600' },
+              { label: 'Avec encadrant', value: avecEncadrant, color: 'text-indigo-600' },
+              { label: 'Avec binôme', value: avecBinome, color: 'text-teal-600' },
               { label: 'Monômes', value: monomes, color: 'text-orange-600' },
               { label: 'Équipe Startup', value: enStartup, color: 'text-purple-600' },
-              { label: 'Ont proposé', value: allData.filter(e => e.nb_themes_proposes > 0).length, color: 'text-rose-600' },
             ].map(r => (
               <div key={r.label} className="flex justify-between text-sm">
                 <span className="text-muted-foreground">{r.label}</span>
@@ -412,7 +436,8 @@ function EtudiantsTab({ specialiteId }: { specialiteId: string }) {
                         Étudiant <SortIcon col="nom" />
                       </button>
                     </th>
-                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground hidden md:table-cell">Thème</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground hidden lg:table-cell">Thème affecté</th>
+                    <th className="px-4 py-2.5 text-center font-medium text-muted-foreground hidden md:table-cell">Binôme</th>
                     <th className="px-4 py-2.5 text-right">
                       <button type="button" onClick={() => toggleSort('choix')} className="flex items-center gap-1 ml-auto hover:text-foreground font-medium text-muted-foreground">
                         Choix <SortIcon col="choix" />
@@ -428,8 +453,16 @@ function EtudiantsTab({ specialiteId }: { specialiteId: string }) {
                         <p className="font-medium">{e.prenom} {e.nom}</p>
                         {e.matricule && <p className="text-xs text-muted-foreground font-mono">{e.matricule}</p>}
                       </td>
-                      <td className="px-4 py-2.5 text-xs text-muted-foreground hidden md:table-cell">
-                        <p className="truncate max-w-xs">{e.affectation?.theme?.titre ?? '—'}</p>
+                      <td className="px-4 py-2.5 text-xs text-muted-foreground hidden lg:table-cell max-w-xs">
+                        <p className="truncate">{e.affectation?.theme?.titre ?? '—'}</p>
+                        {e.affectation?.encadrant
+                          ? <p className="text-[11px] truncate text-indigo-600">{e.affectation.encadrant.prenom} {e.affectation.encadrant.nom}</p>
+                          : e.has_theme && <p className="text-[11px] text-muted-foreground italic">Encadrant externe</p>}
+                      </td>
+                      <td className="px-4 py-2.5 text-center hidden md:table-cell">
+                        {e.has_binome
+                          ? <span className="text-xs text-teal-600">{e.binome?.partenaire.prenom} {e.binome?.partenaire.nom}</span>
+                          : <span className="text-xs text-muted-foreground">—</span>}
                       </td>
                       <td className="px-4 py-2.5 text-right"><Badge variant="outline" className="text-xs">{e.nb_choix}</Badge></td>
                       <td className="px-4 py-2.5 text-right">
