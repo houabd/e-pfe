@@ -1100,7 +1100,7 @@ export async function exportThemes(
     res.setHeader('Content-Disposition', `attachment; filename="themes_pfe_${Date.now()}.pdf"`);
     doc.pipe(res);
 
-    doc.fontSize(16).font('Helvetica-Bold').text('Suivi des Thèmes PFE — e-PFE', { align: 'center' });
+    doc.fontSize(16).font('Helvetica-Bold').text('Suivi des Thèmes PFE — e-PFC', { align: 'center' });
     doc.fontSize(10).font('Helvetica').text('Université de Béjaïa — Département Informatique', { align: 'center' });
     doc.fontSize(9).text(`Exporté le ${new Date().toLocaleDateString('fr-FR')} — ${themes.length} thème(s)`, { align: 'center' });
     doc.moveDown(1.5);

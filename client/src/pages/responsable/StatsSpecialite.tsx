@@ -151,11 +151,12 @@ function OverviewCards({ specialiteId }: { specialiteId: string }) {
 // ─── Enseignants ──────────────────────────────────────────────────────────────
 
 type ESort = 'nom' | 'proposes' | 'affectes';
-const CAT_LABELS: Record<string, string> = { SURCHARGE: 'Surchargé', SOUS_CHARGE: 'Sous-chargé', SANS_PROPOSITION: 'Sans proposition', NORMAL: 'Normal' };
+const CAT_LABELS: Record<string, string> = { SURCHARGE: 'Surchargé', SOUS_CHARGE: 'Sous-chargé', SANS_PROPOSITION: 'Sans proposition', AVEC_PROPOSITION: 'Avec proposition', NORMAL: 'Normal' };
 const CAT_COLOR: Record<string, string> = {
   SURCHARGE: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
   SOUS_CHARGE: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
   SANS_PROPOSITION: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+  AVEC_PROPOSITION: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
   NORMAL: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
 };
 

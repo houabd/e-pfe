@@ -228,12 +228,13 @@ type Dir = 'asc' | 'desc';
 
 const CAT_LABELS: Record<string, string> = {
   SURCHARGE: 'Surchargé', SOUS_CHARGE: 'Sous-chargé',
-  SANS_PROPOSITION: 'Sans proposition', NORMAL: 'Normal',
+  SANS_PROPOSITION: 'Sans proposition', AVEC_PROPOSITION: 'Avec proposition', NORMAL: 'Normal',
 };
 const CAT_COLOR: Record<string, string> = {
   SURCHARGE: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
   SOUS_CHARGE: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
   SANS_PROPOSITION: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+  AVEC_PROPOSITION: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
   NORMAL: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
 };
 
@@ -263,6 +264,7 @@ function EnseignantsTab({ specialiteId }: { specialiteId: string }) {
     SURCHARGE: data.filter(e => e.categorie === 'SURCHARGE').length,
     SOUS_CHARGE: data.filter(e => e.categorie === 'SOUS_CHARGE').length,
     SANS_PROPOSITION: data.filter(e => e.categorie === 'SANS_PROPOSITION').length,
+    AVEC_PROPOSITION: data.filter(e => e.categorie === 'AVEC_PROPOSITION').length,
     NORMAL: data.filter(e => e.categorie === 'NORMAL').length,
   };
 
@@ -285,7 +287,7 @@ function EnseignantsTab({ specialiteId }: { specialiteId: string }) {
     <div className="space-y-6">
       {/* Compteurs par catégorie */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {(['SURCHARGE', 'SOUS_CHARGE', 'SANS_PROPOSITION', 'NORMAL'] as const).map(cat => (
+        {(['SURCHARGE', 'SOUS_CHARGE', 'SANS_PROPOSITION', 'AVEC_PROPOSITION', 'NORMAL'] as const).map(cat => (
           <button
             key={cat}
             type="button"
@@ -332,6 +334,7 @@ function EnseignantsTab({ specialiteId }: { specialiteId: string }) {
               <SelectItem value="SURCHARGE">Surchargés</SelectItem>
               <SelectItem value="SOUS_CHARGE">Sous-chargés</SelectItem>
               <SelectItem value="SANS_PROPOSITION">Sans proposition</SelectItem>
+              <SelectItem value="AVEC_PROPOSITION">Avec proposition</SelectItem>
               <SelectItem value="NORMAL">Normal</SelectItem>
             </SelectContent>
           </Select>

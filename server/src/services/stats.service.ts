@@ -142,9 +142,10 @@ export async function getEnseignantsStats(filters: EnseignantFilters) {
     const nb_affectes = affectesIds.size;
 
     const cat =
-      nb_affectes > 2 ? 'SURCHARGE' :
-      nb_proposes === 0 ? 'SANS_PROPOSITION' :
-      nb_affectes < 2 ? 'SOUS_CHARGE' : 'NORMAL';
+      nb_affectes >= 3 ? 'SURCHARGE' :
+      nb_affectes === 2 ? 'NORMAL' :
+      nb_affectes === 1 ? 'SOUS_CHARGE' :
+      nb_proposes > 0 ? 'AVEC_PROPOSITION' : 'SANS_PROPOSITION';
 
     return {
       id: e.id,
@@ -438,6 +439,7 @@ async function buildEnseignantsWorkbook(filters: EnseignantFilters) {
       'Catégorie': e.categorie === 'SURCHARGE' ? 'Surchargé'
         : e.categorie === 'SOUS_CHARGE' ? 'Sous-chargé'
         : e.categorie === 'SANS_PROPOSITION' ? 'Sans proposition'
+        : e.categorie === 'AVEC_PROPOSITION' ? 'Avec proposition'
         : 'Normal',
     })),
   );

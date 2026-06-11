@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   Bell, BookOpen, Check, ChevronDown, Filter,
-  Mail, Users, X, Rocket, UserPlus, GraduationCap, ShieldCheck,
+  Mail, Users, X, Rocket, GraduationCap, ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,9 +16,8 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useDemandesEnseignant, useAcceptChoix, useRefuseChoix } from '@/hooks/useChoix';
-import { useThemes, useUpdateTheme, useThemesAwaitingConfirmation, useConfirmEncadrant, useRefuseEncadrant } from '@/hooks/useThemes';
+import { useThemesAwaitingConfirmation, useConfirmEncadrant, useRefuseEncadrant } from '@/hooks/useThemes';
 import { useActiveSpecialites } from '@/hooks/useSpecialites';
-import { useCurrentUser } from '@/stores/authStore';
 import type { DemandeEnseignant } from '@/services/choix.api';
 import type { Theme } from '@/types';
 
@@ -328,185 +327,6 @@ function ThemeGroup({
   );
 }
 
-// ─── Dialog détail — Tab 2 ────────────────────────────────────────────────────
-
-function ThemeEncadrantDialog({
-  theme,
-  onClose,
-}: {
-  theme: Theme;
-  onClose: () => void;
-}) {
-  const user = useCurrentUser();
-  const updateTheme = useUpdateTheme();
-
-  async function handleClaimEncadrant() {
-    if (!user) return;
-    await updateTheme.mutateAsync({
-      id: theme.id,
-      dto: { encadrant_id: user.id, besoin_encadrant: false },
-    });
-    onClose();
-  }
-
-  const SOUS_TYPE_LABEL: Record<string, string> = {
-    RECHERCHE: 'Recherche',
-    PROFESSIONNEL: 'Professionnel',
-    LES_DEUX: 'Recherche & Professionnel',
-  };
-
-  return (
-    <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="leading-snug text-base">{theme.titre}</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-5 py-1">
-          {/* Badges */}
-          <div className="flex flex-wrap gap-2">
-            <TypeBadge type={theme.type_pfe} />
-            {theme.sous_types.map((st) => (
-              <Badge key={st} variant="outline" className="text-xs">
-                {SOUS_TYPE_LABEL[st] ?? st}
-              </Badge>
-            ))}
-            {theme.necessite_stage && (
-              <Badge variant="outline" className="text-xs border-amber-300 text-amber-700">
-                Stage requis
-              </Badge>
-            )}
-          </div>
-
-          {/* Proposant */}
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Proposé par
-            </p>
-            <EtudiantInfo etudiant={theme.propose_par} />
-          </div>
-
-          <Separator />
-
-          {/* Description */}
-          <div className="space-y-1.5">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Description
-            </p>
-            <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
-              {theme.description}
-            </p>
-          </div>
-
-          {/* Spécialités */}
-          {theme.theme_specialites.length > 0 && (
-            <div className="space-y-1.5">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                Spécialités ciblées
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {theme.theme_specialites.map(({ specialite }) => (
-                  <Badge key={specialite.id} variant="secondary" className="text-xs">
-                    {specialite.nom}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Mots-clés */}
-          {theme.mots_cles.length > 0 && (
-            <div className="space-y-1.5">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                Mots-clés
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {theme.mots_cles.map((mc) => (
-                  <span key={mc} className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
-                    #{mc}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onClose}>Fermer</Button>
-          <Button
-            className="gap-2"
-            disabled={updateTheme.isPending}
-            onClick={handleClaimEncadrant}
-          >
-            <UserPlus className="h-4 w-4" />
-            Me positionner comme encadrant
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ─── Carte thème cherchant encadrant — Tab 2 ─────────────────────────────────
-
-function ThemeEncadrantCard({
-  theme,
-  onOpenDetail,
-}: {
-  theme: Theme;
-  onOpenDetail: (t: Theme) => void;
-}) {
-  return (
-    <Card className="hover:shadow-md transition-shadow">
-      <CardContent className="p-4 space-y-3">
-        <div className="flex items-start gap-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold line-clamp-2">{theme.titre}</p>
-            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{theme.description}</p>
-          </div>
-          <TypeBadge type={theme.type_pfe} />
-        </div>
-
-        {/* Proposant */}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <GraduationCap className="h-3.5 w-3.5 shrink-0" />
-          <span>
-            <strong className="text-foreground">{theme.propose_par.prenom} {theme.propose_par.nom}</strong>
-            {' — '}
-            <a href={`mailto:${theme.propose_par.email}`} className="text-blue-600 hover:underline">
-              {theme.propose_par.email}
-            </a>
-          </span>
-        </div>
-
-        {/* Spécialités */}
-        {theme.theme_specialites.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {theme.theme_specialites.map(({ specialite }) => (
-              <Badge key={specialite.id} variant="outline" className="text-xs">
-                {specialite.nom}
-              </Badge>
-            ))}
-          </div>
-        )}
-
-        {/* Mots-clés */}
-        {theme.mots_cles.length > 0 && (
-          <p className="text-xs text-muted-foreground">
-            {theme.mots_cles.slice(0, 5).map((mc) => `#${mc}`).join(' ')}
-          </p>
-        )}
-
-        <div className="flex justify-end pt-1">
-          <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => onOpenDetail(theme)}>
-            Voir le détail
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 // ─── Dialog confirmation encadrant — Tab 3 ───────────────────────────────────
 
 function ConfirmEncadrantDialog({
@@ -721,9 +541,7 @@ function ThemeConfirmationCard({
 
 export default function DemandesEnAttente() {
   const [specialiteTab1, setSpecialiteTab1] = useState<string | null>(null);
-  const [specialiteTab2, setSpecialiteTab2] = useState<string | null>(null);
   const [detailDemande, setDetailDemande] = useState<DemandeEnseignant | null>(null);
-  const [detailTheme, setDetailTheme] = useState<Theme | null>(null);
   const [detailConfirmation, setDetailConfirmation] = useState<Theme | null>(null);
 
   // ── Tab 1 data ─────────────────────────────────────────────────────────────
@@ -761,20 +579,9 @@ export default function DemandesEnAttente() {
   }, [grouped, specialiteTab1]);
 
   // ── Tab 2 data ─────────────────────────────────────────────────────────────
-  const { data: themesResponse, isLoading: loadingThemes } = useThemes({
-    besoin_encadrant: true,
-    is_affecte: false,
-    specialite_id: specialiteTab2 ?? undefined,
-    limit: 50,
-  });
-
-  const themesCherchandEncadrant: Theme[] = (themesResponse?.data ?? []) as Theme[];
-
-  // ── Tab 3 data ─────────────────────────────────────────────────────────────
   const { data: themesAConfirmer = [], isLoading: loadingConfirmation } = useThemesAwaitingConfirmation();
 
   const totalDemandes = demandes.length;
-  const totalThemes = themesCherchandEncadrant.length;
   const totalConfirmation = themesAConfirmer.length;
 
   return (
@@ -786,7 +593,7 @@ export default function DemandesEnAttente() {
           Demandes en attente
         </h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Gérez les demandes de vos thèmes et les propositions cherchant un encadrant.
+          Gérez les demandes d'attribution de vos thèmes et les confirmations d'encadrement.
         </p>
       </div>
 
@@ -799,15 +606,6 @@ export default function DemandesEnAttente() {
             {totalDemandes > 0 && (
               <Badge className="bg-rose-500 text-white text-xs px-1.5 py-0 h-5 hover:bg-rose-500">
                 {totalDemandes}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="encadrant" className="gap-2">
-            <UserPlus className="h-4 w-4" />
-            Cherchent un encadrant
-            {totalThemes > 0 && (
-              <Badge variant="secondary" className="text-xs px-1.5 py-0 h-5">
-                {totalThemes}
               </Badge>
             )}
           </TabsTrigger>
@@ -859,42 +657,7 @@ export default function DemandesEnAttente() {
           )}
         </TabsContent>
 
-        {/* ── TAB 2 : Thèmes cherchant encadrant ─── */}
-        <TabsContent value="encadrant" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              {themesCherchandEncadrant.length} thème{themesCherchandEncadrant.length !== 1 ? 's' : ''} sans encadrant
-            </p>
-            <SpecialiteFilterBtn value={specialiteTab2} onChange={setSpecialiteTab2} />
-          </div>
-
-          {loadingThemes ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-44 rounded-xl" />)}
-            </div>
-          ) : themesCherchandEncadrant.length === 0 ? (
-            <div className="rounded-xl border border-dashed py-16 text-center">
-              <BookOpen className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="font-medium">Aucun thème ne cherche d'encadrant</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                {specialiteTab2
-                  ? 'Aucun résultat pour cette spécialité.'
-                  : 'Tous les thèmes ont un encadrant assigné.'}
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {themesCherchandEncadrant.map((theme) => (
-                <ThemeEncadrantCard
-                  key={theme.id}
-                  theme={theme}
-                  onOpenDetail={setDetailTheme}
-                />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-        {/* ── TAB 3 : Thèmes à confirmer ─── */}
+        {/* ── TAB 2 : Thèmes à confirmer ─── */}
         <TabsContent value="confirmation" className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
@@ -933,12 +696,6 @@ export default function DemandesEnAttente() {
         <ChoixDetailDialog
           demande={detailDemande}
           onClose={() => setDetailDemande(null)}
-        />
-      )}
-      {detailTheme && (
-        <ThemeEncadrantDialog
-          theme={detailTheme}
-          onClose={() => setDetailTheme(null)}
         />
       )}
       {detailConfirmation && (

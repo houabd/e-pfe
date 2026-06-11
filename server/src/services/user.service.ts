@@ -369,7 +369,7 @@ export async function exportUsers(
     res.setHeader('Content-Disposition', `attachment; filename="utilisateurs_${Date.now()}.pdf"`);
     doc.pipe(res);
 
-    doc.fontSize(16).font('Helvetica-Bold').text('Liste des Utilisateurs — e-PFE', { align: 'center' });
+    doc.fontSize(16).font('Helvetica-Bold').text('Liste des Utilisateurs — e-PFC', { align: 'center' });
     doc.fontSize(10).font('Helvetica').text(`Université de Béjaïa — Département Informatique`, { align: 'center' });
     doc.fontSize(9).text(`Exporté le ${new Date().toLocaleDateString('fr-FR')} — ${users.length} utilisateur(s)`, { align: 'center' });
     doc.moveDown(1.5);

@@ -1,10 +1,18 @@
 import { api } from './api';
 import type { GlobalStats, ApiResponse } from '@/types';
-import type { EnseignantStats } from './affectations.api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type EnseignantCategorie = 'SURCHARGE' | 'SOUS_CHARGE' | 'SANS_PROPOSITION' | 'NORMAL';
+export type EnseignantCategorie = 'SURCHARGE' | 'SOUS_CHARGE' | 'SANS_PROPOSITION' | 'AVEC_PROPOSITION' | 'NORMAL';
+
+export interface EnseignantStats {
+  totalThemes: number;
+  themesAffectes: number;
+  themesNonAffectes: number;
+  themesValides: number;
+  demandesEnAttente: number;
+  etudiantsEncadres: number;
+}
 
 export interface EnseignantStatRow {
   id: string;

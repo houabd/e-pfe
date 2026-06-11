@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="RAG anti-hallucination — e-PFE", lifespan=lifespan)
+app = FastAPI(title="RAG anti-hallucination — e-PFC", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

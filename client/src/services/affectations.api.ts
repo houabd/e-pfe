@@ -46,6 +46,7 @@ export interface EtudiantSansTheme {
   matricule?: string | null;
   specialite: { id: string; nom: string } | null;
   binome: { id: string; partenaire: { id: string; nom: string; prenom: string } } | null;
+  themes_valides: ThemeDispo[];
 }
 
 export interface AutoSuggestion {

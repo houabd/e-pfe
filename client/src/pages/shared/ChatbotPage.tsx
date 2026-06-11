@@ -174,7 +174,7 @@ export default function ChatbotPage() {
             <Sparkles className="size-5" />
           </div>
           <div>
-            <h1 className="font-bold text-lg leading-tight">Assistant IA e-PFE</h1>
+            <h1 className="font-bold text-lg leading-tight">Assistant IA e-PFC</h1>
             <p className="text-xs text-muted-foreground">Université de Béjaïa · Informatique</p>
           </div>
         </div>

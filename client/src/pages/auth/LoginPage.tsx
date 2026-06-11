@@ -51,14 +51,14 @@ export default function LoginPage() {
         <Link to="/" className="mb-3 block w-16 h-16 mx-auto">
           <img
             src="/logo.png"
-            alt="e-PFE"
+            alt="e-PFC"
             width={64}
             height={64}
             style={{ width: '100%', height: '100%', objectFit: 'contain' }}
             className="hover:opacity-80 transition-opacity"
           />
         </Link>
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">e-PFE</p>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">e-PFC</p>
         <CardTitle className="text-xl">Connexion</CardTitle>
       </CardHeader>
       <CardContent className="px-8 pb-8 pt-4">

@@ -73,6 +73,27 @@ interface AffectationDialogProps {
   allEtudiants: EtudiantSansTheme[];
 }
 
+function ThemeOption({ t, selected, onSelect }: { t: import('@/services/affectations.api').ThemeDispo; selected: boolean; onSelect: (t: import('@/services/affectations.api').ThemeDispo) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(t)}
+      className={`w-full flex items-start gap-3 rounded-md border px-3 py-2.5 text-left transition-colors ${selected ? 'border-primary/40 bg-primary/5' : 'hover:bg-muted'}`}
+    >
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate">{t.titre}</p>
+        <div className="mt-1 flex flex-wrap gap-1">
+          <Badge variant={t.type_pfe === 'STARTUP' ? 'default' : 'secondary'} className="text-xs">{t.type_pfe}</Badge>
+          {t.theme_specialites.map((ts) => (
+            <Badge key={ts.specialite.id} variant="outline" className="text-xs">{ts.specialite.nom}</Badge>
+          ))}
+        </div>
+      </div>
+      {selected && <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />}
+    </button>
+  );
+}
+
 function AffectationDialog({
   open, onClose, preselectedEnseignant, preselectedEtudiant,
   allEnseignants, allEtudiants,
@@ -250,36 +271,46 @@ function AffectationDialog({
                   </button>
                 )}
               </div>
-              {selectedEnseignant.themes_encadres.length === 0 ? (
-                <div className="flex items-center gap-2 rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                  Cet enseignant n'a aucun thème validé disponible. Créez-en un via «&nbsp;Gestion des thèmes&nbsp;».
-                </div>
-              ) : (
-                <div className="space-y-1.5">
-                  {selectedEnseignant.themes_encadres.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setSelectedTheme(t)}
-                      className={`w-full flex items-start gap-3 rounded-md border px-3 py-2.5 text-left transition-colors ${selectedTheme?.id === t.id ? 'border-primary/40 bg-primary/5' : 'hover:bg-muted'}`}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{t.titre}</p>
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          <Badge variant={t.type_pfe === 'STARTUP' ? 'default' : 'secondary'} className="text-xs">
-                            {t.type_pfe}
-                          </Badge>
-                          {t.theme_specialites.map((ts) => (
-                            <Badge key={ts.specialite.id} variant="outline" className="text-xs">{ts.specialite.nom}</Badge>
-                          ))}
-                        </div>
-                      </div>
-                      {selectedTheme?.id === t.id && <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />}
-                    </button>
-                  ))}
-                </div>
-              )}
+              {(() => {
+                const seenIds = new Set<string>();
+                const encadrantThemes = selectedEnseignant.themes_encadres.filter((t) => {
+                  if (seenIds.has(t.id)) return false;
+                  seenIds.add(t.id);
+                  return true;
+                });
+                const studentThemes = selectedEtudiants.flatMap((e) =>
+                  (e.themes_valides ?? []).filter((t) => {
+                    if (seenIds.has(t.id)) return false;
+                    seenIds.add(t.id);
+                    return true;
+                  }),
+                );
+                const allThemes = [...encadrantThemes, ...studentThemes];
+
+                if (allThemes.length === 0) return (
+                  <div className="flex items-center gap-2 rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    Aucun thème validé disponible. Le thème sera défini ultérieurement par l'enseignant.
+                  </div>
+                );
+
+                return (
+                  <div className="space-y-1.5">
+                    {encadrantThemes.length > 0 && studentThemes.length > 0 && (
+                      <p className="text-xs text-muted-foreground px-1">Thèmes de l'enseignant</p>
+                    )}
+                    {encadrantThemes.map((t) => (
+                      <ThemeOption key={t.id} t={t} selected={selectedTheme?.id === t.id} onSelect={setSelectedTheme} />
+                    ))}
+                    {studentThemes.length > 0 && (
+                      <p className="text-xs text-muted-foreground px-1 pt-1">Thèmes proposés par l'étudiant</p>
+                    )}
+                    {studentThemes.map((t) => (
+                      <ThemeOption key={t.id} t={t} selected={selectedTheme?.id === t.id} onSelect={setSelectedTheme} />
+                    ))}
+                  </div>
+                );
+              })()}
             </section>
           )}
 
@@ -442,7 +473,7 @@ function VueDisponibilites({
 
                 <div className="flex items-center justify-between">
                   <div className="flex flex-wrap gap-1">
-                    {ens.sans_proposition && (
+                    {ens.sans_proposition && ens.themes_encadres.length === 0 && (
                       <Badge variant="outline" className="text-[11px] text-amber-600 border-amber-300">Sans thème proposé</Badge>
                     )}
                     {ens.themes_encadres.length > 0 && (
@@ -718,24 +749,36 @@ function SemiAutomatique() {
       </div>
 
       {!result && (
-        <div className="flex justify-center py-4">
-          <Button
-            size="lg"
-            onClick={() => { void preview.mutate(); }}
-            disabled={preview.isPending}
-          >
-            {preview.isPending ? (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                Analyse en cours…
-              </>
-            ) : (
-              <>
-                <Zap className="mr-2 h-4 w-4" />
-                Générer les suggestions
-              </>
-            )}
-          </Button>
+        <div className="space-y-4">
+          {preview.isError && (
+            <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>
+                Impossible de générer des suggestions
+                <span className="font-medium"> (Session fermée)</span>
+                {' '}— les affectations ne sont autorisées que pendant la session d'affectation.
+              </span>
+            </div>
+          )}
+          <div className="flex justify-center py-2">
+            <Button
+              size="lg"
+              onClick={() => { void preview.mutate(); }}
+              disabled={preview.isPending}
+            >
+              {preview.isPending ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Analyse en cours…
+                </>
+              ) : (
+                <>
+                  <Zap className="mr-2 h-4 w-4" />
+                  Générer les suggestions
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       )}
 

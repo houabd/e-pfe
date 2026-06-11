@@ -42,7 +42,7 @@ _CONVERSATIONAL_SYSTEM = (
     "le système LMD et les Projets de Fin d'Études (PFE) à l'Université de Béjaïa. "
     "Réponds aux salutations et messages simples de façon naturelle et chaleureuse. "
     "Rappelle brièvement que tu peux aider sur les questions relatives au PFE, au système LMD, "
-    "aux soutenances, aux thèmes et à la plateforme e-PFE. "
+    "aux soutenances, aux thèmes et à la plateforme e-PFC. "
     "Réponds dans la même langue que la question. Sois concis."
 )
 

@@ -81,20 +81,18 @@ export async function createSoutenance(dto: CreateSoutenanceDto) {
   if (theme.soutenance) throw new ConflictError('Une soutenance est déjà planifiée pour ce thème');
   if (!theme.is_affecte) throw new BadRequestError("Le thème n'est pas encore affecté");
 
-  // L'encadrant (thème OU affectation) ne peut pas être dans le jury
-  const encadrantIds = [
-    theme.encadrant_id,
-    theme.affectation?.encadrant_id,
-  ].filter(Boolean) as string[];
-
-  const encadrantInJury = dto.jury.some((j) => encadrantIds.includes(j.enseignant_id));
-  if (encadrantInJury) {
-    throw new BadRequestError("L'encadrant du thème ne peut pas être membre du jury");
-  }
-
   if (dto.jury.length > 4) {
     throw new BadRequestError('Le jury ne peut pas dépasser 4 membres');
   }
+
+  const salleOccupee = await prisma.soutenance.findFirst({
+    where: {
+      salle: dto.salle,
+      date_soutenance: dto.date_soutenance,
+      heure: dto.heure,
+    },
+  });
+  if (salleOccupee) throw new ConflictError(`La salle "${dto.salle}" est déjà occupée à ce créneau`);
 
   const soutenance = await prisma.soutenance.create({
     data: {
@@ -169,18 +167,20 @@ export async function updateSoutenance(id: string, dto: Partial<CreateSoutenance
   // Mémoriser l'ancien jury pour détecter les membres retirés
   const oldJuryIds = new Set(soutenance.jury.map((j) => j.enseignant_id));
 
-  if (dto.jury) {
-    const encadrantIds = [
-      soutenance.theme.encadrant_id,
-      soutenance.theme.affectation?.encadrant_id,
-    ].filter(Boolean) as string[];
+  if (dto.jury && dto.jury.length > 4) {
+    throw new BadRequestError('Le jury ne peut pas dépasser 4 membres');
+  }
 
-    if (dto.jury.some((j) => encadrantIds.includes(j.enseignant_id))) {
-      throw new BadRequestError("L'encadrant du thème ne peut pas être membre du jury");
-    }
-    if (dto.jury.length > 4) {
-      throw new BadRequestError('Le jury ne peut pas dépasser 4 membres');
-    }
+  if (dto.salle || dto.date_soutenance || dto.heure) {
+    const salleOccupee = await prisma.soutenance.findFirst({
+      where: {
+        salle: dto.salle ?? soutenance.salle,
+        date_soutenance: dto.date_soutenance ?? soutenance.date_soutenance,
+        heure: dto.heure ?? soutenance.heure,
+        id: { not: id },
+      },
+    });
+    if (salleOccupee) throw new ConflictError(`La salle "${dto.salle ?? soutenance.salle}" est déjà occupée à ce créneau`);
   }
 
   const { jury, ...rest } = dto;
@@ -310,20 +310,6 @@ export async function getEnseignantsDisponibles(filters: {
   theme_id?: string;
   soutenance_id?: string; // exclure uniquement les conflits des AUTRES soutenances
 }) {
-  // Encadrant(s) à exclure du jury
-  const excludeIds = new Set<string>();
-  if (filters.theme_id) {
-    const theme = await prisma.theme.findUnique({
-      where: { id: filters.theme_id },
-      select: {
-        encadrant_id: true,
-        affectation: { select: { encadrant_id: true } },
-      },
-    });
-    if (theme?.encadrant_id) excludeIds.add(theme.encadrant_id);
-    if (theme?.affectation?.encadrant_id) excludeIds.add(theme.affectation.encadrant_id);
-  }
-
   // Enseignants déjà dans un jury à ce créneau (sauf la soutenance en cours d'édition)
   const busyIds = new Set<string>();
   if (filters.date && filters.heure) {
@@ -340,7 +326,7 @@ export async function getEnseignantsDisponibles(filters: {
     conflits.forEach((c) => busyIds.add(c.enseignant_id));
   }
 
-  const notIn = [...excludeIds, ...busyIds];
+  const notIn = [...busyIds];
 
   return prisma.user.findMany({
     where: {

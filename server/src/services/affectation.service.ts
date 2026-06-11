@@ -199,6 +199,11 @@ export async function getMesEtudiants(enseignantId: string) {
 // ─── Enseignants disponibles ─────────────────────────────────────────────────
 
 export async function getEnseignantsDisponibles(filters: { specialite_id?: string }) {
+  const THEME_DISPO_SELECT = {
+    id: true, titre: true, type_pfe: true,
+    theme_specialites: { include: { specialite: { select: { id: true, nom: true } } } },
+  } as const;
+
   const enseignants = await prisma.user.findMany({
     where: {
       role: { in: ['ENSEIGNANT', 'CHEF_EQUIPE', 'CHEF_DEPT', 'RESP_SPECIALITE'] as import('@prisma/client').Role[] },
@@ -208,13 +213,21 @@ export async function getEnseignantsDisponibles(filters: { specialite_id?: strin
     select: {
       id: true, nom: true, prenom: true, email: true,
       specialite: { select: { id: true, nom: true } },
-      _count: { select: { themes_proposes: true } },
-      themes_encadres: {
-        where: { is_affecte: false, statut_validation: 'VALIDE' },
+      // Compter uniquement les thèmes VALIDE proposés (pas les NON_VALIDE)
+      _count: {
         select: {
-          id: true, titre: true, type_pfe: true,
-          theme_specialites: { include: { specialite: { select: { id: true, nom: true } } } },
+          themes_proposes: { where: { statut_validation: 'VALIDE' } },
         },
+      },
+      // Thèmes où l'enseignant est encadrant_id : disponibles et confirmation acceptée
+      themes_encadres: {
+        where: { is_affecte: false, statut_validation: 'VALIDE', encadrant_valide: true },
+        select: THEME_DISPO_SELECT,
+      },
+      // Thèmes que l'enseignant a proposés mais où encadrant_id est null ou différent
+      themes_proposes: {
+        where: { is_affecte: false, statut_validation: 'VALIDE', encadrant_id: null },
+        select: THEME_DISPO_SELECT,
       },
       affectations_encadrant: { select: { id: true } },
     },
@@ -222,11 +235,21 @@ export async function getEnseignantsDisponibles(filters: { specialite_id?: strin
   });
 
   return enseignants
-    .map(({ _count, affectations_encadrant, ...e }) => {
+    .map(({ _count, affectations_encadrant, themes_encadres, themes_proposes, ...e }) => {
       const nb_affectations = affectations_encadrant.length;
+
+      // Fusionner les deux listes sans doublon (un thème peut apparaître dans les deux)
+      const seenIds = new Set<string>();
+      const themesDispos = [...themes_encadres, ...themes_proposes].filter((t) => {
+        if (seenIds.has(t.id)) return false;
+        seenIds.add(t.id);
+        return true;
+      });
+
       return {
         ...e,
         nb_affectations,
+        themes_encadres: themesDispos,
         sans_proposition: _count.themes_proposes === 0,
       };
     })
@@ -265,15 +288,23 @@ export async function getEtudiantsSansTheme(filters: { specialite_id?: string })
         select: { id: true, etud1: { select: { id: true, nom: true, prenom: true } } },
         take: 1,
       },
+      themes_proposes: {
+        where: { besoin_encadrant: true, statut_validation: 'VALIDE', is_affecte: false, encadrant_id: null },
+        select: {
+          id: true, titre: true, type_pfe: true,
+          theme_specialites: { include: { specialite: { select: { id: true, nom: true } } } },
+        },
+      },
     },
     orderBy: [{ specialite: { nom: 'asc' } }, { nom: 'asc' }],
   });
 
-  const mapped = etudiants.map(({ binomes_comme_etud1, binomes_comme_etud2, ...e }) => {
+  const mapped = etudiants.map(({ binomes_comme_etud1, binomes_comme_etud2, themes_proposes, ...e }) => {
     const b1 = binomes_comme_etud1[0];
     const b2 = binomes_comme_etud2[0];
     return {
       ...e,
+      themes_valides: themes_proposes,
       binome: b1
         ? { id: b1.id, partenaire: b1.etud2 }
         : b2
@@ -420,10 +451,10 @@ export async function createAffectation(
   }
 
   const session = await prisma.session.findFirst({
-    where: { is_active: true },
+    where: { is_active: true, type: 'AFFECTATION' },
     orderBy: { date_debut: 'desc' },
   });
-  if (!session) throw new BadRequestError('Aucune session active');
+  if (!session) throw new BadRequestError("Les affectations ne sont autorisées que pendant la session d'affectation");
 
   const affectation = await prisma.$transaction(async (tx) => {
     const a = await tx.affectation.create({
@@ -578,6 +609,12 @@ async function fetchThemesDisponibles() {
 }
 
 export async function affectationAutomatique() {
+  const session = await prisma.session.findFirst({
+    where: { is_active: true, type: 'AFFECTATION' },
+    orderBy: { date_debut: 'desc' },
+  });
+  if (!session) throw new BadRequestError("Les affectations ne sont autorisées que pendant la session d'affectation");
+
   const [themesRaw, etudiants] = await Promise.all([
     fetchThemesDisponibles(),
     prisma.user.findMany({
@@ -721,6 +758,12 @@ export async function confirmerAffectationsAuto(
   dto: ConfirmerAutoDto,
   affectePar: string,
 ) {
+  const session = await prisma.session.findFirst({
+    where: { is_active: true, type: 'AFFECTATION' },
+    orderBy: { date_debut: 'desc' },
+  });
+  if (!session) throw new BadRequestError("Les affectations ne sont autorisées que pendant la session d'affectation");
+
   const results: string[] = [];
   const errors: { theme_id: string; message: string }[] = [];
 
@@ -774,10 +817,10 @@ export async function createStartupAffectation(
   }
 
   const session = await prisma.session.findFirst({
-    where: { is_active: true },
+    where: { is_active: true, type: 'AFFECTATION' },
     orderBy: { date_debut: 'desc' },
   });
-  if (!session) throw new BadRequestError('Aucune session active');
+  if (!session) throw new BadRequestError("Les affectations ne sont autorisées que pendant la session d'affectation");
 
   const affectation = await prisma.$transaction(async (tx) => {
     const a = await tx.affectation.create({

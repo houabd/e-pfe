@@ -132,18 +132,18 @@ export default function DashboardLayout() {
         <div className="flex items-center justify-between h-16 px-3 border-b border-sidebar-border">
           {!collapsed && (
             <Link to="/" className="flex items-center gap-2.5 select-none">
-              <img src="/logo/logo1.png" alt="e-PFE" className="h-16 w-auto object-contain shrink-0" />
+              <img src="/logo/logo1.png" alt="e-PFC" className="h-16 w-auto object-contain shrink-0" />
               <span
                 className="font-bold text-lg tracking-tight text-foreground"
                 style={{ fontFamily: "'Libre Baskerville', Georgia, serif" }}
               >
-                e-PFE
+                e-PFC
               </span>
             </Link>
           )}
           {collapsed && (
             <Link to="/" className="mx-auto" title="Accueil">
-              <img src="/logo/logo1.png" alt="e-PFE" className="h-10 w-auto object-contain" />
+              <img src="/logo/logo1.png" alt="e-PFC" className="h-10 w-auto object-contain" />
             </Link>
           )}
           {!collapsed && (

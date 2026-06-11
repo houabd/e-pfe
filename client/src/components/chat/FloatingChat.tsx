@@ -132,7 +132,7 @@ export default function FloatingChat() {
             <ChatbotLogo size={28} />
           </div>
           <p className="flex-1 text-xs font-semibold text-white truncate" style={{ fontFamily: "'Libre Baskerville', Georgia, serif" }}>
-            Assistant IA e-PFE
+            Assistant IA e-PFC
           </p>
           <Button variant="ghost" size="icon" className="size-6 shrink-0 text-white/70 hover:text-white hover:bg-white/15" onClick={handleClose}>
             <X className="size-3" />

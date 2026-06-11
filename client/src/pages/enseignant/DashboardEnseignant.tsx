@@ -114,7 +114,7 @@ export default function DashboardEnseignant() {
           Bonjour, {user?.prenom} {user?.nom}
         </h1>
         <p className="text-muted-foreground mt-1">
-          Voici un aperçu de votre activité sur e-PFE.
+          Voici un aperçu de votre activité sur e-PFC.
         </p>
       </div>
 

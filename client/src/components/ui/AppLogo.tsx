@@ -7,7 +7,7 @@ export function AppLogo({ size = 36, className }: AppLogoProps) {
   return (
     <img
       src="/logo.png"
-      alt="e-PFE"
+      alt="e-PFC"
       width={size}
       height={size}
       style={{

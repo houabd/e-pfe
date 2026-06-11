@@ -96,12 +96,12 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* e-PFE logo */}
+            {/* e-PFC logo */}
             <div className="flex flex-col items-center gap-2">
               <div className="size-28 sm:size-36 flex items-center justify-center">
                 <img
                   src="/logo/logo1.png"
-                  alt="e-PFE"
+                  alt="e-PFC"
                   width={140}
                   height={140}
                   style={{
@@ -245,7 +245,7 @@ export default function HomePage() {
           <div className="size-6 overflow-hidden" style={{ borderRadius: '3px' }}>
             <AppLogo size={24} />
           </div>
-          <span className="font-semibold text-foreground" style={{ fontFamily: "'Libre Baskerville', Georgia, serif" }}>e-PFE</span>
+          <span className="font-semibold text-foreground" style={{ fontFamily: "'Libre Baskerville', Georgia, serif" }}>e-PFC</span>
         </div>
         <span>© {new Date().getFullYear()} Université de Béjaïa — Département Informatique</span>
       </footer>

@@ -1,17 +1,17 @@
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: epfe_postgres
+    container_name: epfc_postgres
     environment:
-      POSTGRES_USER: epfe_user
-      POSTGRES_PASSWORD: epfe_pass
-      POSTGRES_DB: epfe_db
+      POSTGRES_USER: epfc_user
+      POSTGRES_PASSWORD: epfc_pass
+      POSTGRES_DB: epfc_db
     ports:
       - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U epfe_user -d epfe_db']
+      test: ['CMD-SHELL', 'pg_isready -U epfc_user -d epfc_db']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -19,7 +19,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: epfe_redis
+    container_name: epfc_redis
     ports:
       - '6379:6379'
     volumes:
@@ -35,12 +35,12 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.server
-    container_name: epfe_server
+    container_name: epfc_server
     ports:
       - '3001:3001'
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://epfe_user:epfe_pass@postgres:5432/epfe_db
+      DATABASE_URL: postgresql://epfc_user:epfc_pass@postgres:5432/epfc_db
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
@@ -59,7 +59,7 @@ services:
 
   chatbot:
     build: ./chatbot
-    container_name: epfe_chatbot
+    container_name: epfc_chatbot
     ports:
       - '8000:8000'
     depends_on:
@@ -71,7 +71,7 @@ services:
 
   ollama:
     image: ollama/ollama
-    container_name: epfe_ollama
+    container_name: epfc_ollama
     ports:
       - '11434:11434'
     volumes:

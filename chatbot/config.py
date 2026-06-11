@@ -30,7 +30,7 @@ def _load_env(path: Path) -> None:
 _load_env(BASE_DIR / ".env")
 
 CHROMA_DIR      = str(BASE_DIR / "chroma_db")
-COLLECTION_NAME = "epfe_docs"
+COLLECTION_NAME = "epfc_docs"
 
 EMBED_MODEL    = "paraphrase-multilingual-mpnet-base-v2"
 RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
