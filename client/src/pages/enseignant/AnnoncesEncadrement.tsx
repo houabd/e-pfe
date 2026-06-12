@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+﻿import { useState, useMemo } from 'react';
 import { useAnnoncesEncadrement, usePostulerEncadrant } from '@/hooks/useThemes';
 import { useActiveSpecialites } from '@/hooks/useSpecialites';
 import type { AnnonceTheme } from '@/services/themes.api';
@@ -97,7 +97,7 @@ function AnnonceCard({
           <Badge variant="outline" className="text-xs">
             {annonce.type_pfe === 'CLASSIQUE' ? 'Classique' : 'Startup'}
           </Badge>
-          <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100">
+          <Badge className="text-xs bg-[#e8e8e8] text-amber-700 border-[#e8e8e8] hover:bg-[#e8e8e8]">
             Cherche encadrant
           </Badge>
         </div>

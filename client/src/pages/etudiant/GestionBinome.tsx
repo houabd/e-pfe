@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import {
   Users, Search, UserCheck, Clock, X, Check,
   Mail, BookOpen, Send, ChevronDown, Filter, Info,
@@ -57,7 +57,7 @@ function BinomeActif() {
   const partner = user?.id === binome.etud1.id ? binome.etud2 : binome.etud1;
 
   return (
-    <Card className="border-emerald-200 bg-emerald-50">
+    <Card className="border-[#e8e8e8] bg-[#f7f7f7]">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-emerald-700 text-base">
           <UserCheck className="h-4 w-4" />
@@ -67,7 +67,7 @@ function BinomeActif() {
       </CardHeader>
       <CardContent>
         <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-xl font-bold">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#e8e8e8] text-emerald-700 text-xl font-bold">
             <Initiales nom={partner.nom} prenom={partner.prenom} />
           </div>
           <div className="min-w-0">
@@ -102,9 +102,9 @@ function DemandesRecues() {
   if (demandes.length === 0) return null;
 
   return (
-    <Card className="border-blue-200">
+    <Card className="border-[#e8e8e8]">
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-blue-700 text-base">
+        <CardTitle className="flex items-center gap-2 text-[#1a1a1a] text-base">
           <Clock className="h-4 w-4" />
           Demandes reçues
           <Badge variant="secondary" className="ml-1 text-xs">{demandes.length}</Badge>
@@ -114,9 +114,9 @@ function DemandesRecues() {
         {demandes.map((d) => (
           <div
             key={d.id}
-            className="flex items-center gap-3 rounded-lg border border-blue-100 bg-blue-50/60 p-3"
+            className="flex items-center gap-3 rounded-lg border border-[#e8e8e8] bg-[#f7f7f7]/60 p-3"
           >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-semibold text-sm">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#e8e8e8] text-[#1a1a1a] font-semibold text-sm">
               <Initiales nom={d.etud1.nom} prenom={d.etud1.prenom} />
             </div>
             <div className="min-w-0 flex-1">
@@ -166,7 +166,7 @@ function DemandesEnvoyees() {
   if (demandes.length === 0) return null;
 
   return (
-    <Card className="border-amber-200">
+    <Card className="border-[#e8e8e8]">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-amber-700 text-base">
           <Send className="h-4 w-4" />
@@ -178,9 +178,9 @@ function DemandesEnvoyees() {
         {demandes.map((d) => (
           <div
             key={d.id}
-            className="flex items-center gap-3 rounded-lg border border-amber-100 bg-amber-50/60 p-3"
+            className="flex items-center gap-3 rounded-lg border border-[#e8e8e8] bg-[#f7f7f7]/60 p-3"
           >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700 font-semibold text-sm">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e8e8e8] text-amber-700 font-semibold text-sm">
               <Initiales nom={d.etud2.nom} prenom={d.etud2.prenom} />
             </div>
             <div className="min-w-0 flex-1">
@@ -297,7 +297,7 @@ function EtudiantCard({ etudiant }: { etudiant: EtudiantRecherche }) {
         );
       }
       return (
-        <Badge variant="outline" className="border-blue-300 text-blue-700 text-xs shrink-0">
+        <Badge variant="outline" className="border-[#e8e8e8] text-[#1a1a1a] text-xs shrink-0">
           Demande reçue
         </Badge>
       );
@@ -507,7 +507,7 @@ export default function GestionBinome() {
         <>
           {/* Binôme co-affecté par l'administration */}
           {isCoAffecte && (affectation?.coequipiers ?? []).length > 0 && (
-            <Card className="border-emerald-200 bg-emerald-50">
+            <Card className="border-[#e8e8e8] bg-[#f7f7f7]">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-emerald-700 text-base">
                   <UserCheck className="h-4 w-4" />
@@ -518,7 +518,7 @@ export default function GestionBinome() {
               <CardContent className="space-y-3">
                 {(affectation?.coequipiers ?? []).map((partner) => (
                   <div key={partner.id} className="flex items-center gap-4">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-xl font-bold">
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#e8e8e8] text-emerald-700 text-xl font-bold">
                       {partner.prenom[0]}{partner.nom[0]}
                     </div>
                     <div className="min-w-0">
@@ -538,7 +538,7 @@ export default function GestionBinome() {
                     </div>
                   </div>
                 ))}
-                <p className="text-xs text-emerald-600 border-t border-emerald-200 pt-2 mt-2">
+                <p className="text-xs text-emerald-600 border-t border-[#e8e8e8] pt-2 mt-2">
                   Ce binôme a été constitué par l'administration lors de l'affectation.
                 </p>
               </CardContent>

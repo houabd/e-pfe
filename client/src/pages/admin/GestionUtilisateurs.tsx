@@ -359,7 +359,7 @@ function UserFicheDialog({
             <Button
               type="button"
               variant="outline"
-              className="border-amber-200 text-amber-700 hover:bg-amber-50 hover:border-amber-300"
+              className="border-[#e8e8e8] text-amber-700 hover:bg-[#f7f7f7] hover:border-amber-300"
               onClick={() => { onClose(); onResetPassword(user); }}
             >
               <KeyRound className="size-4 mr-2" />

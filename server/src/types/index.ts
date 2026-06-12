@@ -87,6 +87,7 @@ export interface EncadrantExterne {
 export interface ThemeFilters extends PaginationQuery {
   specialite_id?: string;
   etudiant_specialite_id?: string;
+  etudiant_id?: string;
   type_pfe?: ThemeType;
   statut_validation?: StatutValidation;
   is_affecte?: boolean;
@@ -95,6 +96,7 @@ export interface ThemeFilters extends PaginationQuery {
   enseignant_id?: string;
   annee_universitaire?: string;
   search?: string;
+  include_open_startup?: boolean;
 }
 
 // ─── Choix ──────────────────────────────────────────────────────────────────

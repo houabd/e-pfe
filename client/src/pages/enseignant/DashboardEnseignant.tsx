@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, CheckCircle, Clock, Users, Bell, ArrowRight, Rocket, AlertCircle, Info, GraduationCap, MapPin } from 'lucide-react';
 import { ThemeDetailDialog } from '@/components/themes/ThemeDetailDialog';
@@ -66,21 +66,21 @@ export default function DashboardEnseignant() {
       label: 'Thèmes proposés',
       value: stats?.totalThemes ?? 0,
       icon: BookOpen,
-      color: 'bg-blue-500',
+      color: 'bg-[#009474]',
       href: '/enseignant/themes',
     },
     {
       label: 'Thèmes validés',
       value: stats?.themesValides ?? 0,
       icon: CheckCircle,
-      color: 'bg-emerald-500',
+      color: 'bg-[#f7f7f7]0',
       href: '/enseignant/themes',
     },
     {
       label: 'Non affectés',
       value: stats?.themesNonAffectes ?? 0,
       icon: Clock,
-      color: 'bg-amber-500',
+      color: 'bg-[#f7f7f7]0',
       href: '/enseignant/themes',
     },
     {
@@ -120,7 +120,7 @@ export default function DashboardEnseignant() {
 
       {/* Alerte demandes en attente */}
       {!isLoading && (stats?.demandesEnAttente ?? 0) > 0 && (
-        <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+        <div className="flex items-center justify-between rounded-xl border border-[#e8e8e8] bg-[#f7f7f7] px-5 py-4">
           <div className="flex items-center gap-3">
             <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
             <p className="text-sm font-medium text-amber-800">
@@ -130,7 +130,7 @@ export default function DashboardEnseignant() {
           <Button
             size="sm"
             variant="outline"
-            className="border-amber-300 text-amber-700 hover:bg-amber-100 gap-1.5"
+            className="border-amber-300 text-amber-700 hover:bg-[#e8e8e8] gap-1.5"
             onClick={() => navigate('/enseignant/demandes')}
           >
             Voir <ArrowRight className="h-3.5 w-3.5" />

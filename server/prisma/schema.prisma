@@ -98,6 +98,7 @@ enum TypeNotification {
   SOUTENANCE_MODIFIEE
   SOUTENANCE_ANNULEE
   THEME_SOUTENU
+  CHOIX_ANNULE
 }
 
 // ─── Models ────────────────────────────────────────────────────────────────
@@ -178,6 +179,7 @@ model Theme {
   description        String
   mots_cles          String[]
   necessite_stage        Boolean          @default(false)
+  entreprise_stage       String?
   type_pfe               ThemeType
   sous_types             SousTypeTheme[]
   propose_par_id         String

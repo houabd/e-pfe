@@ -1,11 +1,11 @@
-import { useState } from 'react';
+﻿import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, Controller, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
-  ArrowLeft, BookOpen, Rocket, Tag, X, ChevronDown,
-  HelpCircle, Users, UserSearch, UserCheck, Briefcase, Megaphone, Lock,
+  ArrowLeft, BookOpen, Rocket, Tag, X,
+  HelpCircle, Users, UserSearch, UserCheck, Briefcase, Megaphone, Lock, Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,9 +14,6 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
 import { useCreateTheme } from '@/hooks/useThemes';
 import { useCurrentUser } from '@/stores/authStore';
 import { useActiveSpecialites } from '@/hooks/useSpecialites';
@@ -24,7 +21,10 @@ import { useUsers } from '@/hooks/useUsers';
 import { useActiveSession } from '@/hooks/useSession';
 import { useMonAffectation } from '@/hooks/useAffectations';
 import { useMonBinome } from '@/hooks/useBinomes';
+import { useMesChoix } from '@/hooks/useChoix';
 import { CheckCircle2 } from 'lucide-react';
+import { toast } from 'sonner';
+import type { FieldErrors } from 'react-hook-form';
 import type { SousTypeTheme, CreateThemeForm } from '@/types';
 
 // ─── Schéma ───────────────────────────────────────────────────────────────────
@@ -34,6 +34,7 @@ const schema = z.object({
   description: z.string().min(20, 'Description trop courte (min 20 caractères)'),
   mots_cles: z.array(z.string()).default([]),
   necessite_stage: z.boolean().default(false),
+  entreprise_stage: z.string().max(200).optional(),
   type_pfe: z.enum(['CLASSIQUE', 'STARTUP']),
   sous_types: z.array(z.enum(['RECHERCHE', 'PROFESSIONNEL', 'LES_DEUX'])).default([]),
   specialite_ids: z.array(z.string()).min(1, 'Sélectionnez au moins une spécialité'),
@@ -88,11 +89,39 @@ export default function ProposerTheme() {
   const { data: specialites } = useActiveSpecialites();
   const { data: enseignantsData } = useUsers({ is_teacher: true, limit: 200 });
   const enseignants = enseignantsData?.data ?? [];
+  const { data: mesChoixData } = useMesChoix();
+  const activeChoixCount = (mesChoixData?.choix ?? []).filter((c) => c.statut !== 'REFUSED').length;
+  const hasMaxChoixPending = activeChoixCount >= 3;
   const createTheme = useCreateTheme();
   const isAffecte = !!monAffectation;
 
   const [motCleInput, setMotCleInput] = useState('');
   const [showExterne, setShowExterne] = useState(false);
+  const [encadrementError, setEncadrementError] = useState<string | null>(null);
+  const [encadrantSearch, setEncadrantSearch] = useState('');
+  const [showEncadrantList, setShowEncadrantList] = useState(false);
+  const encadrantRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (encadrantRef.current && !encadrantRef.current.contains(e.target as Node)) {
+        setShowEncadrantList(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredEnseignants = useMemo(() => {
+    const q = encadrantSearch.trim().toLowerCase();
+    const list = q
+      ? enseignants.filter((e) =>
+          `${e.prenom} ${e.nom}`.toLowerCase().includes(q) ||
+          (e.email ?? '').toLowerCase().includes(q),
+        )
+      : enseignants;
+    return list.slice(0, 8);
+  }, [enseignants, encadrantSearch]);
 
   const {
     register, handleSubmit, control, watch, setValue,
@@ -100,7 +129,7 @@ export default function ProposerTheme() {
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as Resolver<FormValues>,
     defaultValues: {
-      titre: '', description: '', mots_cles: [], necessite_stage: false,
+      titre: '', description: '', mots_cles: [], necessite_stage: false, entreprise_stage: '',
       type_pfe: 'CLASSIQUE', sous_types: [],
       specialite_ids: mySpecialiteId ? [mySpecialiteId] : [],
       besoin_encadrant: false, cherche_binome: false,
@@ -143,7 +172,31 @@ export default function ProposerTheme() {
         : [...sousTypes, st],
     );
 
+  function scrollToFirstError() {
+    setTimeout(() => {
+      const el =
+        document.querySelector<HTMLElement>('[aria-invalid="true"]') ??
+        document.querySelector<HTMLElement>('p.text-destructive');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
+  }
+
+  const onValidationError = (_errs: FieldErrors<FormValues>) => {
+    toast.error('Certains champs obligatoires ne sont pas remplis.');
+    scrollToFirstError();
+  };
+
   const onSubmit = async (values: FormValues) => {
+    if (!values.besoin_encadrant) {
+      const hasInterne = !!values.encadrant_id;
+      const hasExterne = showExterne && !!encadrantExterne?.nom?.trim() && !!encadrantExterne?.email?.trim();
+      if (!hasInterne && !hasExterne) {
+        setEncadrementError('Veuillez saisir au moins un encadrant (interne ou externe).');
+        scrollToFirstError();
+        return;
+      }
+    }
+    setEncadrementError(null);
     const dto: CreateThemeForm = {
       ...values,
       encadrant_id: values.besoin_encadrant ? undefined : values.encadrant_id,
@@ -175,7 +228,7 @@ export default function ProposerTheme() {
 
       {/* Bannière affecté */}
       {isAffecte && (
-        <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+        <div className="flex items-start gap-3 rounded-xl border border-[#e8e8e8] bg-[#f7f7f7] px-4 py-4">
           <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
           <div>
             <p className="font-semibold text-emerald-800">Vous avez déjà un thème affecté</p>
@@ -188,12 +241,25 @@ export default function ProposerTheme() {
 
       {/* Bannière hors session */}
       {!isAffecte && !isSessionActive && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="rounded-xl border border-[#e8e8e8] bg-[#f7f7f7] px-4 py-3 text-sm text-amber-800">
           Aucune session de choix ouverte. La soumission de thèmes est temporairement désactivée.
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+      {/* Bannière 3 choix en attente — bloque la proposition */}
+      {!isAffecte && isSessionActive && hasMaxChoixPending && (
+        <div className="flex items-start gap-3 rounded-xl border border-[#e8e8e8] bg-[#f7f7f7] px-4 py-4">
+          <Clock className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-amber-800">Vous avez 3 choix en attente</p>
+            <p className="text-sm text-amber-700 mt-0.5">
+              La proposition de thèmes est désactivée tant qu'un enseignant n'a pas répondu à l'un de vos choix.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit(onSubmit, onValidationError)} className="space-y-8">
 
         {/* ── Type de PFE ── */}
         <Section title="Type de PFE">
@@ -205,15 +271,15 @@ export default function ProposerTheme() {
                 {([
                   {
                     val: 'CLASSIQUE' as const,
-                    icon: <BookOpen className="h-6 w-6 text-blue-500" />,
+                    icon: <BookOpen className="h-6 w-6 text-[#009474]" />,
                     title: 'Classique',
-                    desc: 'Projet de recherche ou professionnel, encadré par un enseignant interne.',
+                    desc: 'Projet de recherche ou professionnel.',
                   },
                   {
                     val: 'STARTUP' as const,
                     icon: <Rocket className="h-6 w-6 text-orange-500" />,
                     title: 'Startup',
-                    desc: "Projet entrepreneurial, jusqu'à 6 étudiants, souvent avec un encadrant externe.",
+                    desc: "Projet entrepreneurial, jusqu'à 6 étudiants.",
                   },
                 ] as const).map(({ val, icon, title, desc }) => (
                   <button
@@ -227,7 +293,7 @@ export default function ProposerTheme() {
                       field.value === val
                         ? val === 'STARTUP'
                           ? 'border-orange-400 bg-orange-50'
-                          : 'border-blue-400 bg-blue-50'
+                          : 'border-[#c2c2c2] bg-[#f7f7f7]'
                         : 'border-border hover:border-muted-foreground/30 hover:bg-muted/30'
                     }`}
                   >
@@ -258,7 +324,7 @@ export default function ProposerTheme() {
                     onClick={() => toggleSousType(val)}
                     className={`rounded-lg border px-4 py-2 text-sm font-medium transition-all ${
                       sousTypes.includes(val)
-                        ? 'border-blue-400 bg-blue-50 text-blue-700'
+                        ? 'border-[#c2c2c2] bg-[#f7f7f7] text-[#1a1a1a]'
                         : 'border-border hover:border-muted-foreground/40'
                     }`}
                   >
@@ -286,6 +352,7 @@ export default function ProposerTheme() {
             </Label>
             <Input
               id="titre"
+              aria-invalid={!!errors.titre}
               {...register('titre')}
               placeholder="Ex : Application de gestion des stocks avec IA prédictive"
             />
@@ -299,6 +366,7 @@ export default function ProposerTheme() {
             <Textarea
               id="description"
               rows={5}
+              aria-invalid={!!errors.description}
               {...register('description')}
               placeholder="Décrivez la problématique, les objectifs, les technologies et méthodes envisagées..."
             />
@@ -389,7 +457,7 @@ export default function ProposerTheme() {
               onClick={() => setValue('besoin_encadrant', false)}
               className={`flex items-start gap-3 rounded-xl border-2 p-4 text-left transition-all ${
                 !besoinEncadrant
-                  ? 'border-emerald-400 bg-emerald-50'
+                  ? 'border-emerald-400 bg-[#f7f7f7]'
                   : 'border-border hover:border-muted-foreground/30 hover:bg-muted/30'
               }`}
             >
@@ -401,7 +469,7 @@ export default function ProposerTheme() {
               <div>
                 <div className="font-semibold text-sm">J'ai déjà un encadrant</div>
                 <div className="text-xs text-muted-foreground mt-0.5">
-                  Sélectionnez l'enseignant qui supervise votre projet
+                  Interne, externe, ou les deux
                 </div>
               </div>
             </button>
@@ -410,128 +478,175 @@ export default function ProposerTheme() {
               onClick={() => {
                 setValue('besoin_encadrant', true);
                 setValue('encadrant_id', undefined);
+                setEncadrementError(null);
               }}
               className={`flex items-start gap-3 rounded-xl border-2 p-4 text-left transition-all ${
                 besoinEncadrant
-                  ? 'border-blue-400 bg-blue-50'
+                  ? 'border-[#c2c2c2] bg-[#f7f7f7]'
                   : 'border-border hover:border-muted-foreground/30 hover:bg-muted/30'
               }`}
             >
               <UserSearch
                 className={`h-5 w-5 mt-0.5 shrink-0 ${
-                  besoinEncadrant ? 'text-blue-600' : 'text-muted-foreground'
+                  besoinEncadrant ? 'text-[#1a1a1a]' : 'text-muted-foreground'
                 }`}
               />
               <div>
                 <div className="font-semibold text-sm">Je recherche un encadrant</div>
                 <div className="text-xs text-muted-foreground mt-0.5">
-                  Le responsable de filière en assignera un
+                  il sera publié dans les annonces visibles aux enseignants
                 </div>
               </div>
             </button>
           </div>
 
-          {/* Encadrant interne (si pas besoin_encadrant) */}
-          {!besoinEncadrant ? (
-            <div className="space-y-1.5">
-              <Label>Encadrant interne (optionnel)</Label>
-              <Controller
-                name="encadrant_id"
-                control={control}
-                render={({ field }) => (
-                  <Select
-                    value={field.value ?? '__none__'}
-                    onValueChange={(v) => field.onChange(v === '__none__' ? undefined : v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner un enseignant..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">Aucun pour l'instant</SelectItem>
-                      {enseignants.map((e) => (
-                        <SelectItem key={e.id} value={e.id}>
-                          {e.prenom} {e.nom}
-                        </SelectItem>
+          {/* Erreur encadrement */}
+          {!besoinEncadrant && encadrementError && (
+            <p className="text-xs text-destructive flex items-center gap-1.5">
+              <span>⚠</span> {encadrementError}
+            </p>
+          )}
+
+          {/* Encadrant interne (si j'ai déjà un encadrant) */}
+          {!besoinEncadrant && (
+            <div className="space-y-4">
+              <div className="space-y-1.5" ref={encadrantRef}>
+                <Label>Encadrant interne <span className="font-normal text-muted-foreground">(optionnel)</span></Label>
+                <Controller
+                  name="encadrant_id"
+                  control={control}
+                  render={({ field }) => {
+                    const selected = enseignants.find((e) => e.id === field.value);
+                    return (
+                      <div className="relative">
+                        <div className="relative">
+                          <Input
+                            value={selected ? `${selected.prenom} ${selected.nom}` : encadrantSearch}
+                            onChange={(e) => {
+                              setEncadrantSearch(e.target.value);
+                              setShowEncadrantList(true);
+                              if (field.value) field.onChange(undefined);
+                            }}
+                            onFocus={() => setShowEncadrantList(true)}
+                            placeholder="Rechercher un enseignant par nom…"
+                            className="pr-8"
+                          />
+                          {field.value && (
+                            <button
+                              type="button"
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                              onClick={() => { field.onChange(undefined); setEncadrantSearch(''); }}
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                        {showEncadrantList && !field.value && (
+                          <div className="absolute z-50 mt-1 w-full bg-background border rounded-lg shadow-lg max-h-52 overflow-y-auto">
+                            <button
+                              type="button"
+                              className="w-full text-left px-3 py-2 text-sm text-muted-foreground hover:bg-muted border-b"
+                              onClick={() => { field.onChange(undefined); setShowEncadrantList(false); setEncadrantSearch(''); }}
+                            >
+                              Aucun pour l'instant
+                            </button>
+                            {filteredEnseignants.length === 0 ? (
+                              <p className="px-3 py-3 text-sm text-muted-foreground text-center">Aucun résultat</p>
+                            ) : (
+                              filteredEnseignants.map((e) => (
+                                <button
+                                  key={e.id}
+                                  type="button"
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                                  onClick={() => { field.onChange(e.id); setShowEncadrantList(false); setEncadrantSearch(''); setEncadrementError(null); }}
+                                >
+                                  <UserCheck className="h-4 w-4 text-muted-foreground shrink-0" />
+                                  <span className="font-medium">{e.prenom} {e.nom}</span>
+                                  <span className="text-xs text-muted-foreground ml-auto truncate max-w-[160px]">{e.email}</span>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }}
+                />
+                <Hint>Laissez vide si vous n'avez pas encore obtenu l'accord de l'enseignant.</Hint>
+              </div>
+
+              {/* Encadrant externe (collapsible) */}
+              <div className="rounded-xl border">
+                <button
+                  type="button"
+                  onClick={() => setShowExterne(!showExterne)}
+                  className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium hover:bg-muted/40 transition-colors rounded-xl"
+                >
+                  <span className="flex items-center gap-2">
+                    <Briefcase className="h-4 w-4 text-muted-foreground" />
+                    {showExterne ? 'Encadrant externe' : 'Ajouter un encadrant externe (entreprise / autre université)'}
+                  </span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full transition-colors ${showExterne ? 'bg-emerald-100 text-emerald-700' : 'bg-muted text-muted-foreground'}`}>
+                    {showExterne ? 'Renseigné' : 'Optionnel'}
+                  </span>
+                </button>
+
+                {showExterne && (
+                  <div className="px-4 pb-4 border-t pt-4 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      {([
+                        ['nom', 'Nom', ''],
+                        ['prenom', 'Prénom', ''],
+                        ['email', 'Email professionnel', 'contact@entreprise.com'],
+                        ['institution', 'Établissement / Entreprise', 'Ex : Sonatrach, USTHB...'],
+                      ] as const).map(([f, label, placeholder]) => (
+                        <div key={f} className="space-y-1">
+                          <Label className="text-sm">{label} <span className="text-destructive">*</span></Label>
+                          <Input
+                            {...register(`encadrant_externe.${f}`)}
+                            placeholder={placeholder}
+                          />
+                          {errors.encadrant_externe?.[f] && (
+                            <p className="text-xs text-destructive">
+                              {errors.encadrant_externe[f]?.message}
+                            </p>
+                          )}
+                        </div>
                       ))}
-                    </SelectContent>
-                  </Select>
+                    </div>
+
+                    {typePfe === 'STARTUP' && hasEncadrantExterne && (
+                      <div className="rounded-lg bg-orange-50 border border-orange-200 px-4 py-3 text-sm text-orange-800 flex items-start gap-2">
+                        <Rocket className="h-4 w-4 mt-0.5 shrink-0 text-orange-500" />
+                        <span>
+                          Pour un thème STARTUP avec encadrant externe, votre thème sera automatiquement{' '}
+                          <strong>marqué comme affecté</strong> une fois soumis.
+                        </span>
+                      </div>
+                    )}
+
+                    {typePfe === 'STARTUP' && hasEncadrantExterne && hasBinomeActif && (
+                      <div className="rounded-lg bg-purple-50 border border-purple-200 px-4 py-3 text-sm text-purple-800 flex items-start gap-2">
+                        <Users className="h-4 w-4 mt-0.5 shrink-0 text-purple-500" />
+                        <span>
+                          Vous avez un binôme actif — votre partenaire sera automatiquement{' '}
+                          <strong>ajouté(e) à votre équipe STARTUP</strong> lors de la soumission.
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 )}
-              />
-              <Hint>
-                Laissez vide si vous n'avez pas encore obtenu l'accord de l'enseignant.
-              </Hint>
+              </div>
             </div>
-          ) : (
-            <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          )}
+
+          {/* Message quand besoin_encadrant */}
+          {besoinEncadrant && (
+            <div className="rounded-xl border border-[#e8e8e8] bg-[#f7f7f7] px-4 py-3 text-sm text-[#1a1a1a]">
               Une fois votre thème validé par le responsable de filière, il sera publié dans les annonces
               visibles aux enseignants. Un enseignant intéressé pourra alors postuler pour vous encadrer.
             </div>
           )}
-
-          {/* Encadrant externe (collapsible) */}
-          <div className="rounded-xl border">
-            <button
-              type="button"
-              onClick={() => setShowExterne(!showExterne)}
-              className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium hover:bg-muted/40 transition-colors rounded-xl"
-            >
-              <span className="flex items-center gap-2">
-                <Briefcase className="h-4 w-4 text-muted-foreground" />
-                Ajouter un encadrant externe (entreprise / autre université)
-              </span>
-              <ChevronDown
-                className={`h-4 w-4 text-muted-foreground transition-transform ${showExterne ? 'rotate-180' : ''}`}
-              />
-            </button>
-
-            {showExterne && (
-              <div className="px-4 pb-4 border-t pt-4 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  {([
-                    ['nom', 'Nom', ''],
-                    ['prenom', 'Prénom', ''],
-                    ['email', 'Email professionnel', 'contact@entreprise.com'],
-                    ['institution', 'Établissement / Entreprise', 'Ex : Sonatrach, USTHB...'],
-                  ] as const).map(([field, label, placeholder]) => (
-                    <div key={field} className="space-y-1">
-                      <Label className="text-sm">{label}</Label>
-                      <Input
-                        {...register(`encadrant_externe.${field}`)}
-                        placeholder={placeholder}
-                      />
-                      {errors.encadrant_externe?.[field] && (
-                        <p className="text-xs text-destructive">
-                          {errors.encadrant_externe[field]?.message}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Auto-affecté info (STARTUP + encadrant externe rempli) */}
-                {typePfe === 'STARTUP' && hasEncadrantExterne && (
-                  <div className="rounded-lg bg-orange-50 border border-orange-200 px-4 py-3 text-sm text-orange-800 flex items-start gap-2">
-                    <Rocket className="h-4 w-4 mt-0.5 shrink-0 text-orange-500" />
-                    <span>
-                      Pour un thème STARTUP avec encadrant externe, votre thème sera automatiquement{' '}
-                      <strong>marqué comme affecté</strong> une fois soumis.
-                    </span>
-                  </div>
-                )}
-
-                {/* Binôme auto-ajouté (STARTUP + encadrant externe + binôme actif) */}
-                {typePfe === 'STARTUP' && hasEncadrantExterne && hasBinomeActif && (
-                  <div className="rounded-lg bg-purple-50 border border-purple-200 px-4 py-3 text-sm text-purple-800 flex items-start gap-2">
-                    <Users className="h-4 w-4 mt-0.5 shrink-0 text-purple-500" />
-                    <span>
-                      Vous avez un binôme actif — votre partenaire sera automatiquement{' '}
-                      <strong>ajouté(e) à votre équipe STARTUP</strong> lors de la soumission.
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
         </Section>
 
         <Separator />
@@ -540,30 +655,50 @@ export default function ProposerTheme() {
         <Section title="Options">
           <div className="space-y-4">
             {/* Stage */}
-            <div className="flex items-start gap-3 rounded-xl border p-4">
-              <Controller
-                name="necessite_stage"
-                control={control}
-                render={({ field: f }) => (
-                  <Checkbox
-                    id="necessite_stage"
-                    checked={f.value}
-                    onCheckedChange={f.onChange}
-                    className="mt-0.5"
-                  />
-                )}
-              />
-              <div>
-                <Label htmlFor="necessite_stage" className="cursor-pointer flex items-center gap-2">
-                  <Briefcase className="h-4 w-4 text-amber-500" />
-                  Nécessite un stage en entreprise
-                </Label>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Le projet se déroule en partie dans une entreprise. Vous devez trouver un stage pour
-                  réaliser ce PFE.
-                </p>
+            <div className={`border transition-all ${watch('necessite_stage') ? 'rounded-t-xl rounded-b-none border-b-0' : 'rounded-xl'}`}>
+              <div className="flex items-start gap-3 p-4">
+                <Controller
+                  name="necessite_stage"
+                  control={control}
+                  render={({ field: f }) => (
+                    <Checkbox
+                      id="necessite_stage"
+                      checked={f.value}
+                      onCheckedChange={(v) => {
+                        f.onChange(v);
+                        if (!v) setValue('entreprise_stage', '');
+                      }}
+                      className="mt-0.5"
+                    />
+                  )}
+                />
+                <div>
+                  <Label htmlFor="necessite_stage" className="cursor-pointer flex items-center gap-2">
+                    <Briefcase className="h-4 w-4 text-amber-500" />
+                    J'ai un stage en entreprise
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Cochez si vous avez déjà obtenu un stage pour réaliser ce PFE.
+                  </p>
+                </div>
               </div>
             </div>
+            {watch('necessite_stage') && (
+              <div className="rounded-b-xl border border-t-0 bg-amber-50/50 px-4 pb-4 pt-3">
+                <Label htmlFor="entreprise_stage" className="text-xs font-medium text-amber-700">
+                  Nom de l'entreprise <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="entreprise_stage"
+                  {...register('entreprise_stage')}
+                  placeholder="Ex : Sonatrach, Djezzy, Cevital…"
+                  className="mt-1.5 bg-white"
+                />
+                {errors.entreprise_stage && (
+                  <p className="text-xs text-red-500 mt-1">{errors.entreprise_stage.message}</p>
+                )}
+              </div>
+            )}
 
             {/* Cherche binôme / membre + message conditionnel */}
             <div>
@@ -630,7 +765,7 @@ export default function ProposerTheme() {
                     className={
                       typePfe === 'STARTUP'
                         ? 'bg-orange-100 text-orange-700 border-orange-200'
-                        : 'bg-blue-100 text-blue-700 border-blue-200'
+                        : 'bg-[#e8e8e8] text-[#1a1a1a] border-[#e8e8e8]'
                     }
                   >
                     {typePfe}
@@ -647,8 +782,12 @@ export default function ProposerTheme() {
                 </div>
                 {watch('titre') && <p className="font-medium">{watch('titre')}</p>}
                 <div className="flex gap-3 text-xs text-muted-foreground flex-wrap">
-                  {besoinEncadrant && <span className="text-blue-600">● Cherche encadrant</span>}
-                  {watch('necessite_stage') && <span className="text-amber-600">● Stage requis</span>}
+                  {besoinEncadrant && <span className="text-[#1a1a1a]">● Cherche encadrant</span>}
+                  {watch('necessite_stage') && (
+                    <span className="text-amber-600">
+                      ● Stage : {watch('entreprise_stage') || 'entreprise non précisée'}
+                    </span>
+                  )}
                   {chercheBinome && (
                     <span className="text-purple-600">
                       {typePfe === 'STARTUP' ? '● Cherche des membres' : '● Ouvert pour binôme'}
@@ -674,7 +813,7 @@ export default function ProposerTheme() {
           </Button>
           <Button
             type="submit"
-            disabled={isSubmitting || !isSessionActive || isAffecte}
+            disabled={isSubmitting || !isSessionActive || isAffecte || hasMaxChoixPending}
             size="lg"
             className="px-8"
           >

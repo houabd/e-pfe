@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useForm, Controller, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, Search, Pencil, Trash2, CheckCircle, Clock,
-  BookOpen, Rocket, Tag, Mail, X, ChevronDown, Eye, MessageSquarePlus, UserCheck,
+  BookOpen, Rocket, Tag, Mail, X, ChevronDown, Eye, MessageSquarePlus, UserCheck, UserPlus,
 } from 'lucide-react';
 import { ThemeDetailDialog } from '@/components/themes/ThemeDetailDialog';
 import { Button } from '@/components/ui/button';
@@ -28,7 +28,9 @@ import {
   useDemanderModification, useConfirmCoEncadrant, useRefuseCoEncadrant,
   useThemesAwaitingCoEncadrant,
 } from '@/hooks/useThemes';
+import { useAddMembreFromTheme } from '@/hooks/useAffectations';
 import { useActiveSpecialites } from '@/hooks/useSpecialites';
+import { useUsers } from '@/hooks/useUsers';
 import { useCurrentUser } from '@/stores/authStore';
 import { api } from '@/services/api';
 import type { Theme, SousTypeTheme, CreateThemeForm, User } from '@/types';
@@ -70,14 +72,14 @@ function StatutBadge({ theme }: { theme: Theme }) {
   if (theme.is_affecte)
     return <Badge className="bg-purple-100 text-purple-700 border-purple-200">Affecté</Badge>;
   if (theme.statut_validation === 'VALIDE')
-    return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">Validé</Badge>;
+    return <Badge className="bg-[#e8e8e8] text-emerald-700 border-[#e8e8e8]">Validé</Badge>;
   return <Badge variant="outline" className="text-amber-600 border-amber-300">En attente</Badge>;
 }
 
 function TypeBadge({ type }: { type: string }) {
   return type === 'STARTUP'
     ? <Badge className="bg-orange-100 text-orange-700 border-orange-200 gap-1"><Rocket className="h-3 w-3" />Startup</Badge>
-    : <Badge className="bg-blue-100 text-blue-700 border-blue-200 gap-1"><BookOpen className="h-3 w-3" />Classique</Badge>;
+    : <Badge className="bg-[#e8e8e8] text-[#1a1a1a] border-[#e8e8e8] gap-1"><BookOpen className="h-3 w-3" />Classique</Badge>;
 }
 
 // ─── Formulaire ───────────────────────────────────────────────────────────────
@@ -175,12 +177,12 @@ function ThemeFormDialog({
         </DialogHeader>
 
         {editingTheme?.modification_autorisee && (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          <div className="rounded-lg border border-[#e8e8e8] bg-[#f7f7f7] px-4 py-3 text-sm text-emerald-800">
             Modification autorisée par l'administration. Cette autorisation sera consommée à la sauvegarde.
           </div>
         )}
         {isBlocked && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <div className="rounded-lg border border-[#e8e8e8] bg-[#f7f7f7] px-4 py-3 text-sm text-amber-800">
             Ce thème est verrouillé. Soumettez une demande de modification pour obtenir l'autorisation.
           </div>
         )}
@@ -200,13 +202,13 @@ function ThemeFormDialog({
                       onClick={() => { field.onChange(t); if (t === 'STARTUP') setValue('sous_types', []); }}
                       className={`flex items-center gap-3 rounded-xl border-2 p-4 text-left transition-all ${
                         field.value === t
-                          ? t === 'STARTUP' ? 'border-orange-400 bg-orange-50' : 'border-blue-400 bg-blue-50'
+                          ? t === 'STARTUP' ? 'border-orange-400 bg-orange-50' : 'border-[#c2c2c2] bg-[#f7f7f7]'
                           : 'border-border hover:border-muted-foreground/40'
                       }`}
                     >
                       {t === 'STARTUP'
                         ? <Rocket className="h-5 w-5 text-orange-500 shrink-0" />
-                        : <BookOpen className="h-5 w-5 text-blue-500 shrink-0" />}
+                        : <BookOpen className="h-5 w-5 text-[#009474] shrink-0" />}
                       <div>
                         <div className="font-semibold text-sm">{t === 'STARTUP' ? 'Startup' : 'Classique'}</div>
                         <div className="text-xs text-muted-foreground">
@@ -230,7 +232,7 @@ function ThemeFormDialog({
                     key={st} type="button" onClick={() => toggleSousType(st)}
                     className={`rounded-lg border px-3 py-2 text-sm font-medium transition-all ${
                       sousTypes.includes(st)
-                        ? 'border-blue-400 bg-blue-50 text-blue-700'
+                        ? 'border-[#c2c2c2] bg-[#f7f7f7] text-[#1a1a1a]'
                         : 'border-border hover:border-muted-foreground/40'
                     }`}
                   >
@@ -439,11 +441,11 @@ function DeleteRequestDialog({ theme, onClose }: { theme: Theme; onClose: () => 
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Responsable(s) de filière</p>
             {responsables.length > 0 ? responsables.map((r) => (
-              <div key={r.id} className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
-                <Mail className="h-4 w-4 text-blue-600 shrink-0" />
+              <div key={r.id} className="flex items-center gap-3 rounded-lg border border-[#e8e8e8] bg-[#f7f7f7] px-3 py-2.5">
+                <Mail className="h-4 w-4 text-[#1a1a1a] shrink-0" />
                 <div>
-                  <p className="font-medium text-sm text-blue-900">{r.prenom} {r.nom}</p>
-                  <p className="text-xs text-blue-600 font-mono select-all">{r.email}</p>
+                  <p className="font-medium text-sm text-[#1a1a1a]">{r.prenom} {r.nom}</p>
+                  <p className="text-xs text-[#1a1a1a] font-mono select-all">{r.email}</p>
                 </div>
               </div>
             )) : (
@@ -509,16 +511,161 @@ function DemandeModifDialog({ theme, onClose }: { theme: Theme; onClose: () => v
   );
 }
 
+// ─── Dialog ajout membre Startup (depuis thème) ───────────────────────────────
+
+function AjouterMembreStartupDialog({ theme, onClose }: { theme: Theme; onClose: () => void }) {
+  const addMembre = useAddMembreFromTheme();
+  const { data: etudiantsData } = useUsers({ role: 'ETUDIANT', limit: 500 });
+  const etudiants = etudiantsData?.data ?? [];
+  const { data: specialites = [] } = useActiveSpecialites();
+  const [filterSpecialite, setFilterSpecialite] = useState('');
+  const [query, setQuery] = useState('');
+  const [selectedId, setSelectedId] = useState('');
+  const [open, setOpen] = useState(false);
+
+  const bySpecialite = filterSpecialite
+    ? etudiants.filter((e) => e.specialite?.id === filterSpecialite)
+    : etudiants;
+
+  const q = query.trim().toLowerCase();
+  const suggestions = q
+    ? bySpecialite.filter((e) =>
+        `${e.prenom} ${e.nom} ${e.email}`.toLowerCase().includes(q),
+      )
+    : bySpecialite;
+
+  const selectedUser = etudiants.find((e) => e.id === selectedId);
+
+  const handleSelect = (id: string) => {
+    const u = etudiants.find((e) => e.id === id);
+    setSelectedId(id);
+    setQuery(u ? `${u.prenom} ${u.nom}` : '');
+    setOpen(false);
+  };
+
+  const handleQueryChange = (val: string) => {
+    setQuery(val);
+    setSelectedId('');
+    setOpen(true);
+  };
+
+  const totalMembers = (theme.affectation?.startup_membres?.length ?? 0)
+    + (theme.affectation?.etudiants?.length ?? 0);
+
+  const onSubmit = () => {
+    if (!selectedId) return;
+    addMembre.mutate(
+      { themeId: theme.id, dto: { etudiant_id: selectedId } },
+      { onSuccess: onClose },
+    );
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <UserPlus className="h-5 w-5 text-primary" />
+            Inviter un membre — {theme.titre}
+            <Badge variant="secondary" className="text-xs">{totalMembers}/6</Badge>
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label>Filtrer par spécialité</Label>
+            <Select
+              value={filterSpecialite || '__all__'}
+              onValueChange={(v) => { setFilterSpecialite(v === '__all__' ? '' : v); setSelectedId(''); setQuery(''); }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Toutes les spécialités" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">Toutes les spécialités</SelectItem>
+                {specialites.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.nom}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Étudiant <span className="text-destructive">*</span></Label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                className="pl-8 pr-8"
+                placeholder="Rechercher par nom ou email..."
+                value={query}
+                onChange={(e) => handleQueryChange(e.target.value)}
+                onFocus={() => setOpen(true)}
+                onBlur={() => setTimeout(() => setOpen(false), 150)}
+                autoComplete="off"
+              />
+              {(query || selectedId) && (
+                <button
+                  type="button"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onMouseDown={(e) => { e.preventDefault(); setQuery(''); setSelectedId(''); setOpen(false); }}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {open && suggestions.length > 0 && (
+                <ul className="absolute z-50 mt-1 w-full max-h-52 overflow-y-auto rounded-md border bg-popover shadow-md text-sm">
+                  {suggestions.slice(0, 50).map((e) => (
+                    <li
+                      key={e.id}
+                      onMouseDown={() => handleSelect(e.id)}
+                      className={`flex flex-col px-3 py-2 cursor-pointer hover:bg-accent ${selectedId === e.id ? 'bg-primary/5 text-primary' : ''}`}
+                    >
+                      <span className="font-medium">{e.prenom} {e.nom}</span>
+                      <span className="text-xs text-muted-foreground">{e.email}{e.specialite ? ` · ${e.specialite.nom}` : ''}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {open && q.length > 0 && suggestions.length === 0 && (
+                <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md px-3 py-2 text-sm text-muted-foreground">
+                  Aucun étudiant trouvé.
+                </div>
+              )}
+            </div>
+            {selectedUser && (
+              <p className="text-xs text-emerald-600 font-medium flex items-center gap-1">
+                <CheckCircle className="h-3.5 w-3.5" />
+                {selectedUser.prenom} {selectedUser.nom} sélectionné
+                {selectedUser.specialite && <span className="text-muted-foreground font-normal">· {selectedUser.specialite.nom}</span>}
+              </p>
+            )}
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            L'étudiant recevra une invitation et devra l'accepter pour rejoindre l'équipe.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Annuler</Button>
+          <Button onClick={onSubmit} disabled={!selectedId || addMembre.isPending}>
+            {addMembre.isPending ? 'Envoi…' : "Envoyer l'invitation"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Carte thème ──────────────────────────────────────────────────────────────
 
 function ThemeCard({
-  theme, onEdit, onDeleteRequest, onView, onDemandeModif, currentUserId,
+  theme, onEdit, onDeleteRequest, onView, onDemandeModif, onAjouterMembre, currentUserId,
 }: {
   theme: Theme;
   onEdit: (t: Theme) => void;
   onDeleteRequest: (t: Theme) => void;
   onView: (id: string) => void;
   onDemandeModif: (t: Theme) => void;
+  onAjouterMembre: (t: Theme) => void;
   currentUserId: string;
 }) {
   const confirmCoEnc = useConfirmCoEncadrant();
@@ -585,7 +732,7 @@ function ThemeCard({
           <p className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
             Co-encadrant :&nbsp;<span className="font-medium text-foreground">{theme.co_encadrant.prenom} {theme.co_encadrant.nom}</span>
             {coEncPending && (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 border border-amber-200">
+              <span className="rounded-full bg-[#e8e8e8] px-2 py-0.5 text-[10px] font-medium text-amber-700 border border-[#e8e8e8]">
                 en attente
               </span>
             )}
@@ -601,12 +748,12 @@ function ThemeCard({
 
         <div className="flex flex-wrap gap-x-3 gap-y-1 pt-1 text-xs">
           {theme.necessite_stage && <span className="text-amber-600 font-medium">Stage requis</span>}
-          {theme.besoin_encadrant && <span className="text-blue-600 font-medium">Cherche encadrant</span>}
+          {theme.besoin_encadrant && <span className="text-[#1a1a1a] font-medium">Cherche encadrant</span>}
           {theme.cherche_binome && <span className="text-purple-600 font-medium">Cherche binôme</span>}
         </div>
 
         {theme.modification_autorisee && (
-          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-700 font-medium">
+          <div className="rounded-md border border-[#e8e8e8] bg-[#f7f7f7] px-2.5 py-1.5 text-xs text-emerald-700 font-medium">
             Modification autorisée
           </div>
         )}
@@ -626,6 +773,16 @@ function ThemeCard({
           >
             <Eye className="h-3.5 w-3.5" />Détails
           </Button>
+          {theme.type_pfe === 'STARTUP' && theme.statut_validation === 'VALIDE' && isProposant && (
+            <Button
+              size="sm" variant="outline"
+              className="gap-1.5 text-orange-600 border-orange-300 hover:bg-orange-50"
+              onClick={() => onAjouterMembre(theme)}
+              title="Ajouter un membre à l'équipe"
+            >
+              <UserPlus className="h-3.5 w-3.5" />Membres
+            </Button>
+          )}
           {isPendingCoEnc ? (
             <>
               <Button
@@ -649,7 +806,7 @@ function ThemeCard({
             <>
               {canRequestModif ? (
                 <Button
-                  size="sm" variant="outline" className="flex-1 gap-1.5 text-amber-600 border-amber-300 hover:bg-amber-50"
+                  size="sm" variant="outline" className="flex-1 gap-1.5 text-amber-600 border-amber-300 hover:bg-[#f7f7f7]"
                   onClick={() => onDemandeModif(theme)}
                 >
                   <MessageSquarePlus className="h-3.5 w-3.5" />Demander modification
@@ -696,6 +853,7 @@ export default function GestionThemes() {
   const [deleteTarget, setDeleteTarget] = useState<Theme | null>(null);
   const [detailThemeId, setDetailThemeId] = useState<string | null>(null);
   const [demandeModifTarget, setDemandeModifTarget] = useState<Theme | null>(null);
+  const [ajouterMembreTarget, setAjouterMembreTarget] = useState<Theme | null>(null);
 
   const filters = {
     search: search || undefined,
@@ -784,7 +942,7 @@ export default function GestionThemes() {
       {/* Stats rapides */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Total', value: stats.total, icon: BookOpen, cls: 'text-blue-600' },
+          { label: 'Total', value: stats.total, icon: BookOpen, cls: 'text-[#1a1a1a]' },
           { label: 'Validés', value: stats.valides, icon: CheckCircle, cls: 'text-emerald-600' },
           { label: 'En attente', value: stats.enAttente, icon: Clock, cls: 'text-amber-600' },
           { label: 'Affectés', value: stats.affectes, icon: Rocket, cls: 'text-purple-600' },
@@ -852,7 +1010,7 @@ export default function GestionThemes() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {themes.map((theme) => (
-            <ThemeCard key={theme.id} theme={theme} onEdit={openEdit} onDeleteRequest={setDeleteTarget} onView={setDetailThemeId} onDemandeModif={setDemandeModifTarget} currentUserId={currentUser?.id ?? ''} />
+            <ThemeCard key={theme.id} theme={theme} onEdit={openEdit} onDeleteRequest={setDeleteTarget} onView={setDetailThemeId} onDemandeModif={setDemandeModifTarget} onAjouterMembre={setAjouterMembreTarget} currentUserId={currentUser?.id ?? ''} />
           ))}
         </div>
       )}
@@ -860,6 +1018,7 @@ export default function GestionThemes() {
       {dialogOpen && <ThemeFormDialog open={dialogOpen} onClose={closeDialog} editingTheme={editingTheme} />}
       {deleteTarget && <DeleteRequestDialog theme={deleteTarget} onClose={() => setDeleteTarget(null)} />}
       {demandeModifTarget && <DemandeModifDialog theme={demandeModifTarget} onClose={() => setDemandeModifTarget(null)} />}
+      {ajouterMembreTarget && <AjouterMembreStartupDialog theme={ajouterMembreTarget} onClose={() => setAjouterMembreTarget(null)} />}
       <ThemeDetailDialog themeId={detailThemeId} onClose={() => setDetailThemeId(null)} />
     </div>
   );

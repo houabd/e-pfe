@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+﻿import { useState, useRef, useCallback } from 'react';
 import { User, Send, Square, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -131,7 +131,7 @@ export default function FloatingChat() {
           <div className="size-7 rounded-full overflow-hidden shrink-0">
             <ChatbotLogo size={28} />
           </div>
-          <p className="flex-1 text-xs font-semibold text-white truncate" style={{ fontFamily: "'Libre Baskerville', Georgia, serif" }}>
+          <p className="flex-1 text-xs font-semibold text-white truncate">
             Assistant IA e-PFC
           </p>
           <Button variant="ghost" size="icon" className="size-6 shrink-0 text-white/70 hover:text-white hover:bg-white/15" onClick={handleClose}>
@@ -159,7 +159,7 @@ export default function FloatingChat() {
                   </div>
                   <div className="flex-1 min-w-0 space-y-1.5">
                     {msg.id !== streamingMsgId && msg.warning && (
-                      <div className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-800/30 px-2 py-1.5 text-[10px] text-amber-700 dark:text-amber-300">
+                      <div className="flex items-start gap-1.5 rounded-lg border border-[#e8e8e8] bg-[#f7f7f7] dark:bg-amber-900/10 dark:border-gray-700/30 px-2 py-1.5 text-[10px] text-amber-700 dark:text-[#00b08a]">
                         <span>{msg.warning}</span>
                       </div>
                     )}

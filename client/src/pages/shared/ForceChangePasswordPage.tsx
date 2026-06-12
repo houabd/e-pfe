@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -88,7 +88,7 @@ export default function ForceChangePasswordPage() {
   return (
     <div className="min-h-screen flex bg-muted/30 px-4 py-8">
       <div className="w-full max-w-md space-y-4 m-auto">
-        <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800">
+        <div className="flex items-start gap-3 p-4 bg-[#f7f7f7] border border-[#e8e8e8] rounded-lg text-amber-800">
           <ShieldAlert className="size-5 shrink-0 mt-0.5 text-amber-600" />
           <p className="text-sm font-medium leading-snug">
             Pour des raisons de sécurité, vous devez définir un nouveau mot de passe avant de continuer.

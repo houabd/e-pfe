@@ -39,7 +39,8 @@ export type TypeNotification =
   | 'MODIFICATION_REFUSEE'
   | 'SOUTENANCE_MODIFIEE'
   | 'SOUTENANCE_ANNULEE'
-  | 'THEME_SOUTENU';
+  | 'THEME_SOUTENU'
+  | 'CHOIX_ANNULE';
 
 // ─── Demande de modification ─────────────────────────────────────────────────
 
@@ -141,6 +142,7 @@ export interface Theme {
   description: string;
   mots_cles: string[];
   necessite_stage: boolean;
+  entreprise_stage?: string | null;
   type_pfe: ThemeType;
   sous_types: SousTypeTheme[];
   propose_par: Pick<User, 'id' | 'nom' | 'prenom' | 'email' | 'role'>;
@@ -252,6 +254,7 @@ export interface CreateThemeForm {
   description: string;
   mots_cles: string[];
   necessite_stage: boolean;
+  entreprise_stage?: string;
   type_pfe: ThemeType;
   sous_types: SousTypeTheme[];
   specialite_ids: string[];

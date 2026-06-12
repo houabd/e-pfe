@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+﻿import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import {
@@ -12,9 +12,9 @@ import type { Notification, TypeNotification } from '@/types';
 
 // ─── Icônes par type ──────────────────────────────────────────────────────────
 
-const ICON_MAP: Record<TypeNotification, React.ReactNode> = {
-  BINOME_REQUEST:       <Users className="size-4 text-blue-500" />,
-  BINOME_RESPONSE:      <UserCheck className="size-4 text-blue-500" />,
+const ICON_MAP: Partial<Record<TypeNotification, React.ReactNode>> = {
+  BINOME_REQUEST:       <Users className="size-4 text-[#009474]" />,
+  BINOME_RESPONSE:      <UserCheck className="size-4 text-[#009474]" />,
   THEME_CHOSEN:         <BookOpen className="size-4 text-violet-500" />,
   THEME_RESPONSE:       <BookOpen className="size-4 text-violet-500" />,
   AFFECTATION:          <CheckCircle className="size-4 text-green-500" />,
@@ -22,6 +22,7 @@ const ICON_MAP: Record<TypeNotification, React.ReactNode> = {
   SOUTENANCE_PLANIFIEE: <Calendar className="size-4 text-orange-500" />,
   NEW_DOCUMENT:         <FileText className="size-4 text-gray-500" />,
   SESSION_UPDATE:       <Settings className="size-4 text-gray-500" />,
+  CHOIX_ANNULE:         <BookOpen className="size-4 text-amber-500" />,
 };
 
 // ─── Props ────────────────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { BookOpen, Tag, Briefcase, Mail, Rocket, Plus, UserCheck, Users, GraduationCap } from 'lucide-react';
+﻿import { BookOpen, Tag, Briefcase, Mail, Rocket, Plus, UserCheck, Users, GraduationCap } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -23,7 +23,7 @@ function Avatar({ initials, color = 'primary' }: { initials: string; color?: 'pr
     primary: 'bg-primary/10 text-primary',
     indigo:  'bg-indigo-100 text-indigo-600',
     violet:  'bg-violet-100 text-violet-700',
-    teal:    'bg-teal-100 text-teal-700',
+    teal:    'bg-[#e8e8e8] text-[#0a5e37]',
   }[color];
   return (
     <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${cls}`}>
@@ -133,7 +133,7 @@ export function ThemeDetailDialog({
                     <Rocket className="h-3 w-3" />Startup
                   </Badge>
                 ) : (
-                  <Badge className="bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100 text-xs gap-1">
+                  <Badge className="bg-[#e8e8e8] text-[#1a1a1a] border-[#e8e8e8] hover:bg-[#e8e8e8] text-xs gap-1">
                     <BookOpen className="h-3 w-3" />Classique
                   </Badge>
                 )}
@@ -232,7 +232,7 @@ export function ThemeDetailDialog({
               {(theme.necessite_stage || theme.type_pfe === 'STARTUP') && (
                 <div className="flex flex-wrap gap-2">
                   {theme.necessite_stage && (
-                    <div className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
+                    <div className="flex items-center gap-1.5 rounded-lg border border-[#e8e8e8] bg-[#f7f7f7] px-3 py-1.5 text-xs text-amber-800">
                       <Briefcase className="h-3.5 w-3.5 text-amber-600" />
                       Nécessite un stage en entreprise
                     </div>
@@ -318,7 +318,7 @@ function EncadrementSection({ theme }: { theme: Theme }) {
         {/* Besoin encadrant */}
         {theme.besoin_encadrant && (
           <div className="px-4 py-3">
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+            <p className="text-xs text-amber-700 bg-[#f7f7f7] border border-[#e8e8e8] rounded-md px-3 py-2">
               Ce thème recherche un encadrant
             </p>
           </div>

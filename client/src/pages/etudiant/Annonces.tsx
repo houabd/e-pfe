@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+﻿import { useState, useMemo } from 'react';
 import { ThemeDetailDialog } from '@/components/themes/ThemeDetailDialog';
 import { useAnnonces } from '@/hooks/useThemes';
 import { useDemanderBinome, useMonBinome, useDemandesEnvoyees } from '@/hooks/useBinomes';
@@ -105,7 +105,7 @@ function AnnonceCard({
               Cherche des membres
             </Badge>
           ) : (
-            <Badge className="text-xs bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100">
+            <Badge className="text-xs bg-[#e8e8e8] text-[#1a1a1a] border-[#e8e8e8] hover:bg-[#e8e8e8]">
               Cherche un binôme
             </Badge>
           )}
@@ -260,12 +260,12 @@ export default function Annonces() {
       </div>
 
       {hasBinome && (
-        <Card className="border-blue-200 bg-blue-50">
+        <Card className="border-[#e8e8e8] bg-[#f7f7f7]">
           <CardContent className="flex items-start gap-3 pt-5 pb-5">
-            <Info className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+            <Info className="h-5 w-5 text-[#1a1a1a] mt-0.5 shrink-0" />
             <div>
-              <p className="font-semibold text-blue-800 text-sm">Vous avez déjà un binôme</p>
-              <p className="text-sm text-blue-700 mt-0.5">
+              <p className="font-semibold text-[#1a1a1a] text-sm">Vous avez déjà un binôme</p>
+              <p className="text-sm text-[#1a1a1a] mt-0.5">
                 Vous pouvez toujours contacter les étudiants, mais vous ne pouvez plus envoyer de demande de binôme.
               </p>
             </div>

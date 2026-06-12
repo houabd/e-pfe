@@ -218,7 +218,7 @@ export async function bulkHardDeleteUsers(ids: string[]) {
 
 // ─── Import Excel ─────────────────────────────────────────────────────────────
 
-const VALID_ROLES: Role[] = ['CHEF_DEPT', 'CHEF_EQUIPE', 'CHEF_EQUIPE', 'RESP_SPECIALITE', 'TECHNICIEN', 'ENSEIGNANT', 'ETUDIANT'];
+const VALID_ROLES: Role[] = ['CHEF_DEPT', 'CHEF_EQUIPE', 'RESP_SPECIALITE', 'TECHNICIEN', 'ENSEIGNANT', 'ETUDIANT'];
 
 interface ImportRow {
   email?: unknown;
@@ -228,6 +228,17 @@ interface ImportRow {
   date_naissance?: unknown;
   matricule?: unknown;
   annee_universitaire?: unknown;
+  specialite?: unknown;
+  [key: string]: unknown;
+}
+
+// Normalise les clés d'une ligne : trim + lowercase sur les noms de colonnes
+function normalizeRow(raw: Record<string, unknown>): ImportRow {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    out[k.trim().toLowerCase().replace(/\s+/g, '_')] = v;
+  }
+  return out as ImportRow;
 }
 
 export async function importUsers(buffer: Buffer) {
@@ -235,8 +246,9 @@ export async function importUsers(buffer: Buffer) {
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   if (!sheet) throw new BadRequestError('Fichier Excel vide ou invalide');
 
-  const rows = xlsx.utils.sheet_to_json<ImportRow>(sheet, { defval: '' });
-  if (rows.length === 0) throw new BadRequestError('Aucune ligne trouvée dans le fichier');
+  const rawRows = xlsx.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+  if (rawRows.length === 0) throw new BadRequestError('Aucune ligne trouvée dans le fichier');
+  const rows: ImportRow[] = rawRows.map(normalizeRow);
   if (rows.length > 500) throw new BadRequestError('Le fichier ne peut pas dépasser 500 lignes');
 
   const specialites = await prisma.specialite.findMany({ select: { id: true, nom: true } });
@@ -291,7 +303,7 @@ export async function importUsers(buffer: Buffer) {
       continue;
     }
 
-    const specialiteNom = (row as Record<string, unknown>)['specialite'];
+    const specialiteNom = row.specialite;
     let specialite_id: string | undefined;
     if (specialiteNom) {
       specialite_id = specialiteMap.get(String(specialiteNom).toLowerCase());

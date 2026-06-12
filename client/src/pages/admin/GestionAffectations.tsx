@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+﻿import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -325,7 +325,7 @@ function AffectationDialog({
                 <SpecialiteSelect value={etudFilter} onChange={setEtudFilter} />
               </div>
               {!capaciteOk && (
-                <div className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                <div className="flex items-center gap-1.5 rounded-lg border border-[#e8e8e8] bg-[#f7f7f7] px-3 py-2 text-xs text-amber-700">
                   <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                   La capacité maximale (2 thèmes) sera vérifiée à la soumission.
                 </div>
@@ -341,12 +341,12 @@ function AffectationDialog({
                       <div
                         key={e.id}
                         className={`flex items-center gap-1.5 rounded-full pl-2.5 pr-1.5 py-1 text-xs font-medium ${
-                          isInBinomePair ? 'bg-blue-100 text-blue-800' : 'bg-primary/10'
+                          isInBinomePair ? 'bg-[#e8e8e8] text-[#1a1a1a]' : 'bg-primary/10'
                         }`}
                       >
                         {e.prenom} {e.nom}
                         {isInBinomePair && (
-                          <Badge className="bg-blue-200 text-blue-800 hover:bg-blue-200 text-[10px] py-0 border-0">binôme</Badge>
+                          <Badge className="bg-amber-200 text-[#1a1a1a] hover:bg-[#e8e8e8] text-[10px] py-0 border-0">binôme</Badge>
                         )}
                         <button
                           type="button"
@@ -384,7 +384,7 @@ function AffectationDialog({
                           <p className="text-xs text-muted-foreground">{e.specialite?.nom ?? '—'} {e.matricule ? `· ${e.matricule}` : ''}</p>
                         </div>
                         {e.binome && (
-                          <span className={`text-xs shrink-0 ${partnerAvailable ? 'text-blue-600 font-medium' : 'text-muted-foreground'}`}>
+                          <span className={`text-xs shrink-0 ${partnerAvailable ? 'text-[#1a1a1a] font-medium' : 'text-muted-foreground'}`}>
                             {partnerAvailable
                               ? `+ ${e.binome.partenaire.prenom} ${e.binome.partenaire.nom}`
                               : `binôme: ${e.binome.partenaire.prenom}`}
@@ -542,7 +542,7 @@ function VueDisponibilites({
                     <span>{etud.specialite?.nom ?? '—'}</span>
                     {etud.matricule && <span>· {etud.matricule}</span>}
                     {etud.binome && (
-                      <span className="text-blue-600">· binôme avec {etud.binome.partenaire.prenom} {etud.binome.partenaire.nom}</span>
+                      <span className="text-[#1a1a1a]">· binôme avec {etud.binome.partenaire.prenom} {etud.binome.partenaire.nom}</span>
                     )}
                   </div>
                 </div>
@@ -637,7 +637,7 @@ function NonAffectesSection({ etudiants }: { etudiants: NonAffecte[] }) {
         <h3 className="font-semibold text-amber-700 flex items-center gap-2">
           <AlertCircle className="h-4 w-4" />
           Étudiants sans correspondance
-          <Badge className="bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-100">
+          <Badge className="bg-[#e8e8e8] text-amber-700 border-amber-300 hover:bg-[#e8e8e8]">
             {etudiants.length}
           </Badge>
         </h3>
@@ -657,15 +657,15 @@ function NonAffectesSection({ etudiants }: { etudiants: NonAffecte[] }) {
         {grouped.map(([key, { label, items }]) => {
           const isOpen = !collapsed.has(key);
           return (
-            <div key={key} className="rounded-lg border border-amber-200 overflow-hidden">
+            <div key={key} className="rounded-lg border border-[#e8e8e8] overflow-hidden">
               <button
                 type="button"
                 onClick={() => toggle(key)}
-                className="w-full flex items-center justify-between px-4 py-2.5 bg-amber-50 hover:bg-amber-100 transition-colors text-left"
+                className="w-full flex items-center justify-between px-4 py-2.5 bg-[#f7f7f7] hover:bg-[#e8e8e8] transition-colors text-left"
               >
                 <span className="text-sm font-medium text-amber-800">{label}</span>
                 <div className="flex items-center gap-2">
-                  <Badge className="bg-amber-200 text-amber-800 hover:bg-amber-200 border-0 text-xs">
+                  <Badge className="bg-amber-200 text-amber-800 hover:bg-[#e8e8e8] border-0 text-xs">
                     {items.length} étudiant{items.length > 1 ? 's' : ''}
                   </Badge>
                   <ChevronRight className={`h-3.5 w-3.5 text-amber-600 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
@@ -675,7 +675,7 @@ function NonAffectesSection({ etudiants }: { etudiants: NonAffecte[] }) {
                 <div className="divide-y divide-amber-100">
                   {items.map((e) => (
                     <div key={e.id} className="flex items-center gap-3 px-4 py-2 bg-white">
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[10px] font-semibold text-amber-700">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#e8e8e8] text-[10px] font-semibold text-amber-700">
                         {e.prenom[0]}{e.nom[0]}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -792,7 +792,7 @@ function SemiAutomatique() {
               { label: 'Étudiants affectés', value: result.stats.etudiants_affectes },
               { label: 'Non affectés', value: result.stats.etudiants_non_affectes, warn: result.stats.etudiants_non_affectes > 0 },
             ].map((s) => (
-              <div key={s.label} className={`rounded-lg border px-4 py-3 text-center ${s.warn ? 'border-amber-300 bg-amber-50' : ''}`}>
+              <div key={s.label} className={`rounded-lg border px-4 py-3 text-center ${s.warn ? 'border-amber-300 bg-[#f7f7f7]' : ''}`}>
                 <p className={`text-2xl font-bold ${s.warn ? 'text-amber-600' : ''}`}>{s.value}</p>
                 <p className="text-xs text-muted-foreground">{s.label}</p>
               </div>

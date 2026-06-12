@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BookOpen, Users, ClipboardList, Megaphone,
@@ -19,7 +19,7 @@ import { useMaSoutenance } from '@/hooks/useSoutenances';
 function StatutBadge({ statut }: { statut: 'PENDING' | 'ACCEPTED' | 'REFUSED' }) {
   if (statut === 'ACCEPTED') {
     return (
-      <Badge className="bg-emerald-100 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 text-xs">
+      <Badge className="bg-[#e8e8e8] text-emerald-700 border border-[#e8e8e8] hover:bg-[#e8e8e8] text-xs">
         Accepté
       </Badge>
     );
@@ -32,7 +32,7 @@ function StatutBadge({ statut }: { statut: 'PENDING' | 'ACCEPTED' | 'REFUSED' })
     );
   }
   return (
-    <Badge className="bg-amber-100 text-amber-700 border border-amber-200 hover:bg-amber-100 text-xs">
+    <Badge className="bg-[#e8e8e8] text-amber-700 border border-[#e8e8e8] hover:bg-[#e8e8e8] text-xs">
       En attente
     </Badge>
   );
@@ -61,7 +61,7 @@ export default function DashboardEtudiant() {
   const isAffecte = !!acceptedChoix || !!monAffectation;
 
   const allActions = [
-    { to: '/etudiant/themes', icon: BookOpen, title: 'Choisir un thème', description: 'Parcourez les thèmes validés', color: 'text-blue-500', hideWhenAffecte: true },
+    { to: '/etudiant/themes', icon: BookOpen, title: 'Choisir un thème', description: 'Parcourez les thèmes validés', color: 'text-[#009474]', hideWhenAffecte: true },
     { to: '/etudiant/proposer', icon: ClipboardList, title: 'Proposer un thème', description: 'Soumettez votre propre sujet', color: 'text-purple-500', hideWhenAffecte: true },
     { to: '/etudiant/binome', icon: Users, title: 'Mon binôme', description: 'Gérez votre partenariat', color: 'text-indigo-500', hideWhenAffecte: false },
     { to: '/etudiant/annonces', icon: Megaphone, title: 'Annonces', description: 'Thèmes ouverts au binôme', color: 'text-orange-500', hideWhenAffecte: true },
@@ -80,14 +80,14 @@ export default function DashboardEtudiant() {
 
       {/* Bannière session */}
       {activeSession ? (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-emerald-200 bg-emerald-50">
-          <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-[#e8e8e8] bg-[#f7f7f7]">
+          <div className="h-2 w-2 rounded-full bg-[#f7f7f7]0 animate-pulse shrink-0" />
           <span className="text-sm font-medium text-emerald-800">
             Session <strong>{activeSession.type}</strong> ouverte — {activeSession.annee_universitaire}
           </span>
         </div>
       ) : (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-200 bg-amber-50">
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-[#e8e8e8] bg-[#f7f7f7]">
           <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
           <span className="text-sm font-medium text-amber-800">
             Aucune session de choix ouverte actuellement.
@@ -190,9 +190,9 @@ export default function DashboardEtudiant() {
               </div>
             </div>
           ) : (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+            <div className="rounded-xl border border-[#e8e8e8] bg-[#f7f7f7] p-5">
               <div className="flex items-start gap-4">
-                <div className="rounded-full bg-emerald-100 p-2.5 shrink-0">
+                <div className="rounded-full bg-[#e8e8e8] p-2.5 shrink-0">
                   <CheckCircle2 className="h-5 w-5 text-emerald-600" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -220,11 +220,11 @@ export default function DashboardEtudiant() {
           )
         ) : acceptedChoix ? (
           <div
-            className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 cursor-pointer hover:shadow-md transition-shadow"
+            className="rounded-xl border border-[#e8e8e8] bg-[#f7f7f7] p-5 cursor-pointer hover:shadow-md transition-shadow"
             onClick={() => setDetailThemeId(acceptedChoix.theme.id)}
           >
             <div className="flex items-start gap-4">
-              <div className="rounded-full bg-emerald-100 p-2.5 shrink-0">
+              <div className="rounded-full bg-[#e8e8e8] p-2.5 shrink-0">
                 <CheckCircle2 className="h-5 w-5 text-emerald-600" />
               </div>
               <div className="flex-1 min-w-0">
@@ -352,7 +352,7 @@ export default function DashboardEtudiant() {
                         className={
                           theme.type_pfe === 'STARTUP'
                             ? 'bg-orange-100 text-orange-700 border-orange-200 text-xs'
-                            : 'bg-blue-100 text-blue-700 border-blue-200 text-xs'
+                            : 'bg-[#e8e8e8] text-[#1a1a1a] border-[#e8e8e8] text-xs'
                         }
                       >
                         {theme.type_pfe}
@@ -360,7 +360,7 @@ export default function DashboardEtudiant() {
                       <Badge
                         className={
                           theme.statut_validation === 'VALIDE'
-                            ? 'bg-emerald-100 text-emerald-700 border-emerald-200 text-xs'
+                            ? 'bg-[#e8e8e8] text-emerald-700 border-[#e8e8e8] text-xs'
                             : 'bg-slate-100 text-slate-600 border-slate-200 text-xs'
                         }
                       >
@@ -381,13 +381,13 @@ export default function DashboardEtudiant() {
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
             Ma soutenance
           </h2>
-          <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 space-y-3">
+          <div className="rounded-xl border border-[#e8e8e8] bg-[#f7f7f7] p-5 space-y-3">
             <div className="flex items-center gap-2">
-              <GraduationCap className="h-5 w-5 text-blue-600 shrink-0" />
-              <span className="font-semibold text-blue-800 text-sm">Soutenance planifiée</span>
+              <GraduationCap className="h-5 w-5 text-[#1a1a1a] shrink-0" />
+              <span className="font-semibold text-[#1a1a1a] text-sm">Soutenance planifiée</span>
             </div>
-            <p className="text-sm font-medium text-blue-900 line-clamp-2">{maSoutenance.theme.titre}</p>
-            <div className="grid grid-cols-2 gap-2 text-xs text-blue-700">
+            <p className="text-sm font-medium text-[#1a1a1a] line-clamp-2">{maSoutenance.theme.titre}</p>
+            <div className="grid grid-cols-2 gap-2 text-xs text-[#1a1a1a]">
               <span className="flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5 shrink-0" />
                 {new Date(maSoutenance.date_soutenance).toLocaleDateString('fr-FR', {
@@ -400,15 +400,15 @@ export default function DashboardEtudiant() {
               </span>
             </div>
             {maSoutenance.jury.length > 0 && (
-              <div className="border-t border-blue-200 pt-2.5 space-y-1">
-                <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Jury</p>
+              <div className="border-t border-[#e8e8e8] pt-2.5 space-y-1">
+                <p className="text-xs font-medium text-[#1a1a1a] uppercase tracking-wide">Jury</p>
                 {maSoutenance.jury.map((j) => (
-                  <div key={j.enseignant.id} className="flex items-center gap-2 text-xs text-blue-800">
-                    <div className="h-5 w-5 rounded-full bg-blue-200 flex items-center justify-center text-[10px] font-bold shrink-0">
+                  <div key={j.enseignant.id} className="flex items-center gap-2 text-xs text-[#1a1a1a]">
+                    <div className="h-5 w-5 rounded-full bg-amber-200 flex items-center justify-center text-[10px] font-bold shrink-0">
                       {j.enseignant.prenom[0]}{j.enseignant.nom[0]}
                     </div>
                     <span>{j.enseignant.prenom} {j.enseignant.nom}</span>
-                    <span className="text-blue-500">— {j.role === 'PRESIDENT' ? 'Président' : 'Examinateur'}</span>
+                    <span className="text-[#009474]">— {j.role === 'PRESIDENT' ? 'Président' : 'Examinateur'}</span>
                   </div>
                 ))}
               </div>

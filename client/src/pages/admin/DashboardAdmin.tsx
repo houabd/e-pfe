@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+﻿import { Link } from 'react-router-dom';
 import {
   Users, GraduationCap, BookOpen, CheckCircle2,
   Layers, AlertTriangle, ArrowRight, Calendar,
@@ -100,13 +100,13 @@ export default function DashboardAdmin() {
   const kpis = [
     {
       icon: GraduationCap, label: 'Étudiants',
-      color: 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400',
+      color: 'bg-[#e8e8e8] text-[#1a1a1a] dark:bg-gray-900/40 dark:text-[#00b08a]',
       value: stats?.totalEtudiants ?? 0,
       sub: `${stats?.etudiantsSansTheme ?? 0} sans thème`,
     },
     {
       icon: Users, label: 'Enseignants',
-      color: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400',
+      color: 'bg-[#e8e8e8] text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400',
       value: stats?.totalEnseignants ?? 0,
       sub: `${stats?.enseignantsSansAffectation ?? 0} sans affectation`,
     },
@@ -208,9 +208,9 @@ export default function DashboardAdmin() {
               ? [1, 2, 3, 4].map(i => <Skeleton key={i} className="h-5 w-full" />)
               : stats && (
                 <>
-                  <ProgressRow label="Validation des thèmes" v={stats.themesValides} t={stats.totalThemes} color="bg-emerald-500" />
-                  <ProgressRow label="Affectation des thèmes" v={stats.themesAffectes} t={stats.totalThemes} color="bg-blue-500" />
-                  <ProgressRow label="Étudiants avec thème" v={stats.etudiantsAvecTheme} t={stats.totalEtudiants} color="bg-teal-500" />
+                  <ProgressRow label="Validation des thèmes" v={stats.themesValides} t={stats.totalThemes} color="bg-[#f7f7f7]0" />
+                  <ProgressRow label="Affectation des thèmes" v={stats.themesAffectes} t={stats.totalThemes} color="bg-[#009474]" />
+                  <ProgressRow label="Étudiants avec thème" v={stats.etudiantsAvecTheme} t={stats.totalEtudiants} color="bg-[#0e7a4a]" />
                   <ProgressRow label="Soutenances effectuées" v={stats.themesSoutenus} t={stats.themesAffectes} color="bg-purple-500" />
                 </>
               )}
@@ -237,12 +237,12 @@ export default function DashboardAdmin() {
             {!isLoading && stats && (
               <>
                 {stats.etudiantsSansTheme > 0 && (
-                  <Link to="/admin/affectations" className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-800/30 p-3 hover:bg-amber-100/70 transition-colors">
+                  <Link to="/admin/affectations" className="flex items-center justify-between rounded-lg border border-[#e8e8e8] bg-[#f7f7f7] dark:bg-amber-900/10 dark:border-gray-700/30 p-3 hover:bg-[#e8e8e8]/70 transition-colors">
                     <div>
-                      <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                      <p className="text-sm font-medium text-amber-800 dark:text-[#00b08a]">
                         {stats.etudiantsSansTheme} étudiants sans thème
                       </p>
-                      <p className="text-xs text-amber-600 dark:text-amber-400">Affectation requise</p>
+                      <p className="text-xs text-amber-600 dark:text-[#00b08a]">Affectation requise</p>
                     </div>
                     <ArrowRight className="h-4 w-4 text-amber-500 shrink-0" />
                   </Link>

@@ -10,12 +10,23 @@ import type { TokenPayload } from '../utils/token.utils';
 
 // ─── Sélection commune ─────────────────────────────────────────────────────────
 
+const ETUDIANT_SELECT = {
+  id: true, nom: true, prenom: true, email: true,
+  matricule: true, specialite: { select: { id: true, nom: true } },
+} as const;
+
 const THEME_INCLUDE = {
   propose_par: { select: { id: true, nom: true, prenom: true, email: true, role: true } },
   encadrant: { select: { id: true, nom: true, prenom: true, email: true } },
   co_encadrant: { select: { id: true, nom: true, prenom: true, email: true } },
   theme_specialites: { include: { specialite: { select: { id: true, nom: true } } } },
   session: { select: { id: true, type: true, annee_universitaire: true } },
+  affectation: {
+    include: {
+      etudiants: { include: { etudiant: { select: ETUDIANT_SELECT } } },
+      startup_membres: { include: { etudiant: { select: ETUDIANT_SELECT } } },
+    },
+  },
 } as const;
 
 // ─── Lecture ──────────────────────────────────────────────────────────────────
@@ -23,9 +34,9 @@ const THEME_INCLUDE = {
 export async function getThemes(filters: ThemeFilters) {
   const {
     page = 1, limit = 20,
-    specialite_id, etudiant_specialite_id, type_pfe, statut_validation,
+    specialite_id, etudiant_specialite_id, etudiant_id, type_pfe, statut_validation,
     is_affecte, besoin_encadrant, session_id, enseignant_id,
-    annee_universitaire, search,
+    annee_universitaire, search, include_open_startup,
   } = filters;
   const skip = (page - 1) * limit;
 
@@ -52,6 +63,20 @@ export async function getThemes(filters: ThemeFilters) {
     });
   }
 
+  if (etudiant_id) {
+    // Règle 1 : un étudiant ne voit pas son propre thème proposé
+    andConditions.push({ NOT: { propose_par_id: etudiant_id } });
+
+    // Règle 2 : les thèmes proposés par un étudiant ne sont visibles aux autres
+    //           que si cherche_binome = true (l'auteur cherche un partenaire)
+    andConditions.push({
+      OR: [
+        { propose_par: { role: { not: 'ETUDIANT' } } },
+        { cherche_binome: true },
+      ],
+    });
+  }
+
   // Masquer les thèmes proposés par enseignants dont le co-encadrant n'a pas encore confirmé
   andConditions.push({
     OR: [
@@ -60,10 +85,21 @@ export async function getThemes(filters: ThemeFilters) {
     ],
   });
 
+  // When browsing available themes, also show STARTUP teams with open slots
+  const openStartup = include_open_startup && is_affecte === false;
+  if (openStartup) {
+    andConditions.push({
+      OR: [
+        { is_affecte: false },
+        { type_pfe: 'STARTUP', is_affecte: true },
+      ],
+    });
+  }
+
   const where: Prisma.ThemeWhereInput = {
     ...(type_pfe ? { type_pfe } : {}),
     ...(statut_validation ? { statut_validation } : {}),
-    ...(is_affecte !== undefined ? { is_affecte } : {}),
+    ...(!openStartup && is_affecte !== undefined ? { is_affecte } : {}),
     ...(besoin_encadrant !== undefined ? { besoin_encadrant } : {}),
     ...(session_id ? { session_id } : {}),
     ...(enseignant_id ? { propose_par_id: enseignant_id } : {}),
@@ -72,7 +108,7 @@ export async function getThemes(filters: ThemeFilters) {
     ...(andConditions.length > 0 ? { AND: andConditions } : {}),
   };
 
-  const [total, themes] = await Promise.all([
+  const [total, rawThemes] = await Promise.all([
     prisma.theme.count({ where }),
     prisma.theme.findMany({
       where,
@@ -83,26 +119,24 @@ export async function getThemes(filters: ThemeFilters) {
     }),
   ]);
 
+  // Post-filter: exclude STARTUP affectés whose team is full (≥ 6 members)
+  const themes = openStartup
+    ? rawThemes.filter((t) => {
+        if (t.type_pfe !== 'STARTUP' || !t.is_affecte) return true;
+        const count =
+          (t.affectation?.startup_membres?.length ?? 0) +
+          (t.affectation?.etudiants?.length ?? 0);
+        return count < 6;
+      })
+    : rawThemes;
+
   return { data: themes, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
 }
-
-const ETUDIANT_SELECT_DETAIL = {
-  id: true, nom: true, prenom: true, email: true,
-  matricule: true, specialite: { select: { id: true, nom: true } },
-} as const;
 
 export async function getThemeById(id: string) {
   const theme = await prisma.theme.findUnique({
     where: { id },
-    include: {
-      ...THEME_INCLUDE,
-      affectation: {
-        include: {
-          etudiants: { include: { etudiant: { select: ETUDIANT_SELECT_DETAIL } } },
-          startup_membres: { include: { etudiant: { select: ETUDIANT_SELECT_DETAIL } } },
-        },
-      },
-    },
+    include: THEME_INCLUDE,
   });
   if (!theme) throw new NotFoundError('Thème');
   return theme;
@@ -221,6 +255,25 @@ export async function createTheme(dto: CreateThemeDto, user: TokenPayload) {
         : 'La session de choix des thèmes n\'est pas ouverte.',
     );
   }
+
+  if (!isTeacher) {
+    const binome = await prisma.binome.findFirst({
+      where: {
+        OR: [{ etud1_id: user.userId }, { etud2_id: user.userId }],
+        statut: 'ACCEPTED',
+      },
+      select: { id: true },
+    });
+    const activeChoixCount = await prisma.themeChoix.count({
+      where: binome
+        ? { binome_id: binome.id, statut: { not: 'REFUSED' } }
+        : { etudiant_id: user.userId, statut: { not: 'REFUSED' } },
+    });
+    if (activeChoixCount >= 3) {
+      throw new BadRequestError('Vous avez 3 choix en attente. Attendez une réponse avant de proposer un thème.');
+    }
+  }
+
   let encadrantId: string | null;
   let coEncadrantId: string | null;
   let encadrantValide: boolean;
@@ -508,7 +561,7 @@ export async function getThemesAwaitingMyConfirmation(encadrantId: string) {
 export async function confirmEncadrant(themeId: string, encadrantId: string) {
   const theme = await prisma.theme.findUnique({
     where: { id: themeId },
-    include: { propose_par: { select: { role: true } } },
+    include: { propose_par: { select: { role: true, nom: true, prenom: true } } },
   });
   if (!theme) throw new NotFoundError('Thème');
   if (theme.encadrant_id !== encadrantId) throw new ForbiddenError('Vous n\'êtes pas l\'encadrant désigné pour ce thème');
@@ -516,33 +569,50 @@ export async function confirmEncadrant(themeId: string, encadrantId: string) {
 
   const proposerIsEtudiant = theme.propose_par.role === 'ETUDIANT';
 
+  // Point 3 : Bloquer si l'étudiant proposant est déjà affecté ailleurs
+  if (proposerIsEtudiant) {
+    const [existingAff, existingStartup] = await Promise.all([
+      prisma.affectationEtudiant.findFirst({ where: { etudiant_id: theme.propose_par_id }, select: { id: true } }),
+      prisma.startupMembre.findFirst({ where: { etudiant_id: theme.propose_par_id }, select: { id: true } }),
+    ]);
+    if (existingAff || existingStartup) {
+      throw new BadRequestError("Cet étudiant est déjà affecté à un autre thème. La confirmation de supervision est impossible.");
+    }
+  }
+
   let partnerId: string | null = null;
+  let cancelledChoix: Array<{
+    theme: { id: string; titre: string; propose_par_id: string; encadrant_id: string | null; co_encadrant_id: string | null };
+  }> = [];
 
   const updated = await prisma.$transaction(async (tx) => {
+    // Point 2 : CLASSIQUE → is_affecte: true | STARTUP → reste ouvert jusqu'au max membres
     const themeUpdate = await tx.theme.update({
       where: { id: themeId },
       data: {
         encadrant_valide: true,
-        ...(proposerIsEtudiant ? { is_affecte: true } : {}),
+        ...(proposerIsEtudiant && theme.type_pfe !== 'STARTUP' ? { is_affecte: true } : {}),
       },
       include: THEME_INCLUDE,
     });
 
     if (proposerIsEtudiant) {
+      // Chercher le binôme une seule fois (réutilisé pour l'affectation ET le nettoyage des choix)
+      const binomeActif = await tx.binome.findFirst({
+        where: {
+          OR: [{ etud1_id: theme.propose_par_id }, { etud2_id: theme.propose_par_id }],
+          statut: 'ACCEPTED',
+        },
+        select: { id: true, etud1_id: true, etud2_id: true },
+      });
+      const binomeId = binomeActif?.id ?? null;
+      partnerId = binomeActif
+        ? (binomeActif.etud1_id === theme.propose_par_id ? binomeActif.etud2_id : binomeActif.etud1_id)
+        : null;
+      const allAffectedIds = [theme.propose_par_id, ...(partnerId ? [partnerId] : [])];
+
       const existing = await tx.affectation.findFirst({ where: { theme_id: themeId } });
       if (!existing) {
-        const binomeActif = await tx.binome.findFirst({
-          where: {
-            OR: [{ etud1_id: theme.propose_par_id }, { etud2_id: theme.propose_par_id }],
-            statut: 'ACCEPTED',
-          },
-          select: { id: true, etud1_id: true, etud2_id: true },
-        });
-        const binomeId = binomeActif?.id ?? null;
-        partnerId = binomeActif
-          ? (binomeActif.etud1_id === theme.propose_par_id ? binomeActif.etud2_id : binomeActif.etud1_id)
-          : null;
-
         const affectation = await tx.affectation.create({
           data: {
             theme_id: themeId,
@@ -554,9 +624,8 @@ export async function confirmEncadrant(themeId: string, encadrantId: string) {
         });
 
         if (theme.type_pfe === 'STARTUP') {
-          const membres = [theme.propose_par_id, ...(partnerId ? [partnerId] : [])];
           await tx.startupMembre.createMany({
-            data: membres.map((etudiant_id) => ({ affectation_id: affectation.id, etudiant_id })),
+            data: allAffectedIds.map((etudiant_id) => ({ affectation_id: affectation.id, etudiant_id })),
           });
         } else {
           await tx.affectationEtudiant.create({
@@ -569,6 +638,49 @@ export async function confirmEncadrant(themeId: string, encadrantId: string) {
           }
         }
       }
+
+      // Point 2 : Capturer les choix pending avant suppression (pour notifier les enseignants)
+      cancelledChoix = await tx.themeChoix.findMany({
+        where: {
+          statut: 'PENDING',
+          OR: [
+            ...(binomeId ? [{ binome_id: binomeId }] : []),
+            { etudiant_id: { in: allAffectedIds } },
+          ],
+        },
+        select: {
+          theme: { select: { id: true, titre: true, propose_par_id: true, encadrant_id: true, co_encadrant_id: true } },
+        },
+      });
+
+      // Supprimer tous les choix pending de l'étudiant et son binôme
+      await tx.themeChoix.deleteMany({
+        where: {
+          statut: 'PENDING',
+          OR: [
+            ...(binomeId ? [{ binome_id: binomeId }] : []),
+            { etudiant_id: { in: allAffectedIds } },
+          ],
+        },
+      });
+
+      // Fermer les thèmes NON_VALIDE proposés par l'étudiant (Point 1 symétrique)
+      await tx.theme.updateMany({
+        where: { propose_par_id: { in: allAffectedIds }, statut_validation: 'NON_VALIDE', is_affecte: false },
+        data: { is_affecte: true },
+      });
+
+      // Fermer les propositions "cherche encadrant"
+      await tx.theme.updateMany({
+        where: { propose_par_id: { in: allAffectedIds }, besoin_encadrant: true, is_affecte: false },
+        data: { is_affecte: true, besoin_encadrant: false },
+      });
+
+      // Retirer les annonces "cherche binôme"
+      await tx.theme.updateMany({
+        where: { propose_par_id: { in: allAffectedIds }, cherche_binome: true },
+        data: { cherche_binome: false },
+      });
     }
 
     return themeUpdate;
@@ -587,6 +699,25 @@ export async function confirmEncadrant(themeId: string, encadrantId: string) {
       `L'encadrant a confirmé sa supervision pour le thème "${theme.titre}" de votre binôme — vous êtes maintenant affecté.`,
       { theme_id: themeId, confirmed: true },
     );
+  }
+
+  // Point 2 : Notifier les enseignants dont les demandes ont été annulées
+  if (cancelledChoix.length > 0) {
+    const etudiantNom = `${theme.propose_par.prenom} ${theme.propose_par.nom}`;
+    for (const cancelled of cancelledChoix) {
+      const teacherIds = new Set<string>();
+      teacherIds.add(cancelled.theme.propose_par_id);
+      if (cancelled.theme.encadrant_id) teacherIds.add(cancelled.theme.encadrant_id);
+      if (cancelled.theme.co_encadrant_id) teacherIds.add(cancelled.theme.co_encadrant_id);
+      for (const teacherId of teacherIds) {
+        await notifyUser(
+          teacherId,
+          'CHOIX_ANNULE',
+          `La demande de ${etudiantNom} pour votre thème "${cancelled.theme.titre}" est annulée — l'étudiant a été affecté à un autre thème`,
+          { theme_id: cancelled.theme.id, statut: 'CANCELLED' },
+        );
+      }
+    }
   }
 
   return updated;

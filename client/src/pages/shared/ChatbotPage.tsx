@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+﻿import { useState, useRef, useCallback } from 'react';
 import { Bot, User, Send, Square, Sparkles, Trash2, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -41,7 +41,7 @@ function AssistantMessage({ msg, isStreaming }: { msg: Message; isStreaming: boo
       </div>
       <div className="flex-1 min-w-0 space-y-2">
         {!isStreaming && msg.warning && (
-          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-800/30 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+          <div className="flex items-start gap-2 rounded-lg border border-[#e8e8e8] bg-[#f7f7f7] dark:bg-amber-900/10 dark:border-gray-700/30 px-3 py-2 text-xs text-amber-700 dark:text-[#00b08a]">
             <span>{msg.warning}</span>
           </div>
         )}

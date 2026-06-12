@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+﻿import { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -783,7 +783,7 @@ function CalendrierMensuel({
               {daySoutenances.slice(0, 2).map((s) => (
                 <div
                   key={s.id}
-                  className="mb-0.5 truncate rounded bg-blue-100 px-1 py-0.5 text-[10px] text-blue-800 dark:bg-blue-900/40 dark:text-blue-300"
+                  className="mb-0.5 truncate rounded bg-[#e8e8e8] px-1 py-0.5 text-[10px] text-[#1a1a1a] dark:bg-gray-900/40 dark:text-[#00b08a]"
                 >
                   {s.heure} {s.theme.titre.slice(0, 14)}…
                 </div>

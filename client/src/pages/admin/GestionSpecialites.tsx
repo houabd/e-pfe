@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+﻿import { useState, useRef } from 'react';
 import { Plus, Trash2, GraduationCap, Users, BookOpen, Info, Loader2, ToggleLeft, ToggleRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -145,9 +145,9 @@ export default function GestionSpecialites() {
       </div>
 
       {/* Bannière propagation */}
-      <div className="flex items-start gap-3 p-4 rounded-lg bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
-        <Info className="size-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-        <p className="text-sm text-blue-800 dark:text-blue-300">
+      <div className="flex items-start gap-3 p-4 rounded-lg bg-[#f7f7f7] border border-[#e8e8e8] dark:bg-gray-900/20 dark:border-gray-700">
+        <Info className="size-4 text-[#1a1a1a] dark:text-[#00b08a] shrink-0 mt-0.5" />
+        <p className="text-sm text-[#1a1a1a] dark:text-[#00b08a]">
           Les spécialités <strong>actives</strong> apparaissent dans les formulaires de thèmes et les profils.
           Une spécialité désactivée disparaît des nouveaux formulaires mais conserve ses données historiques.
         </p>

@@ -1,11 +1,11 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
 import { GlobalSearchBar } from '@/components/search/GlobalSearchBar';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import {
   LayoutDashboard, BookOpen, Users, ClipboardList, Calendar,
   BarChart2, Search, LogOut, Settings, ChevronLeft,
-  GraduationCap, Layers, Menu, Database, Rocket,
+  GraduationCap, Layers, Menu, Database, Rocket, History,
 } from 'lucide-react';
 import FloatingChat from '@/components/chat/FloatingChat';
 import { AppLogo } from '@/components/ui/AppLogo';
@@ -45,6 +45,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/enseignant/demandes',   label: 'Demandes reçues',   icon: <ClipboardList className="size-4" />,   roles: ['ENSEIGNANT', 'RESP_SPECIALITE', 'CHEF_EQUIPE', 'CHEF_DEPT'], section: 'Espace Enseignant' },
   { to: '/enseignant/etudiants',  label: 'Étudiants encadrés',icon: <GraduationCap className="size-4" />,   roles: ['ENSEIGNANT', 'RESP_SPECIALITE', 'CHEF_EQUIPE', 'CHEF_DEPT'], section: 'Espace Enseignant' },
   { to: '/enseignant/annonces',   label: 'Offres d\'encadrement', icon: <Layers className="size-4" />,      roles: ['ENSEIGNANT', 'RESP_SPECIALITE', 'CHEF_EQUIPE', 'CHEF_DEPT'], section: 'Espace Enseignant' },
+  { to: '/enseignant/historique', label: 'Historique encadrement', icon: <History className="size-4" />,   roles: ['ENSEIGNANT', 'RESP_SPECIALITE', 'CHEF_EQUIPE', 'CHEF_DEPT'], section: 'Espace Enseignant' },
   { to: '/responsable',           label: 'Ma spécialité',     icon: <BarChart2 className="size-4" />,       roles: ['RESP_SPECIALITE'],                                              section: 'Espace Enseignant' },
 
   // Administration
@@ -54,7 +55,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/admin/affectations',  label: 'Affectations',        icon: <Layers className="size-4" />,          roles: ['CHEF_DEPT', 'CHEF_EQUIPE'],                       section: 'Administration' },
   { to: '/admin/soutenances',   label: 'Soutenances',         icon: <Calendar className="size-4" />,        roles: ['CHEF_DEPT', 'TECHNICIEN'],                        section: 'Administration' },
   { to: '/admin/sessions',      label: 'Sessions',            icon: <Settings className="size-4" />,        roles: ['CHEF_DEPT'],                                      section: 'Administration' },
-  { to: '/admin/specialites',   label: 'Spécialités',         icon: <Settings className="size-4" />,        roles: ['CHEF_DEPT'],                                      section: 'Administration' },
+  { to: '/admin/specialites',   label: 'Spécialités',         icon: <Layers className="size-4" />,          roles: ['CHEF_DEPT'],                                      section: 'Administration' },
   { to: '/admin/statistiques',  label: 'Statistiques',        icon: <BarChart2 className="size-4" />,       roles: ['CHEF_DEPT', 'CHEF_EQUIPE', 'TECHNICIEN'],         section: 'Administration' },
   { to: '/admin/chatbot',       label: 'Base de connaissances',icon: <Database className="size-4" />,       roles: ['CHEF_DEPT', 'CHEF_EQUIPE'],                       section: 'Administration' },
 
@@ -133,10 +134,7 @@ export default function DashboardLayout() {
           {!collapsed && (
             <Link to="/" className="flex items-center gap-2.5 select-none">
               <img src="/logo/logo1.png" alt="e-PFC" className="h-16 w-auto object-contain shrink-0" />
-              <span
-                className="font-bold text-lg tracking-tight text-foreground"
-                style={{ fontFamily: "'Libre Baskerville', Georgia, serif" }}
-              >
+              <span className="font-bold text-lg tracking-tight text-[#009474]">
                 e-PFC
               </span>
             </Link>
@@ -255,7 +253,7 @@ export default function DashboardLayout() {
             <Avatar className="size-8 shrink-0">
               <AvatarFallback
                 className="text-xs font-semibold"
-                style={{ background: 'linear-gradient(135deg, #1e72d8, #00c9a8)', color: 'white' }}
+                style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
               >
                 {initials}
               </AvatarFallback>

@@ -6,19 +6,12 @@ interface ChatbotLogoProps {
 export function ChatbotLogo({ size = 36, className }: ChatbotLogoProps) {
   return (
     <img
-      src="/chatbotlogo.png"
+      src="/logo/chatbotlogo.png"
       alt="Assistant IA"
       width={size}
       height={size}
-      style={{
-        width: size,
-        height: size,
-        flexShrink: 0,
-        objectFit: 'contain',
-        display: 'block',
-        mixBlendMode: 'multiply',
-      }}
       className={className}
+      style={{ width: size, height: size, objectFit: 'contain', display: 'block', flexShrink: 0 }}
     />
   );
 }

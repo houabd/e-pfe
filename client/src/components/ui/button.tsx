@@ -4,7 +4,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*=size-])]:size-4 shrink-0 cursor-pointer',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-semibold tracking-wider uppercase transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*=size-])]:size-4 shrink-0 cursor-pointer',
   {
     variants: {
       variant: {
@@ -12,15 +12,15 @@ const buttonVariants = cva(
         destructive: 'bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive/90',
         outline: 'border border-input bg-background shadow-xs hover:bg-accent hover:text-accent-foreground',
         secondary: 'bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80',
-        ghost: 'hover:bg-accent hover:text-accent-foreground',
-        link: 'text-primary underline-offset-4 hover:underline',
-        neo: 'bg-sky-400 text-slate-950 font-bold border-2 border-slate-950 shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] hover:bg-sky-300 active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]',
+        ghost: 'hover:bg-accent hover:text-accent-foreground normal-case tracking-normal font-medium',
+        link: 'text-primary underline-offset-4 hover:underline normal-case tracking-normal font-medium',
+        neo: 'bg-primary text-primary-foreground shadow-xs hover:bg-primary/90',
       },
       size: {
-        default: 'h-9 px-4 py-2 has-[>svg]:px-3',
-        sm: 'h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5 text-xs',
-        lg: 'h-10 rounded-md px-6 has-[>svg]:px-4',
-        icon: 'size-9',
+        default: 'h-10 px-6 py-2.5 has-[>svg]:px-4',
+        sm: 'h-8 rounded-md gap-1.5 px-4 has-[>svg]:px-3 text-xs',
+        lg: 'h-11 rounded-md px-8 has-[>svg]:px-6',
+        icon: 'size-9 normal-case tracking-normal',
       },
     },
     defaultVariants: {

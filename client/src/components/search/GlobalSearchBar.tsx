@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+﻿import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Search, X, GraduationCap, User, BookOpen, ArrowRight, Loader2,
@@ -28,8 +28,8 @@ const ICON_MAP: Record<ItemType, React.ElementType> = {
 };
 
 const COLOR_MAP: Record<ItemType, string> = {
-  etudiant: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-  enseignant: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  etudiant: 'bg-[#e8e8e8] text-[#1a1a1a] dark:bg-gray-900/40 dark:text-[#00b08a]',
+  enseignant: 'bg-[#e8e8e8] text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
   theme: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
 };
 

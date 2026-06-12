@@ -79,7 +79,7 @@ function EtudiantDetailDialog({ etudiant, onClose }: { etudiant: SearchEtudiant 
 
         {/* Avatar + nom */}
         <div className="flex flex-col items-center gap-3 pt-2 pb-4 border-b">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 text-blue-700 text-2xl font-bold">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#e8e8e8] text-[#1a1a1a] text-2xl font-bold">
             {initials}
           </div>
           <div className="text-center">
@@ -119,7 +119,7 @@ function EtudiantDetailDialog({ etudiant, onClose }: { etudiant: SearchEtudiant 
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
                   <span className="text-sm font-semibold text-emerald-700">Thème affecté</span>
-                  <Badge className={`ml-auto text-[11px] border-0 ${aff.theme.type_pfe === 'STARTUP' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                  <Badge className={`ml-auto text-[11px] border-0 ${aff.theme.type_pfe === 'STARTUP' ? 'bg-purple-100 text-purple-700' : 'bg-[#e8e8e8] text-[#1a1a1a]'}`}>
                     {aff.theme.type_pfe}
                   </Badge>
                 </div>
@@ -160,7 +160,7 @@ function EnseignantDetailDialog({ enseignant, onClose }: { enseignant: SearchEns
 
         {/* Avatar + nom */}
         <div className="flex flex-col items-center gap-3 pt-2 pb-4 border-b">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-2xl font-bold">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#e8e8e8] text-emerald-700 text-2xl font-bold">
             {initials}
           </div>
           <div className="text-center">
@@ -235,7 +235,7 @@ function EtudiantCard({ e, q, onClick }: { e: SearchEtudiant; q: string; onClick
       className="flex items-start gap-3 rounded-lg border bg-card p-4 hover:shadow-sm hover:border-primary/30 transition-all cursor-pointer"
       onClick={onClick}
     >
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs font-semibold dark:bg-blue-900/40 dark:text-blue-300">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e8e8e8] text-[#1a1a1a] text-xs font-semibold dark:bg-gray-900/40 dark:text-[#00b08a]">
         {initials}
       </div>
       <div className="flex-1 min-w-0 space-y-1">
@@ -265,7 +265,7 @@ function EtudiantCard({ e, q, onClick }: { e: SearchEtudiant; q: string; onClick
             )}
           </div>
         ) : (
-          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Sans thème affecté</p>
+          <p className="text-xs text-amber-600 dark:text-[#00b08a] mt-1">Sans thème affecté</p>
         )}
       </div>
     </div>
@@ -281,7 +281,7 @@ function EnseignantCard({ e, q, onClick }: { e: SearchEnseignant; q: string; onC
       className="flex items-start gap-3 rounded-lg border bg-card p-4 hover:shadow-sm hover:border-primary/30 transition-all cursor-pointer"
       onClick={onClick}
     >
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold dark:bg-emerald-900/40 dark:text-emerald-300">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e8e8e8] text-emerald-700 text-xs font-semibold dark:bg-emerald-900/40 dark:text-emerald-300">
         {initials}
       </div>
       <div className="flex-1 min-w-0 space-y-1">

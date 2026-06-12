@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import {
   Bell, BookOpen, Check, ChevronDown, Filter,
   Mail, Users, X, Rocket, GraduationCap, ShieldCheck,
@@ -29,7 +29,7 @@ function TypeBadge({ type }: { type: string }) {
       <Rocket className="h-3 w-3" />STARTUP
     </Badge>
   ) : (
-    <Badge className="bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100 text-xs gap-1">
+    <Badge className="bg-[#e8e8e8] text-[#1a1a1a] border-[#e8e8e8] hover:bg-[#e8e8e8] text-xs gap-1">
       <BookOpen className="h-3 w-3" />CLASSIQUE
     </Badge>
   );
@@ -60,7 +60,7 @@ function EtudiantInfo({
         <p className="text-sm font-medium">{etudiant.prenom} {etudiant.nom}</p>
         <a
           href={`mailto:${etudiant.email}`}
-          className="flex items-center gap-1 text-xs text-blue-600 hover:underline truncate"
+          className="flex items-center gap-1 text-xs text-[#1a1a1a] hover:underline truncate"
         >
           <Mail className="h-3 w-3 shrink-0" />
           {etudiant.email}
@@ -363,7 +363,7 @@ function ConfirmEncadrantDialog({
         </DialogHeader>
 
         <div className="space-y-5 py-1">
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <div className="rounded-lg border border-[#e8e8e8] bg-[#f7f7f7] px-4 py-3 text-sm text-amber-800">
             Un étudiant vous a désigné comme encadrant pour ce thème. Confirmez votre supervision ou refusez — dans ce cas le thème sera remis en attente d'un encadrant.
           </div>
 
@@ -473,7 +473,7 @@ function ThemeConfirmationCard({
   const refuse = useRefuseEncadrant();
 
   return (
-    <Card className="hover:shadow-md transition-shadow border-amber-200">
+    <Card className="hover:shadow-md transition-shadow border-[#e8e8e8]">
       <CardContent className="p-4 space-y-3">
         <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">
@@ -489,7 +489,7 @@ function ThemeConfirmationCard({
           <span>
             <strong className="text-foreground">{theme.propose_par.prenom} {theme.propose_par.nom}</strong>
             {' — '}
-            <a href={`mailto:${theme.propose_par.email}`} className="text-blue-600 hover:underline">
+            <a href={`mailto:${theme.propose_par.email}`} className="text-[#1a1a1a] hover:underline">
               {theme.propose_par.email}
             </a>
           </span>
@@ -613,7 +613,7 @@ export default function DemandesEnAttente() {
             <ShieldCheck className="h-4 w-4" />
             À confirmer
             {totalConfirmation > 0 && (
-              <Badge className="bg-amber-500 text-white text-xs px-1.5 py-0 h-5 hover:bg-amber-500">
+              <Badge className="bg-[#f7f7f7]0 text-white text-xs px-1.5 py-0 h-5 hover:bg-[#f7f7f7]0">
                 {totalConfirmation}
               </Badge>
             )}

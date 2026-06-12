@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import {
   BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -75,12 +75,12 @@ function GlobalTab({ specialiteId }: { specialiteId: string }) {
   );
 
   const kpis = [
-    { icon: GraduationCap, label: 'Étudiants', value: data?.totalEtudiants ?? 0, sub: `${data?.etudiantsSansTheme ?? 0} sans thème`, color: 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400' },
-    { icon: AlertTriangle, label: 'Sans thème', value: data?.etudiantsSansTheme ?? 0, sub: `${pct(data?.etudiantsSansTheme ?? 0, data?.totalEtudiants ?? 0)}% des étudiants`, color: 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400' },
-    { icon: Users, label: 'Enseignants', value: data?.totalEnseignants ?? 0, sub: `${data?.enseignantsSurcharges ?? 0} surchargés`, color: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400' },
+    { icon: GraduationCap, label: 'Étudiants', value: data?.totalEtudiants ?? 0, sub: `${data?.etudiantsSansTheme ?? 0} sans thème`, color: 'bg-[#e8e8e8] text-[#1a1a1a] dark:bg-gray-900/40 dark:text-[#00b08a]' },
+    { icon: AlertTriangle, label: 'Sans thème', value: data?.etudiantsSansTheme ?? 0, sub: `${pct(data?.etudiantsSansTheme ?? 0, data?.totalEtudiants ?? 0)}% des étudiants`, color: 'bg-[#e8e8e8] text-amber-600 dark:bg-gray-900/40 dark:text-[#00b08a]' },
+    { icon: Users, label: 'Enseignants', value: data?.totalEnseignants ?? 0, sub: `${data?.enseignantsSurcharges ?? 0} surchargés`, color: 'bg-[#e8e8e8] text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400' },
     { icon: UserX, label: 'Sans affectation', value: data?.enseignantsSansAffectation ?? 0, sub: 'encadrent 0 étudiant', color: 'bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-400' },
     { icon: BookOpen, label: 'Thèmes', value: data?.totalThemes ?? 0, sub: undefined, color: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400' },
-    { icon: CheckCircle2, label: 'Validés', value: data?.themesValides ?? 0, sub: `${pct(data?.themesValides ?? 0, data?.totalThemes ?? 0)}% du total`, color: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400' },
+    { icon: CheckCircle2, label: 'Validés', value: data?.themesValides ?? 0, sub: `${pct(data?.themesValides ?? 0, data?.totalThemes ?? 0)}% du total`, color: 'bg-[#e8e8e8] text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400' },
     { icon: Layers, label: 'Affectés', value: data?.themesAffectes ?? 0, sub: `${pct(data?.themesAffectes ?? 0, data?.totalThemes ?? 0)}% du total`, color: 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/40 dark:text-cyan-400' },
     { icon: Award, label: 'Soutenus', value: data?.themesSoutenus ?? 0, sub: `${pct(data?.themesSoutenus ?? 0, data?.themesAffectes ?? 0)}% des affectés`, color: 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-400' },
   ];
@@ -120,10 +120,10 @@ function GlobalTab({ specialiteId }: { specialiteId: string }) {
           <CardHeader className="pb-2"><CardTitle className="text-sm">Progression globale</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {[
-              { label: 'Taux de validation', v: data.themesValides, t: data.totalThemes, color: 'bg-emerald-500' },
-              { label: 'Taux d\'affectation', v: data.themesAffectes, t: data.totalThemes, color: 'bg-blue-500' },
+              { label: 'Taux de validation', v: data.themesValides, t: data.totalThemes, color: 'bg-[#f7f7f7]0' },
+              { label: 'Taux d\'affectation', v: data.themesAffectes, t: data.totalThemes, color: 'bg-[#009474]' },
               { label: 'Taux de soutenance', v: data.themesSoutenus, t: data.themesAffectes, color: 'bg-purple-500' },
-              { label: 'Étudiants avec thème', v: data.etudiantsAvecTheme, t: data.totalEtudiants, color: 'bg-teal-500' },
+              { label: 'Étudiants avec thème', v: data.etudiantsAvecTheme, t: data.totalEtudiants, color: 'bg-[#0e7a4a]' },
             ].map(b => (
               <div key={b.label} className="flex items-center gap-3 text-sm">
                 <span className="w-44 shrink-0 text-xs text-muted-foreground">{b.label}</span>
@@ -232,10 +232,10 @@ const CAT_LABELS: Record<string, string> = {
 };
 const CAT_COLOR: Record<string, string> = {
   SURCHARGE: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
-  SOUS_CHARGE: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  SOUS_CHARGE: 'bg-[#e8e8e8] text-amber-700 dark:bg-gray-900/40 dark:text-[#00b08a]',
   SANS_PROPOSITION: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
-  AVEC_PROPOSITION: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-  NORMAL: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  AVEC_PROPOSITION: 'bg-[#e8e8e8] text-[#1a1a1a] dark:bg-gray-900/40 dark:text-[#00b08a]',
+  NORMAL: 'bg-[#e8e8e8] text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
 };
 
 function EnseignantsTab({ specialiteId }: { specialiteId: string }) {
@@ -268,11 +268,6 @@ function EnseignantsTab({ specialiteId }: { specialiteId: string }) {
     NORMAL: data.filter(e => e.categorie === 'NORMAL').length,
   };
 
-  const barData = [...data]
-    .sort((a, b) => b.nb_themes_affectes - a.nb_themes_affectes)
-    .slice(0, 10)
-    .map(e => ({ name: `${e.prenom.slice(0, 1)}. ${e.nom}`, Affectés: e.nb_themes_affectes, Proposés: e.nb_themes_proposes }));
-
   function SortIcon({ col }: { col: ESort }) {
     if (sort !== col) return <ArrowUpDown className="h-3 w-3 opacity-40" />;
     return dir === 'asc' ? <ArrowUp className="h-3 w-3 text-primary" /> : <ArrowDown className="h-3 w-3 text-primary" />;
@@ -300,27 +295,6 @@ function EnseignantsTab({ specialiteId }: { specialiteId: string }) {
         ))}
       </div>
 
-      {/* Bar chart top 10 */}
-      {!isLoading && barData.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Top 10 — Thèmes encadrés</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={barData} layout="vertical" margin={{ left: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={90} />
-                <Tooltip />
-                <Legend iconType="circle" iconSize={8} />
-                <Bar dataKey="Proposés" fill={C.blue} radius={[0, 3, 3, 0]} />
-                <Bar dataKey="Affectés" fill={C.green} radius={[0, 3, 3, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Filtres + exports */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -416,15 +390,15 @@ function EnseignantsTab({ specialiteId }: { specialiteId: string }) {
 
 function EtudiantStatutBadge({ row }: { row: EtudiantStatRow }) {
   if (!row.has_theme) {
-    return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700">Sans thème</span>;
+    return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-[#e8e8e8] text-amber-700">Sans thème</span>;
   }
   if (row.is_startup) {
     return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-purple-100 text-purple-700">Équipe Startup</span>;
   }
   if (row.has_binome) {
-    return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-teal-100 text-teal-700">Binôme</span>;
+    return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-[#e8e8e8] text-[#0a5e37]">Binôme</span>;
   }
-  return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-blue-100 text-blue-700">Monôme</span>;
+  return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-[#e8e8e8] text-[#1a1a1a]">Monôme</span>;
 }
 
 // ─── Tab Étudiants ────────────────────────────────────────────────────────────
@@ -526,10 +500,10 @@ function EtudiantsTab({ specialiteId }: { specialiteId: string }) {
           <CardContent className="space-y-3 pt-2">
             {[
               { label: 'Total étudiants', value: allData.length, color: 'text-foreground' },
-              { label: 'Affectés (avec thème)', value: avecTheme, color: 'text-blue-600' },
+              { label: 'Affectés (avec thème)', value: avecTheme, color: 'text-[#1a1a1a]' },
               { label: 'Sans thème', value: sansTheme, color: 'text-amber-600' },
               { label: 'Avec encadrant', value: avecEncadrant, color: 'text-indigo-600' },
-              { label: 'Avec binôme', value: avecBinome, color: 'text-teal-600' },
+              { label: 'Avec binôme', value: avecBinome, color: 'text-[#0e7a4a]' },
               { label: 'Monômes', value: monomes, color: 'text-orange-600' },
               { label: 'Équipe Startup', value: enStartup, color: 'text-purple-600' },
               { label: 'Ont proposé', value: avecProposition, color: 'text-rose-600' },
@@ -617,7 +591,7 @@ function EtudiantsTab({ specialiteId }: { specialiteId: string }) {
                       </td>
                       <td className="px-4 py-2.5 text-center hidden sm:table-cell">
                         {e.has_binome
-                          ? <span className="text-xs text-teal-600">{e.binome?.partenaire.prenom} {e.binome?.partenaire.nom}</span>
+                          ? <span className="text-xs text-[#0e7a4a]">{e.binome?.partenaire.prenom} {e.binome?.partenaire.nom}</span>
                           : <span className="text-xs text-muted-foreground">—</span>}
                       </td>
                       <td className="px-4 py-2.5 text-right"><Badge variant="outline" className="text-xs">{e.nb_choix}</Badge></td>
@@ -686,7 +660,7 @@ function ThemesTab({ specialiteId }: { specialiteId: string }) {
           {[
             { label: 'Total', value: data.totaux.total, color: 'text-foreground' },
             { label: 'Validés', value: data.totaux.valides, color: 'text-emerald-600' },
-            { label: 'Affectés', value: data.totaux.affectes, color: 'text-blue-600' },
+            { label: 'Affectés', value: data.totaux.affectes, color: 'text-[#1a1a1a]' },
             { label: 'Soutenus', value: data.totaux.soutenus, color: 'text-purple-600' },
             { label: 'Sans encadrant', value: data.totaux.sansEncadrant, color: 'text-amber-600' },
           ].map(c => (

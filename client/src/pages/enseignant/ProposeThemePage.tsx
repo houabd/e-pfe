@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   ArrowLeft, BookOpen, Rocket, Tag, X, ChevronDown,
-  HelpCircle, Briefcase,
+  HelpCircle, Briefcase, Search, UserCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,9 +14,6 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
 import { useCreateTheme } from '@/hooks/useThemes';
 import { useActiveSpecialites } from '@/hooks/useSpecialites';
 import { api } from '@/services/api';
@@ -88,6 +85,25 @@ export default function ProposeThemePage() {
   const [enseignants, setEnseignants] = useState<User[]>([]);
   const [motCleInput, setMotCleInput] = useState('');
   const [showExterne, setShowExterne] = useState(false);
+  const [coSearch, setCoSearch] = useState('');
+  const [showCoList, setShowCoList] = useState(false);
+  const coRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (coRef.current && !coRef.current.contains(e.target as Node)) setShowCoList(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const filteredEnseignants = useMemo(() => {
+    if (!coSearch.trim()) return enseignants.slice(0, 8);
+    const q = coSearch.toLowerCase();
+    return enseignants
+      .filter((e) => `${e.prenom} ${e.nom}`.toLowerCase().includes(q) || e.email?.toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [enseignants, coSearch]);
 
   useEffect(() => {
     api.get<{ data: User[]; meta: unknown }>('/users', { params: { limit: 500 } })
@@ -178,7 +194,7 @@ export default function ProposeThemePage() {
                 {([
                   {
                     val: 'CLASSIQUE' as const,
-                    icon: <BookOpen className="h-6 w-6 text-blue-500" />,
+                    icon: <BookOpen className="h-6 w-6 text-[#009474]" />,
                     title: 'Classique',
                     desc: 'Projet de recherche ou professionnel, encadré par un enseignant interne.',
                   },
@@ -200,7 +216,7 @@ export default function ProposeThemePage() {
                       field.value === val
                         ? val === 'STARTUP'
                           ? 'border-orange-400 bg-orange-50'
-                          : 'border-blue-400 bg-blue-50'
+                          : 'border-[#c2c2c2] bg-[#f7f7f7]'
                         : 'border-border hover:border-muted-foreground/30 hover:bg-muted/30'
                     }`}
                   >
@@ -232,7 +248,7 @@ export default function ProposeThemePage() {
                     onClick={() => toggleSousType(val)}
                     className={`rounded-lg border px-4 py-2 text-sm font-medium transition-all ${
                       sousTypes.includes(val)
-                        ? 'border-blue-400 bg-blue-50 text-blue-700'
+                        ? 'border-[#c2c2c2] bg-[#f7f7f7] text-[#1a1a1a]'
                         : 'border-border hover:border-muted-foreground/40'
                     }`}
                   >
@@ -349,33 +365,71 @@ export default function ProposeThemePage() {
 
         {/* ── Co-encadrement ── */}
         <Section title="Co-encadrement (optionnel)">
-          <p className="text-sm text-muted-foreground rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+          <p className="text-sm text-muted-foreground rounded-lg border border-[#e8e8e8] bg-[#f7f7f7] px-3 py-2">
             En tant que proposant, vous êtes automatiquement l'encadrant principal de ce thème.
           </p>
           {/* Co-encadrant interne */}
-          <div className="space-y-1.5">
+          <div className="space-y-1.5" ref={coRef}>
             <Label>Co-encadrant interne (optionnel)</Label>
             <Controller
               name="encadrant_id"
               control={control}
-              render={({ field }) => (
-                <Select
-                  value={field.value ?? '__none__'}
-                  onValueChange={(v) => field.onChange(v === '__none__' ? undefined : v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un co-encadrant..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Aucun co-encadrant</SelectItem>
-                    {enseignants.map((e) => (
-                      <SelectItem key={e.id} value={e.id}>
-                        {e.prenom} {e.nom}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+              render={({ field }) => {
+                const selected = enseignants.find((e) => e.id === field.value);
+                return (
+                  <div className="relative">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                      <Input
+                        value={selected ? `${selected.prenom} ${selected.nom}` : coSearch}
+                        onChange={(e) => {
+                          setCoSearch(e.target.value);
+                          setShowCoList(true);
+                          if (field.value) field.onChange(undefined);
+                        }}
+                        onFocus={() => setShowCoList(true)}
+                        placeholder="Rechercher un enseignant…"
+                        className="pl-9 pr-8"
+                      />
+                      {field.value && (
+                        <button
+                          type="button"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          onClick={() => { field.onChange(undefined); setCoSearch(''); }}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                    {showCoList && !field.value && (
+                      <div className="absolute z-50 mt-1 w-full bg-background border rounded-lg shadow-lg max-h-52 overflow-y-auto">
+                        <button
+                          type="button"
+                          className="w-full text-left px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50"
+                          onClick={() => { field.onChange(undefined); setCoSearch(''); setShowCoList(false); }}
+                        >
+                          Aucun co-encadrant
+                        </button>
+                        {filteredEnseignants.map((e) => (
+                          <button
+                            key={e.id}
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-muted/50 flex items-center gap-2"
+                            onClick={() => { field.onChange(e.id); setCoSearch(''); setShowCoList(false); }}
+                          >
+                            <UserCheck className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="flex-1">{e.prenom} {e.nom}</span>
+                            <span className="text-xs text-muted-foreground">{e.email}</span>
+                          </button>
+                        ))}
+                        {filteredEnseignants.length === 0 && (
+                          <p className="px-3 py-2 text-sm text-muted-foreground">Aucun résultat</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              }}
             />
             <Hint>
               Si vous désignez un co-encadrant, le thème sera masqué jusqu'à ce qu'il accepte. Une notification lui sera envoyée.
@@ -466,7 +520,7 @@ export default function ProposeThemePage() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <Badge className={typePfe === 'STARTUP'
                     ? 'bg-orange-100 text-orange-700 border-orange-200'
-                    : 'bg-blue-100 text-blue-700 border-blue-200'
+                    : 'bg-[#e8e8e8] text-[#1a1a1a] border-[#e8e8e8]'
                   }>
                     {typePfe}
                   </Badge>

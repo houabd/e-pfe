@@ -1,17 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  BookOpen, Search, Filter, ChevronDown, GripVertical,
+  BookOpen, Search, GripVertical,
   X, Plus, CheckCircle2, AlertCircle, Users, ArrowRight,
   ChevronUp, ChevronDown as ChevronDownIcon, RotateCcw,
-  Rocket, Info,
+  Rocket, Info, ClipboardList,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -19,18 +18,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { useMesChoix, useSubmitChoix } from '@/hooks/useChoix';
 import { useMonBinome } from '@/hooks/useBinomes';
 import { useThemes } from '@/hooks/useThemes';
 import { useMonAffectation } from '@/hooks/useAffectations';
 import { ThemeDetailDialog } from '@/components/themes/ThemeDetailDialog';
 import { useActiveSession } from '@/hooks/useSession';
-import { useActiveSpecialites } from '@/hooks/useSpecialites';
 import { useCurrentUser } from '@/stores/authStore';
 import { toast } from 'sonner';
 import type { Theme } from '@/types';
@@ -45,7 +38,7 @@ function TypeBadge({ type }: { type: string }) {
       <Rocket className="h-3 w-3" />Startup
     </Badge>
   ) : (
-    <Badge className="bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100 text-xs gap-1">
+    <Badge className="bg-[#e8e8e8] text-[#1a1a1a] border-[#e8e8e8] hover:bg-[#e8e8e8] text-xs gap-1">
       <BookOpen className="h-3 w-3" />Classique
     </Badge>
   );
@@ -54,7 +47,7 @@ function TypeBadge({ type }: { type: string }) {
 function StatutBadge({ statut }: { statut: 'PENDING' | 'ACCEPTED' | 'REFUSED' }) {
   if (statut === 'ACCEPTED') {
     return (
-      <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 text-xs">
+      <Badge className="bg-[#e8e8e8] text-emerald-700 border-[#e8e8e8] hover:bg-[#e8e8e8] text-xs">
         Accepté
       </Badge>
     );
@@ -67,69 +60,9 @@ function StatutBadge({ statut }: { statut: 'PENDING' | 'ACCEPTED' | 'REFUSED' })
     );
   }
   return (
-    <Badge className="bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100 text-xs">
+    <Badge className="bg-[#e8e8e8] text-amber-700 border-[#e8e8e8] hover:bg-[#e8e8e8] text-xs">
       En attente
     </Badge>
-  );
-}
-
-// ─── Filtre spécialités multi-select ─────────────────────────────────────────
-
-function SpecialiteFilter({
-  selected,
-  onChange,
-}: {
-  selected: string[];
-  onChange: (ids: string[]) => void;
-}) {
-  const { data: specialites = [] } = useActiveSpecialites();
-
-  function toggle(id: string) {
-    onChange(selected.includes(id) ? selected.filter((s) => s !== id) : [...selected, id]);
-  }
-
-  const label =
-    selected.length === 0
-      ? 'Toutes les spécialités'
-      : selected.length === 1
-        ? (specialites.find((s) => s.id === selected[0])?.nom ?? '1 spécialité')
-        : `${selected.length} spécialités`;
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="h-9 gap-2 text-sm">
-          <Filter className="h-3.5 w-3.5 text-muted-foreground" />
-          {label}
-          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56 p-2">
-        {specialites.map((s) => (
-          <label
-            key={s.id}
-            className="flex items-center gap-2.5 rounded px-2 py-1.5 text-sm cursor-pointer hover:bg-accent"
-          >
-            <Checkbox
-              checked={selected.includes(s.id)}
-              onCheckedChange={() => toggle(s.id)}
-            />
-            {s.nom}
-          </label>
-        ))}
-        {selected.length > 0 && (
-          <>
-            <div className="border-t my-1" />
-            <button
-              className="w-full text-left rounded px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent"
-              onClick={() => onChange([])}
-            >
-              Effacer les filtres
-            </button>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 
@@ -276,6 +209,8 @@ function SelectionPanier({
 
 // ─── Carte thème disponible ───────────────────────────────────────────────────
 
+const MAX_STARTUP_MEMBRES = 6;
+
 function ThemeCard({
   theme,
   onAdd,
@@ -289,6 +224,10 @@ function ThemeCard({
   disabled: boolean;
   disabledReason?: string;
 }) {
+  const startupMembres = theme.type_pfe === 'STARTUP'
+    ? (theme.affectation?.startup_membres ?? [])
+    : [];
+
   return (
     <div
       onClick={onView}
@@ -303,6 +242,12 @@ function ThemeCard({
         )}
         <div className="flex flex-wrap gap-1.5 mt-1">
           <TypeBadge type={theme.type_pfe} />
+          {theme.type_pfe === 'STARTUP' && theme.propose_par.role !== 'ETUDIANT' && (
+            <Badge className="bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-50 text-xs gap-1">
+              <Users className="h-3 w-3" />
+              {startupMembres.length}/{MAX_STARTUP_MEMBRES} membres
+            </Badge>
+          )}
           {theme.theme_specialites.map((ts) => (
             <Badge
               key={ts.specialite.id}
@@ -313,6 +258,17 @@ function ThemeCard({
             </Badge>
           ))}
         </div>
+        {theme.type_pfe === 'STARTUP' && startupMembres.length > 0 && (
+          <div className="mt-1 rounded-md bg-orange-50 border border-orange-100 px-2.5 py-1.5 space-y-0.5">
+            <p className="text-[10px] font-semibold text-orange-700 uppercase tracking-wide">Équipe actuelle</p>
+            {startupMembres.map((m) => (
+              <p key={m.id} className="text-xs text-orange-800">
+                • {m.etudiant.prenom} {m.etudiant.nom}
+                {m.etudiant.specialite ? ` — ${m.etudiant.specialite.nom}` : ''}
+              </p>
+            ))}
+          </div>
+        )}
         {theme.mots_cles.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1">
             {theme.mots_cles.slice(0, 4).map((mc) => (
@@ -395,7 +351,7 @@ function ConfirmDialog({
 
         <div className="space-y-4 py-2">
           {!hasBinome && (
-            <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <div className="flex items-start gap-3 rounded-lg border border-[#e8e8e8] bg-[#f7f7f7] p-3">
               <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
               <div className="text-sm text-amber-800">
                 <p className="font-medium">Vous n'avez pas encore de binôme.</p>
@@ -408,9 +364,9 @@ function ConfirmDialog({
           )}
 
           {hasBinome && partner && (
-            <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
-              <Users className="h-4 w-4 text-blue-600 shrink-0" />
-              <p className="text-sm text-blue-800">
+            <div className="flex items-center gap-3 rounded-lg border border-[#e8e8e8] bg-[#f7f7f7] px-3 py-2.5">
+              <Users className="h-4 w-4 text-[#1a1a1a] shrink-0" />
+              <p className="text-sm text-[#1a1a1a]">
                 Ces choix seront communs avec votre binôme{' '}
                 <strong>{partner.prenom} {partner.nom}</strong>.
               </p>
@@ -495,7 +451,6 @@ export default function ChoixThemes() {
 
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [selectedSpecialites, setSelectedSpecialites] = useState<string[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<Array<'CLASSIQUE' | 'STARTUP'>>([]);
 
   const [showConfirm, setShowConfirm] = useState(false);
@@ -510,7 +465,9 @@ export default function ChoixThemes() {
   const { data: themesResponse, isLoading: loadingThemes } = useThemes({
     statut_validation: 'VALIDE',
     is_affecte: false,
+    include_open_startup: true,
     etudiant_specialite_id: currentUser?.specialite?.id,
+    etudiant_id: currentUser?.id,
     search: debouncedSearch || undefined,
     limit: 50,
   });
@@ -537,16 +494,11 @@ export default function ChoixThemes() {
       );
     }
 
-    if (selectedSpecialites.length > 0) {
-      list = list.filter((t) =>
-        t.theme_specialites.some((ts) => selectedSpecialites.includes(ts.specialite.id)),
-      );
-    }
     if (selectedTypes.length > 0 && selectedTypes.length < 2) {
       list = list.filter((t) => selectedTypes.includes(t.type_pfe as 'CLASSIQUE' | 'STARTUP'));
     }
     return list;
-  }, [allThemes, excludedIds, selectedSpecialites, selectedTypes, currentUser]);
+  }, [allThemes, excludedIds, selectedTypes, currentUser]);
 
   const submitMutation = useSubmitChoix();
 
@@ -596,7 +548,7 @@ export default function ChoixThemes() {
 
       {/* Bannière session */}
       {!isSessionChoix && (
-        <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+        <div className="flex items-center gap-3 rounded-xl border border-[#e8e8e8] bg-[#f7f7f7] px-4 py-3">
           <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
           <p className="text-sm text-amber-800">
             La période de choix de thèmes n'est pas ouverte actuellement.
@@ -607,10 +559,10 @@ export default function ChoixThemes() {
 
       {/* Affecté par admin (sans ThemeChoix accepté) → état final */}
       {!loadingChoix && isAdminAffecte && monAffectation && (
-        <Card className="border-emerald-200 bg-emerald-50">
+        <Card className="border-[#e8e8e8] bg-[#f7f7f7]">
           <CardContent className="p-5">
             <div className="flex items-start gap-4">
-              <div className="rounded-full bg-emerald-100 p-2.5 shrink-0">
+              <div className="rounded-full bg-[#e8e8e8] p-2.5 shrink-0">
                 <CheckCircle2 className="h-5 w-5 text-emerald-600" />
               </div>
               <div className="flex-1 min-w-0">
@@ -636,12 +588,12 @@ export default function ChoixThemes() {
       {/* Thème accepté → état final */}
       {!loadingChoix && acceptedChoix && (
         <Card
-          className="border-emerald-200 bg-emerald-50 cursor-pointer hover:shadow-md transition-shadow"
+          className="border-[#e8e8e8] bg-[#f7f7f7] cursor-pointer hover:shadow-md transition-shadow"
           onClick={() => setDetailThemeId(acceptedChoix.theme.id)}
         >
           <CardContent className="p-5">
             <div className="flex items-start gap-4">
-              <div className="rounded-full bg-emerald-100 p-2.5 shrink-0">
+              <div className="rounded-full bg-[#e8e8e8] p-2.5 shrink-0">
                 <CheckCircle2 className="h-5 w-5 text-emerald-600" />
               </div>
               <div className="flex-1 min-w-0">
@@ -689,9 +641,9 @@ export default function ChoixThemes() {
 
       {/* Banner rechoisir */}
       {peutRechoisir && isSessionChoix && (
-        <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
-          <RotateCcw className="h-4 w-4 text-blue-600 shrink-0" />
-          <p className="text-sm text-blue-800">
+        <div className="flex items-center gap-3 rounded-xl border border-[#e8e8e8] bg-[#f7f7f7] px-4 py-3">
+          <RotateCcw className="h-4 w-4 text-[#1a1a1a] shrink-0" />
+          <p className="text-sm text-[#1a1a1a]">
             Tous vos choix ont été refusés. Vous pouvez soumettre 3 nouveaux choix.
           </p>
         </div>
@@ -738,7 +690,7 @@ export default function ChoixThemes() {
                       selectedTypes.includes(type)
                         ? type === 'STARTUP'
                           ? 'border-orange-400 bg-orange-100 text-orange-800'
-                          : 'border-blue-400 bg-blue-100 text-blue-800'
+                          : 'border-[#c2c2c2] bg-[#e8e8e8] text-[#1a1a1a]'
                         : 'border-border text-muted-foreground hover:border-primary/50'
                     }`}
                   >
@@ -746,10 +698,6 @@ export default function ChoixThemes() {
                   </button>
                 ))}
 
-                <SpecialiteFilter
-                  selected={selectedSpecialites}
-                  onChange={setSelectedSpecialites}
-                />
               </div>
 
               {/* Liste thèmes */}
@@ -826,7 +774,7 @@ export default function ChoixThemes() {
 
           {/* Avertissement binôme */}
           {!binome && (
-            <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <div className="flex items-start gap-3 rounded-xl border border-[#e8e8e8] bg-[#f7f7f7] px-4 py-3">
               <Users className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-amber-800">
@@ -836,7 +784,7 @@ export default function ChoixThemes() {
               <Button
                 size="sm"
                 variant="outline"
-                className="shrink-0 h-8 gap-1.5 border-amber-300 text-amber-800 hover:bg-amber-100"
+                className="shrink-0 h-8 gap-1.5 border-amber-300 text-amber-800 hover:bg-[#e8e8e8]"
                 onClick={() => navigate('/etudiant/binome')}
               >
                 Gérer <ArrowRight className="h-3 w-3" />
@@ -880,11 +828,22 @@ export default function ChoixThemes() {
 
       {/* Max 3 atteint sans ACCEPTED (3 pending) */}
       {!loadingChoix && !acceptedChoix && !peutRechoisir && existingActive.length >= MAX_CHOIX && (
-        <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
-          <CheckCircle2 className="h-4 w-4 text-blue-600 shrink-0" />
-          <p className="text-sm text-blue-800">
-            Vous avez soumis 3 choix. En attente de réponse des enseignants.
-          </p>
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-[#e8e8e8] bg-[#f7f7f7] px-4 py-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <CheckCircle2 className="h-4 w-4 text-[#1a1a1a] shrink-0" />
+            <p className="text-sm text-[#1a1a1a]">
+              Vous avez soumis 3 choix. En attente de réponse des enseignants.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="shrink-0 gap-1.5"
+            onClick={() => navigate('/etudiant/proposer')}
+          >
+            <ClipboardList className="h-3.5 w-3.5" />
+            Proposer un thème
+          </Button>
         </div>
       )}
 

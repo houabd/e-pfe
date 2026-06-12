@@ -21,6 +21,7 @@ import ProposeThemePage from '@/pages/enseignant/ProposeThemePage';
 import DemandesEnAttente from '@/pages/enseignant/DemandesEnAttente';
 import EtudiantsEncadres from '@/pages/enseignant/EtudiantsEncadres';
 import AnnoncesEncadrement from '@/pages/enseignant/AnnoncesEncadrement';
+import HistoriqueEncadrement from '@/pages/enseignant/HistoriqueEncadrement';
 
 import DashboardAdmin from '@/pages/admin/DashboardAdmin';
 import GestionThemesAdmin from '@/pages/admin/GestionThemes';
@@ -90,6 +91,7 @@ export const router = createBrowserRouter([
               { path: '/enseignant/demandes', element: <DemandesEnAttente /> },
               { path: '/enseignant/etudiants', element: <EtudiantsEncadres /> },
               { path: '/enseignant/annonces', element: <AnnoncesEncadrement /> },
+              { path: '/enseignant/historique', element: <HistoriqueEncadrement /> },
             ],
           },
 

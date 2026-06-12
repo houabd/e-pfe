@@ -268,6 +268,14 @@ export async function addStartupMembre(
   return data.data!;
 }
 
+export async function addStartupMembreFromTheme(
+  themeId: string,
+  dto: { etudiant_id: string },
+): Promise<{ type: 'INVITATION'; proposition: unknown }> {
+  const { data } = await api.post<ApiResponse<{ type: 'INVITATION'; proposition: unknown }>>(`/affectations/startup/theme/${themeId}/membres`, dto);
+  return data.data!;
+}
+
 export async function addMembreExterne(
   affectationId: string,
   dto: { nom: string; prenom: string; email: string; specialite?: string; universite?: string; commentaire?: string },
@@ -322,4 +330,52 @@ export async function etudiantAccepteProposition(propId: string): Promise<{ mess
 export async function etudiantRefuseProposition(propId: string): Promise<{ message: string }> {
   const { data } = await api.patch<ApiResponse<{ message: string }>>(`/affectations/propositions/${propId}/etudiant-refuser`);
   return data.data!;
+}
+
+// ─── Historique encadrement ───────────────────────────────────────────────────
+
+export interface EtudiantHistorique {
+  id: string;
+  nom: string;
+  prenom: string;
+  email: string;
+  matricule?: string | null;
+  specialite?: { id: string; nom: string } | null;
+  type_affectation: 'CLASSIQUE' | 'STARTUP';
+}
+
+export interface ThemeEncadre {
+  id: string;
+  titre: string;
+  type_pfe: 'CLASSIQUE' | 'STARTUP';
+  sous_types: string[];
+  statut_validation: 'NON_VALIDE' | 'VALIDE';
+  is_soutenu: boolean;
+  session: { id: string; type: string; annee_universitaire: string };
+  theme_specialites: Array<{ specialite: { id: string; nom: string } }>;
+  mon_role: 'PROPOSANT' | 'ENCADRANT' | 'CO_ENCADRANT';
+  etudiants: EtudiantHistorique[];
+}
+
+export async function getHistoriqueEncadrement(anneeUniversitaire?: string): Promise<ThemeEncadre[]> {
+  const { data } = await api.get<ApiResponse<ThemeEncadre[]>>('/affectations/historique-encadrement', {
+    params: anneeUniversitaire ? { annee_universitaire: anneeUniversitaire } : {},
+  });
+  return data.data ?? [];
+}
+
+export async function exportHistoriqueExcel(anneeUniversitaire?: string): Promise<Blob> {
+  const response = await api.get('/affectations/historique-encadrement/export', {
+    params: anneeUniversitaire ? { annee_universitaire: anneeUniversitaire } : {},
+    responseType: 'blob',
+  });
+  return response.data as Blob;
+}
+
+export async function exportHistoriquePDF(anneeUniversitaire?: string): Promise<Blob> {
+  const response = await api.get('/affectations/historique-encadrement/export-pdf', {
+    params: anneeUniversitaire ? { annee_universitaire: anneeUniversitaire } : {},
+    responseType: 'blob',
+  });
+  return response.data as Blob;
 }

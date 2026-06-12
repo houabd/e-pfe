@@ -4,6 +4,7 @@ import type { Theme, ApiResponse, CreateThemeForm, DemandeModification } from '@
 export interface ThemeFilters {
   specialite_id?: string;
   etudiant_specialite_id?: string;
+  etudiant_id?: string;
   type_pfe?: string;
   statut_validation?: string;
   is_affecte?: boolean;
@@ -11,6 +12,7 @@ export interface ThemeFilters {
   search?: string;
   page?: number;
   limit?: number;
+  include_open_startup?: boolean;
 }
 
 export async function getThemes(filters?: ThemeFilters) {

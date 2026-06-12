@@ -91,6 +91,53 @@ router.get(
   },
 );
 
+const historiqueQuerySchema = z.object({
+  annee_universitaire: z.string().optional(),
+});
+
+router.get(
+  '/historique-encadrement',
+  requireRole('ENSEIGNANT', 'CHEF_EQUIPE', 'CHEF_DEPT', 'RESP_SPECIALITE'),
+  validate({ query: historiqueQuerySchema }),
+  async (req, res, next) => {
+    try {
+      const { annee_universitaire } = req.query as { annee_universitaire?: string };
+      const data = await affectationService.getHistoriqueEncadrement(req.user!.userId, annee_universitaire);
+      res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+router.get(
+  '/historique-encadrement/export',
+  requireRole('ENSEIGNANT', 'CHEF_EQUIPE', 'CHEF_DEPT', 'RESP_SPECIALITE'),
+  validate({ query: historiqueQuerySchema }),
+  async (req, res, next) => {
+    try {
+      const { annee_universitaire } = req.query as { annee_universitaire?: string };
+      await affectationService.exportHistoriqueExcel(req.user!.userId, annee_universitaire, res);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+router.get(
+  '/historique-encadrement/export-pdf',
+  requireRole('ENSEIGNANT', 'CHEF_EQUIPE', 'CHEF_DEPT', 'RESP_SPECIALITE'),
+  validate({ query: historiqueQuerySchema }),
+  async (req, res, next) => {
+    try {
+      const { annee_universitaire } = req.query as { annee_universitaire?: string };
+      await affectationService.exportHistoriquePDF(req.user!.userId, annee_universitaire, res);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 // ─── Routes admin (CHEF_EQUIPE / chef_dept) ──────────────────────────────────
 
 router.get(
@@ -240,6 +287,23 @@ router.post(
     try {
       const affectation = await affectationService.createStartupAffectation(req.body, req.user!.userId);
       res.status(201).json({ success: true, data: affectation });
+    } catch (err) { next(err); }
+  },
+);
+
+router.post(
+  '/startup/theme/:themeId/membres',
+  requireRole('ENSEIGNANT', 'CHEF_EQUIPE', 'CHEF_DEPT', 'RESP_SPECIALITE'),
+  validate({ body: addMembreSchema }),
+  async (req, res, next) => {
+    try {
+      const { etudiant_id } = req.body as { etudiant_id: string };
+      const result = await affectationService.addStartupMembreFromTheme(
+        req.params['themeId'] as string,
+        etudiant_id,
+        req.user!.userId,
+      );
+      res.status(201).json({ success: true, data: result });
     } catch (err) { next(err); }
   },
 );

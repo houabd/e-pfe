@@ -47,24 +47,17 @@ export default function LoginPage() {
 
   return (
     <Card>
-      <CardHeader className="items-center text-center pt-8 pb-4 px-8 gap-0">
-        <Link to="/" className="mb-3 block w-16 h-16 mx-auto">
-          <img
-            src="/logo.png"
-            alt="e-PFC"
-            width={64}
-            height={64}
-            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-            className="hover:opacity-80 transition-opacity"
-          />
+      <CardHeader className="items-center text-center pt-5 pb-0 px-8 gap-0">
+        <Link to="/" className="mb-1 block hover:opacity-80 transition-opacity">
+          <img src="/logo/logo1.png" alt="e-PFC" width={120} height={120} style={{ objectFit: 'contain' }} />
         </Link>
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">e-PFC</p>
-        <CardTitle className="text-xl">Connexion</CardTitle>
+        <p className="text-[10px] font-semibold tracking-widest text-[#009474]">e-PFC</p>
+        <CardTitle className="text-xl leading-tight">Connexion</CardTitle>
       </CardHeader>
-      <CardContent className="px-8 pb-8 pt-4">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-          <div className="space-y-2">
-            <Label htmlFor="email">Email <span className="text-destructive" aria-hidden>*</span></Label>
+      <CardContent className="px-8 pb-5 pt-2">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-3" noValidate>
+          <div className="space-y-1">
+            <Label htmlFor="email" className="text-sm">Email <span className="text-destructive" aria-hidden>*</span></Label>
             <Input
               id="email"
               type="email"
@@ -74,12 +67,12 @@ export default function LoginPage() {
               {...register('email')}
             />
             {errors.email && (
-              <p className="text-sm text-destructive" role="alert">{errors.email.message}</p>
+              <p className="text-xs text-destructive" role="alert">{errors.email.message}</p>
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="password">Mot de passe <span className="text-destructive" aria-hidden>*</span></Label>
+          <div className="space-y-1">
+            <Label htmlFor="password" className="text-sm">Mot de passe <span className="text-destructive" aria-hidden>*</span></Label>
             <div className="relative">
               <Input
                 id="password"
@@ -100,7 +93,7 @@ export default function LoginPage() {
               </button>
             </div>
             {errors.password && (
-              <p className="text-sm text-destructive" role="alert">{errors.password.message}</p>
+              <p className="text-xs text-destructive" role="alert">{errors.password.message}</p>
             )}
           </div>
 
@@ -116,7 +109,7 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        <p className="text-xs text-muted-foreground text-center mt-4">
+        <p className="text-xs text-muted-foreground text-center mt-3">
           Mot de passe initial : votre date de naissance<br />
           Mot de passe oublié ? Contactez l'administrateur.
         </p>

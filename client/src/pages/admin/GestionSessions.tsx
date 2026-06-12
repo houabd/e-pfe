@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -54,7 +54,7 @@ const STATUS_CONFIG = {
 };
 
 const TYPE_CONFIG = {
-  CHOIX: { label: 'Choix', color: 'bg-blue-500', light: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' },
+  CHOIX: { label: 'Choix', color: 'bg-[#009474]', light: 'bg-[#e8e8e8] text-[#1a1a1a] dark:bg-gray-900/30 dark:text-[#00b08a]' },
   AFFECTATION: { label: 'Affectation', color: 'bg-orange-500', light: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' },
 };
 
@@ -247,12 +247,12 @@ function SessionDialog({
                   className={`p-3 rounded-lg border-2 text-sm font-medium transition-all text-left ${
                     typeValue === t
                       ? t === 'CHOIX'
-                        ? 'border-blue-500 bg-blue-50 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300'
+                        ? 'border-[#009474] bg-[#f7f7f7] text-[#1a1a1a] dark:bg-gray-900/20 dark:text-[#00b08a]'
                         : 'border-orange-500 bg-orange-50 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300'
                       : 'border-border hover:border-muted-foreground/40'
                   }`}
                 >
-                  <div className={`w-2 h-2 rounded-full mb-1.5 ${t === 'CHOIX' ? 'bg-blue-500' : 'bg-orange-500'}`} />
+                  <div className={`w-2 h-2 rounded-full mb-1.5 ${t === 'CHOIX' ? 'bg-[#009474]' : 'bg-orange-500'}`} />
                   {TYPE_CONFIG[t].label}
                   <p className="text-xs font-normal text-muted-foreground mt-0.5">
                     {t === 'CHOIX' ? 'Choix libres — étudiants' : 'Affectation administrative'}
@@ -445,12 +445,12 @@ export default function GestionSessions() {
       {activeSession && (
         <div className={`flex items-center gap-3 p-4 rounded-lg border ${
           activeSession.type === 'CHOIX'
-            ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800'
+            ? 'bg-[#f7f7f7] border-[#e8e8e8] dark:bg-gray-900/20 dark:border-gray-700'
             : 'bg-orange-50 border-orange-200 dark:bg-orange-900/20 dark:border-orange-800'
         }`}>
-          <div className={`size-2 rounded-full animate-pulse ${activeSession.type === 'CHOIX' ? 'bg-blue-500' : 'bg-orange-500'}`} />
+          <div className={`size-2 rounded-full animate-pulse ${activeSession.type === 'CHOIX' ? 'bg-[#009474]' : 'bg-orange-500'}`} />
           <div className="flex-1">
-            <p className={`text-sm font-semibold ${activeSession.type === 'CHOIX' ? 'text-blue-800 dark:text-blue-300' : 'text-orange-800 dark:text-orange-300'}`}>
+            <p className={`text-sm font-semibold ${activeSession.type === 'CHOIX' ? 'text-[#1a1a1a] dark:text-[#00b08a]' : 'text-orange-800 dark:text-orange-300'}`}>
               Session {TYPE_CONFIG[activeSession.type].label} en cours — {activeSession.annee_universitaire}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">

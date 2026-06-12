@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import {
   BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -51,10 +51,10 @@ function OverviewCards({ specialiteId }: { specialiteId: string }) {
   const totalEns = enseignants?.length ?? 0;
 
   const kpis = [
-    { icon: GraduationCap, label: 'Étudiants', value: totalEtu, sub: `${totalEtu - avecTheme} sans thème`, color: 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400' },
-    { icon: Users, label: 'Enseignants', value: totalEns, sub: `${enseignants?.filter(e => e.categorie === 'SURCHARGE').length ?? 0} surchargés`, color: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400' },
+    { icon: GraduationCap, label: 'Étudiants', value: totalEtu, sub: `${totalEtu - avecTheme} sans thème`, color: 'bg-[#e8e8e8] text-[#1a1a1a] dark:bg-gray-900/40 dark:text-[#00b08a]' },
+    { icon: Users, label: 'Enseignants', value: totalEns, sub: `${enseignants?.filter(e => e.categorie === 'SURCHARGE').length ?? 0} surchargés`, color: 'bg-[#e8e8e8] text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400' },
     { icon: BookOpen, label: 'Thèmes', value: t?.total ?? 0, sub: `${t?.classiques ?? 0} classiques · ${t?.startups ?? 0} startups`, color: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400' },
-    { icon: CheckCircle2, label: 'Validés', value: t?.valides ?? 0, sub: `${pct(t?.valides ?? 0, t?.total ?? 0)}% du total`, color: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400' },
+    { icon: CheckCircle2, label: 'Validés', value: t?.valides ?? 0, sub: `${pct(t?.valides ?? 0, t?.total ?? 0)}% du total`, color: 'bg-[#e8e8e8] text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400' },
     { icon: Layers, label: 'Affectés', value: t?.affectes ?? 0, sub: `${pct(t?.affectes ?? 0, t?.total ?? 0)}% du total`, color: 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/40 dark:text-cyan-400' },
     { icon: Award, label: 'Soutenus', value: t?.soutenus ?? 0, sub: `${pct(t?.soutenus ?? 0, t?.affectes ?? 0)}% des affectés`, color: 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-400' },
   ];
@@ -128,10 +128,10 @@ function OverviewCards({ specialiteId }: { specialiteId: string }) {
           <CardHeader className="pb-2"><CardTitle className="text-sm">Taux — ma spécialité</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {[
-              { label: 'Validation', v: t?.valides ?? 0, total: t?.total ?? 0, color: 'bg-emerald-500' },
-              { label: 'Affectation', v: t?.affectes ?? 0, total: t?.total ?? 0, color: 'bg-blue-500' },
+              { label: 'Validation', v: t?.valides ?? 0, total: t?.total ?? 0, color: 'bg-[#f7f7f7]0' },
+              { label: 'Affectation', v: t?.affectes ?? 0, total: t?.total ?? 0, color: 'bg-[#009474]' },
               { label: 'Soutenance', v: t?.soutenus ?? 0, total: t?.affectes ?? 0, color: 'bg-purple-500' },
-              { label: 'Étudiants avec thème', v: avecTheme, total: totalEtu, color: 'bg-teal-500' },
+              { label: 'Étudiants avec thème', v: avecTheme, total: totalEtu, color: 'bg-[#0e7a4a]' },
             ].map(b => (
               <div key={b.label} className="flex items-center gap-3 text-sm">
                 <span className="w-44 shrink-0 text-xs text-muted-foreground">{b.label}</span>
@@ -154,10 +154,10 @@ type ESort = 'nom' | 'proposes' | 'affectes';
 const CAT_LABELS: Record<string, string> = { SURCHARGE: 'Surchargé', SOUS_CHARGE: 'Sous-chargé', SANS_PROPOSITION: 'Sans proposition', AVEC_PROPOSITION: 'Avec proposition', NORMAL: 'Normal' };
 const CAT_COLOR: Record<string, string> = {
   SURCHARGE: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
-  SOUS_CHARGE: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  SOUS_CHARGE: 'bg-[#e8e8e8] text-amber-700 dark:bg-gray-900/40 dark:text-[#00b08a]',
   SANS_PROPOSITION: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
-  AVEC_PROPOSITION: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-  NORMAL: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  AVEC_PROPOSITION: 'bg-[#e8e8e8] text-[#1a1a1a] dark:bg-gray-900/40 dark:text-[#00b08a]',
+  NORMAL: 'bg-[#e8e8e8] text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
 };
 
 function EnseignantsTab({ specialiteId }: { specialiteId: string }) {
@@ -324,10 +324,10 @@ function EtudiantsTab({ specialiteId }: { specialiteId: string }) {
   ];
 
   function EtudiantStatutBadge({ row }: { row: typeof allData[0] }) {
-    if (!row.has_theme) return <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700">Sans thème</span>;
+    if (!row.has_theme) return <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium bg-[#e8e8e8] text-amber-700">Sans thème</span>;
     if (row.is_startup) return <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium bg-purple-100 text-purple-700">Startup</span>;
-    if (row.has_binome) return <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium bg-teal-100 text-teal-700">Binôme</span>;
-    return <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium bg-blue-100 text-blue-700">Monôme</span>;
+    if (row.has_binome) return <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium bg-[#e8e8e8] text-[#0a5e37]">Binôme</span>;
+    return <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium bg-[#e8e8e8] text-[#1a1a1a]">Monôme</span>;
   }
 
   function SortIcon({ col }: { col: EtuSort }) {
@@ -376,10 +376,10 @@ function EtudiantsTab({ specialiteId }: { specialiteId: string }) {
           <CardContent className="space-y-3 pt-3">
             {[
               { label: 'Total étudiants', value: allData.length, color: 'text-foreground' },
-              { label: 'Avec thème affecté', value: avecTheme, color: 'text-blue-600' },
+              { label: 'Avec thème affecté', value: avecTheme, color: 'text-[#1a1a1a]' },
               { label: 'Sans thème', value: sansTheme, color: 'text-amber-600' },
               { label: 'Avec encadrant', value: avecEncadrant, color: 'text-indigo-600' },
-              { label: 'Avec binôme', value: avecBinome, color: 'text-teal-600' },
+              { label: 'Avec binôme', value: avecBinome, color: 'text-[#0e7a4a]' },
               { label: 'Monômes', value: monomes, color: 'text-orange-600' },
               { label: 'Équipe Startup', value: enStartup, color: 'text-purple-600' },
             ].map(r => (
@@ -462,7 +462,7 @@ function EtudiantsTab({ specialiteId }: { specialiteId: string }) {
                       </td>
                       <td className="px-4 py-2.5 text-center hidden md:table-cell">
                         {e.has_binome
-                          ? <span className="text-xs text-teal-600">{e.binome?.partenaire.prenom} {e.binome?.partenaire.nom}</span>
+                          ? <span className="text-xs text-[#0e7a4a]">{e.binome?.partenaire.prenom} {e.binome?.partenaire.nom}</span>
                           : <span className="text-xs text-muted-foreground">—</span>}
                       </td>
                       <td className="px-4 py-2.5 text-right"><Badge variant="outline" className="text-xs">{e.nb_choix}</Badge></td>
@@ -509,7 +509,7 @@ function ThemesTab({ specialiteId }: { specialiteId: string }) {
           {[
             { label: 'Total', value: t.total, color: 'text-foreground' },
             { label: 'Validés', value: t.valides, color: 'text-emerald-600' },
-            { label: 'Affectés', value: t.affectes, color: 'text-blue-600' },
+            { label: 'Affectés', value: t.affectes, color: 'text-[#1a1a1a]' },
             { label: 'Soutenus', value: t.soutenus, color: 'text-purple-600' },
             { label: 'Sans encadrant', value: t.sansEncadrant, color: 'text-amber-600' },
           ].map(c => (

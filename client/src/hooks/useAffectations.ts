@@ -105,6 +105,21 @@ export function useAddMembreInterne() {
   });
 }
 
+export function useAddMembreFromTheme() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ themeId, dto }: { themeId: string; dto: { etudiant_id: string } }) =>
+      affApi.addStartupMembreFromTheme(themeId, dto),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['mes-startups'] });
+      void qc.invalidateQueries({ queryKey: ['my-themes'] });
+      void qc.invalidateQueries({ queryKey: ['etudiants-sans-theme'] });
+      toast.success("Invitation envoyée — l'étudiant doit accepter pour rejoindre l'équipe");
+    },
+    onError: (e) => toast.error(extractApiError(e)),
+  });
+}
+
 export function useAddMembreExterne() {
   const qc = useQueryClient();
   return useMutation({
@@ -246,6 +261,27 @@ export function useConfirmerAffectationsAuto() {
         : `${result.created} affectation(s) confirmée(s)`;
       toast.success(msg);
     },
+    onError: (e) => toast.error(extractApiError(e)),
+  });
+}
+
+export function useHistoriqueEncadrement(anneeUniversitaire?: string) {
+  return useQuery({
+    queryKey: ["historique-encadrement", anneeUniversitaire],
+    queryFn: () => affApi.getHistoriqueEncadrement(anneeUniversitaire),
+  });
+}
+
+export function useExportHistoriqueExcel() {
+  return useMutation({
+    mutationFn: (annee?: string) => affApi.exportHistoriqueExcel(annee),
+    onError: (e) => toast.error(extractApiError(e)),
+  });
+}
+
+export function useExportHistoriquePDF() {
+  return useMutation({
+    mutationFn: (annee?: string) => affApi.exportHistoriquePDF(annee),
     onError: (e) => toast.error(extractApiError(e)),
   });
 }

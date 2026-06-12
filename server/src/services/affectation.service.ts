@@ -3,6 +3,9 @@ import { Prisma } from '@prisma/client';
 import { NotFoundError, BadRequestError, ForbiddenError } from '../middleware/error.middleware';
 import { notifyUser } from './notification.service';
 import type { CreateAffectationDto, ConfirmerAutoDto } from '../types';
+import xlsx from 'xlsx';
+import PDFDocument from 'pdfkit';
+import type { Response } from 'express';
 
 // ─── Sélection commune ────────────────────────────────────────────────────────
 
@@ -941,23 +944,34 @@ export async function addStartupMembre(
     throw new BadRequestError('Cet étudiant est déjà affecté à un autre thème');
   }
 
-  const membre = await prisma.startupMembre.create({
-    data: { affectation_id: affectationId, etudiant_id: etudiantId, role_equipe: roleEquipe ?? null },
+  // Vérifier pas déjà une invitation en attente
+  const existingInvitation = await prisma.propositionMembre.findFirst({
+    where: { affectation_id: affectationId, candidat_interne_id: etudiantId, statut: 'PENDING' },
+  });
+  if (existingInvitation) throw new BadRequestError("Une invitation est déjà en attente pour cet étudiant");
+
+  const proposition = await prisma.propositionMembre.create({
+    data: {
+      affectation_id: affectationId,
+      proposeur_id: appelantId,
+      candidat_interne_id: etudiantId,
+      etudiant_accepte: false,
+    },
     include: {
-      etudiant: { select: { id: true, nom: true, prenom: true, email: true, specialite: { select: { id: true, nom: true } } } },
+      candidat_interne: { select: { id: true, nom: true, prenom: true, email: true, specialite: { select: { id: true, nom: true } } } },
+      proposeur: { select: { id: true, nom: true, prenom: true } },
     },
   });
 
   const themeTitre = affectation.theme.titre;
-  const meta = { theme_id: affectation.theme.id, affectation_id: affectationId };
+  const appelant = await prisma.user.findUnique({ where: { id: appelantId }, select: { nom: true, prenom: true } });
+  const who = appelant ? `${appelant.prenom} ${appelant.nom}` : "L'encadrant";
 
-  await notifyUser(etudiantId, 'STARTUP_MEMBRE_AJOUTE', `Vous avez été ajouté à l'équipe startup "${themeTitre}"`, meta);
-  for (const m of affectation.startup_membres) {
-    await notifyUser(m.etudiant_id, 'STARTUP_MEMBRE_AJOUTE',
-      `${etudiant.prenom} ${etudiant.nom} a rejoint l'équipe startup "${themeTitre}"`, meta);
-  }
+  await notifyUser(etudiantId, 'STARTUP_INVITATION',
+    `${who} vous invite à rejoindre l'équipe STARTUP "${themeTitre}"`,
+    { affectation_id: affectationId, proposition_id: proposition.id });
 
-  return membre;
+  return { type: 'INVITATION' as const, proposition };
 }
 
 // ─── Startup : ajout d'un membre externe ─────────────────────────────────────
@@ -996,6 +1010,51 @@ export async function addMembreExterne(
   return membre;
 }
 
+// ─── Startup : ajout membre via thème (find-or-create affectation) ───────────
+
+export async function addStartupMembreFromTheme(
+  themeId: string,
+  etudiantId: string,
+  appelantId: string,
+) {
+  const theme = await prisma.theme.findUnique({
+    where: { id: themeId },
+    include: { affectation: { select: { id: true, encadrant_id: true } } },
+  });
+  if (!theme) throw new NotFoundError('Thème');
+  if (theme.type_pfe !== 'STARTUP') throw new BadRequestError("Ce thème n'est pas de type STARTUP");
+  if (theme.statut_validation !== 'VALIDE') throw new BadRequestError("Le thème doit être validé avant d'ajouter des membres");
+
+  const isProposeur = theme.propose_par_id === appelantId;
+  const isEncadrant = theme.encadrant_id === appelantId;
+  if (!isProposeur && !isEncadrant) {
+    const appelant = await prisma.user.findUnique({ where: { id: appelantId }, select: { role: true } });
+    if (!appelant || !['CHEF_DEPT', 'CHEF_EQUIPE'].includes(appelant.role)) {
+      throw new ForbiddenError("Seul l'encadrant ou le proposeur du thème peut ajouter des membres");
+    }
+  }
+
+  let affectationId: string;
+  if (theme.affectation) {
+    affectationId = theme.affectation.id;
+  } else {
+    const session = await prisma.session.findFirst({ where: { is_active: true } });
+    if (!session) throw new BadRequestError('Aucune session active');
+    const newAff = await prisma.affectation.create({
+      data: {
+        theme_id: themeId,
+        encadrant_id: appelantId,
+        session_id: session.id,
+        affecte_par: appelantId,
+        type: 'LIBRE',
+      },
+    });
+    affectationId = newAff.id;
+  }
+
+  return addStartupMembre(affectationId, etudiantId, appelantId);
+}
+
 // ─── Startup : équipes encadrées par un enseignant ───────────────────────────
 
 export async function getMesStartups(enseignantId: string) {
@@ -1032,8 +1091,14 @@ export async function getPropositions(affectationId: string, userId: string) {
 
   return prisma.propositionMembre.findMany({
     where: isEncadrant
-      // L'encadrant ne voit que les propositions où l'étudiant a déjà accepté
-      ? { affectation_id: affectationId, etudiant_accepte: true }
+      ? {
+          affectation_id: affectationId,
+          statut: 'PENDING',
+          OR: [
+            { etudiant_accepte: true },                              // propositions membres à valider
+            { proposeur_id: userId, etudiant_accepte: false },       // invitations envoyées en attente
+          ],
+        }
       : { affectation_id: affectationId, proposeur_id: userId },
     include: {
       proposeur: { select: { id: true, nom: true, prenom: true } },
@@ -1195,13 +1260,36 @@ export async function etudiantAccepteProposition(propId: string, etudiantId: str
     }
     return { message: 'Vous avez rejoint l\'équipe STARTUP', statut: 'AFFECTE' };
   } else {
-    // Encadrant interne → marquer étudiant accepté, notifier l'encadrant
+    const etudiantInfo = await prisma.user.findUnique({
+      where: { id: etudiantId },
+      include: { affectations_etudiant: { take: 1 }, startup_membres: { take: 1 } },
+    });
+    if (!etudiantInfo || etudiantInfo.affectations_etudiant.length > 0 || etudiantInfo.startup_membres.length > 0) {
+      throw new BadRequestError('Vous êtes déjà affecté à un autre thème');
+    }
+
+    // Si c'est l'encadrant qui a envoyé l'invitation → auto-approuver
+    if (prop.proposeur_id === prop.affectation.encadrant_id) {
+      await prisma.$transaction(async (tx) => {
+        await tx.propositionMembre.update({ where: { id: propId }, data: { statut: 'ACCEPTED', etudiant_accepte: true } });
+        await tx.startupMembre.create({ data: { affectation_id: affectationId, etudiant_id: etudiantId } });
+      });
+      await notifyUser(prop.affectation.encadrant_id!, 'STARTUP_PROPOSITION_ACCEPTEE',
+        `${etudiantInfo.prenom} ${etudiantInfo.nom} a accepté votre invitation et a rejoint l'équipe "${themeTitre}"`, meta);
+      for (const m of prop.affectation.startup_membres) {
+        if (m.etudiant_id !== etudiantId) {
+          await notifyUser(m.etudiant_id, 'STARTUP_MEMBRE_AJOUTE',
+            `${etudiantInfo.prenom} ${etudiantInfo.nom} a rejoint l'équipe STARTUP "${themeTitre}"`, meta);
+        }
+      }
+      return { message: 'Vous avez rejoint l\'équipe STARTUP', statut: 'AFFECTE' };
+    }
+
+    // Sinon (membre a proposé un autre étudiant) → marquer accepté, notifier l'encadrant
     await prisma.propositionMembre.update({ where: { id: propId }, data: { etudiant_accepte: true } });
-    const etudiantInfo = await prisma.user.findUnique({ where: { id: etudiantId }, select: { nom: true, prenom: true } });
-    const nom = etudiantInfo ? `${etudiantInfo.prenom} ${etudiantInfo.nom}` : 'Un étudiant';
-    await notifyUser(prop.affectation.encadrant_id, 'STARTUP_PROPOSITION',
-      `${nom} a accepté l'invitation et attend votre validation pour rejoindre l'équipe "${themeTitre}"`,
-      meta);
+    const nom = `${etudiantInfo.prenom} ${etudiantInfo.nom}`;
+    await notifyUser(prop.affectation.encadrant_id!, 'STARTUP_PROPOSITION',
+      `${nom} a accepté l'invitation et attend votre validation pour rejoindre l'équipe "${themeTitre}"`, meta);
     return { message: 'Invitation acceptée — en attente de validation par l\'encadrant', statut: 'EN_ATTENTE_ENCADRANT' };
   }
 }
@@ -1342,4 +1430,258 @@ export async function removeStartupMembre(affectationId: string, etudiantId: str
   }
 
   await prisma.startupMembre.delete({ where: { id: membre.id } });
+}
+
+// ─── Historique d'encadrement ─────────────────────────────────────────────────
+
+const ETUDIANT_FULL_SELECT = {
+  id: true, nom: true, prenom: true, email: true, matricule: true,
+  specialite: { select: { id: true, nom: true } },
+} as const;
+
+export async function getHistoriqueEncadrement(
+  enseignantId: string,
+  anneeUniversitaire?: string,
+) {
+  const themes = await prisma.theme.findMany({
+    where: {
+      OR: [
+        { propose_par_id: enseignantId },
+        { encadrant_id: enseignantId },
+        { co_encadrant_id: enseignantId },
+      ],
+      is_affecte: true,
+      ...(anneeUniversitaire ? { session: { annee_universitaire: anneeUniversitaire } } : {}),
+    },
+    include: {
+      session: { select: { id: true, type: true, annee_universitaire: true } },
+      theme_specialites: { include: { specialite: { select: { id: true, nom: true } } } },
+      affectation: {
+        include: {
+          etudiants: { include: { etudiant: { select: ETUDIANT_FULL_SELECT } } },
+          startup_membres: { include: { etudiant: { select: ETUDIANT_FULL_SELECT } } },
+        },
+      },
+    },
+    orderBy: [{ session: { annee_universitaire: 'desc' } }, { titre: 'asc' }],
+  });
+
+  return themes.map((t) => {
+    let monRole: 'PROPOSANT' | 'ENCADRANT' | 'CO_ENCADRANT' = 'PROPOSANT';
+    if (t.encadrant_id === enseignantId) monRole = 'ENCADRANT';
+    else if (t.co_encadrant_id === enseignantId) monRole = 'CO_ENCADRANT';
+
+    const seen = new Set<string>();
+    const etudiants = [
+      ...(t.affectation?.etudiants.map((e) => ({ ...e.etudiant, type_affectation: 'CLASSIQUE' as const })) ?? []),
+      ...(t.affectation?.startup_membres.map((e) => ({ ...e.etudiant, type_affectation: 'STARTUP' as const })) ?? []),
+    ].filter((e) => {
+      if (seen.has(e.id)) return false;
+      seen.add(e.id);
+      return true;
+    });
+
+    return {
+      id: t.id,
+      titre: t.titre,
+      type_pfe: t.type_pfe,
+      sous_types: t.sous_types,
+      statut_validation: t.statut_validation,
+      is_soutenu: t.is_soutenu,
+      session: t.session,
+      theme_specialites: t.theme_specialites,
+      mon_role: monRole,
+      etudiants,
+    };
+  });
+}
+
+// ─── Export Excel — historique encadrement ────────────────────────────────────
+
+export async function exportHistoriqueExcel(
+  enseignantId: string,
+  anneeUniversitaire: string | undefined,
+  res: Response,
+): Promise<void> {
+  const historique = await getHistoriqueEncadrement(enseignantId, anneeUniversitaire);
+
+  const rows: Record<string, string>[] = [];
+  for (const theme of historique) {
+    const specialites = theme.theme_specialites.map((ts) => ts.specialite.nom).join(', ');
+    const annee = theme.session.annee_universitaire;
+    if (theme.etudiants.length === 0) {
+      rows.push({
+        'Année universitaire': annee,
+        'Titre du thème': theme.titre,
+        'Type PFE': theme.type_pfe,
+        'Spécialités': specialites,
+        'Mon rôle': theme.mon_role,
+        'Soutenu': theme.is_soutenu ? 'Oui' : 'Non',
+        'Nom étudiant': '',
+        'Prénom étudiant': '',
+        'Email': '',
+        'Matricule': '',
+        'Spécialité étudiant': '',
+      });
+    } else {
+      for (const etudiant of theme.etudiants) {
+        rows.push({
+          'Année universitaire': annee,
+          'Titre du thème': theme.titre,
+          'Type PFE': theme.type_pfe,
+          'Spécialités': specialites,
+          'Mon rôle': theme.mon_role,
+          'Soutenu': theme.is_soutenu ? 'Oui' : 'Non',
+          'Nom étudiant': etudiant.nom,
+          'Prénom étudiant': etudiant.prenom,
+          'Email': etudiant.email,
+          'Matricule': etudiant.matricule ?? '',
+          'Spécialité étudiant': etudiant.specialite?.nom ?? '',
+        });
+      }
+    }
+  }
+
+  const wb = xlsx.utils.book_new();
+  const ws = xlsx.utils.json_to_sheet(rows);
+  ws['!cols'] = [
+    { wch: 18 }, { wch: 50 }, { wch: 10 }, { wch: 25 },
+    { wch: 14 }, { wch: 8 }, { wch: 16 }, { wch: 16 },
+    { wch: 35 }, { wch: 14 }, { wch: 20 },
+  ];
+  xlsx.utils.book_append_sheet(wb, ws, 'Historique encadrement');
+  const buf = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="historique_encadrement_${Date.now()}.xlsx"`);
+  res.end(buf);
+}
+
+// ─── Export PDF — historique encadrement ─────────────────────────────────────
+
+const ROLE_LABELS: Record<string, string> = {
+  PROPOSANT: 'Proposant',
+  ENCADRANT: 'Encadrant',
+  CO_ENCADRANT: 'Co-encadrant',
+};
+
+export async function exportHistoriquePDF(
+  enseignantId: string,
+  anneeUniversitaire: string | undefined,
+  res: Response,
+): Promise<void> {
+  const historique = await getHistoriqueEncadrement(enseignantId, anneeUniversitaire);
+
+  const doc = new PDFDocument({ margin: 35, size: 'A4' });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="historique_encadrement_${Date.now()}.pdf"`);
+  doc.pipe(res);
+
+  // ── En-tête ──
+  doc.fontSize(16).font('Helvetica-Bold').fillColor('#1e293b')
+    .text("Historique d'encadrement", { align: 'center' });
+  doc.fontSize(9).font('Helvetica').fillColor('#475569')
+    .text('Université de Béjaïa — Département Informatique', { align: 'center' });
+  if (anneeUniversitaire) {
+    doc.fontSize(8).text(`Année universitaire : ${anneeUniversitaire}`, { align: 'center' });
+  }
+  doc.fontSize(7.5).fillColor('#64748b')
+    .text(`Généré le ${new Date().toLocaleDateString('fr-FR')} — ${historique.length} thème(s)`, { align: 'center' });
+  doc.moveDown(1);
+
+  if (historique.length === 0) {
+    doc.fontSize(11).fillColor('#94a3b8').text("Aucun thème encadré pour ces critères.", { align: 'center' });
+    doc.end();
+    return;
+  }
+
+  // ── Colonnes : Titre | Spécialités | Rôle | Type | Soutenu | Étudiants ──
+  const startX = 35;
+  const colWidths = [165, 80, 60, 55, 45, 160];
+  const headers = ['Titre du thème', 'Spécialités', 'Mon rôle', 'Type', 'Soutenu', 'Étudiants'];
+  const ROW_BASE_H = 22;
+  const HEADER_H = 16;
+  const PAGE_BOTTOM = 800;
+
+  const drawTableHeader = (y: number): number => {
+    doc.font('Helvetica-Bold').fontSize(7.5).fillColor('white');
+    let x = startX;
+    headers.forEach((h, i) => {
+      doc.rect(x, y, colWidths[i], HEADER_H).fillAndStroke('#1e40af', '#1e3a8a');
+      doc.fillColor('white').text(h, x + 3, y + 4, { width: colWidths[i] - 6, lineBreak: false });
+      x += colWidths[i];
+    });
+    return y + HEADER_H;
+  };
+
+  // Grouper par année
+  const byAnnee = new Map<string, typeof historique>();
+  for (const t of historique) {
+    const a = t.session.annee_universitaire;
+    if (!byAnnee.has(a)) byAnnee.set(a, []);
+    byAnnee.get(a)!.push(t);
+  }
+
+  let firstGroup = true;
+  for (const [annee, themes] of byAnnee) {
+    let y = doc.y;
+    if (!firstGroup) {
+      y += 12;
+      doc.y = y;
+    }
+    firstGroup = false;
+
+    if (y > PAGE_BOTTOM - 60) {
+      doc.addPage();
+      y = 35;
+    }
+
+    // Titre de groupe
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#0f172a')
+      .text(annee, startX, y);
+    y += 13;
+    y = drawTableHeader(y);
+
+    for (let idx = 0; idx < themes.length; idx++) {
+      const t = themes[idx];
+      const etudiantLines = t.etudiants.length > 0
+        ? t.etudiants.map((e) => `${e.prenom} ${e.nom}${e.specialite ? ` (${e.specialite.nom})` : ''}`).join('\n')
+        : '—';
+
+      const nbLines = Math.max(1, t.etudiants.length);
+      const rowH = Math.max(ROW_BASE_H, nbLines * 11 + 8);
+
+      if (y + rowH > PAGE_BOTTOM) {
+        doc.addPage();
+        y = 35;
+        y = drawTableHeader(y);
+      }
+
+      const bg = idx % 2 === 0 ? '#f1f5f9' : '#ffffff';
+      const specialites = t.theme_specialites.map((ts) => ts.specialite.nom).join(', ') || '—';
+
+      const cells = [
+        t.titre,
+        specialites,
+        ROLE_LABELS[t.mon_role] ?? t.mon_role,
+        t.type_pfe,
+        t.is_soutenu ? 'Oui' : 'Non',
+        etudiantLines,
+      ];
+
+      let x = startX;
+      cells.forEach((val, i) => {
+        doc.rect(x, y, colWidths[i], rowH).fillAndStroke(bg, '#cbd5e1');
+        doc.font('Helvetica').fontSize(7).fillColor('#1e293b')
+          .text(val, x + 3, y + 4, { width: colWidths[i] - 6, height: rowH - 6, lineBreak: true, ellipsis: true });
+        x += colWidths[i];
+      });
+
+      y += rowH;
+    }
+
+    doc.y = y;
+  }
+
+  doc.end();
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -71,14 +71,14 @@ function ValidationBadge({ theme }: { theme: Theme }) {
   if (theme.is_affecte)
     return <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-xs">Affecté</Badge>;
   if (theme.statut_validation === 'VALIDE')
-    return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">Validé</Badge>;
-  return <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-xs">En attente</Badge>;
+    return <Badge className="bg-[#e8e8e8] text-emerald-700 border-[#e8e8e8] text-xs">Validé</Badge>;
+  return <Badge className="bg-[#e8e8e8] text-amber-700 border-[#e8e8e8] text-xs">En attente</Badge>;
 }
 
 function TypeBadge({ type }: { type: string }) {
   return type === 'STARTUP'
     ? <Badge className="bg-orange-100 text-orange-700 border-orange-200 text-xs gap-1"><Rocket className="h-3 w-3" />Startup</Badge>
-    : <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-xs gap-1"><BookOpen className="h-3 w-3" />Classique</Badge>;
+    : <Badge className="bg-[#e8e8e8] text-[#1a1a1a] border-[#e8e8e8] text-xs gap-1"><BookOpen className="h-3 w-3" />Classique</Badge>;
 }
 
 // ─── Dialog Valider ───────────────────────────────────────────────────────────
@@ -379,13 +379,13 @@ function AdminThemeFormDialog({
                       onClick={() => { field.onChange(t); if (t === 'STARTUP') setValue('sous_types', []); }}
                       className={`flex items-center gap-3 rounded-xl border-2 p-4 text-left transition-all ${
                         field.value === t
-                          ? t === 'STARTUP' ? 'border-orange-400 bg-orange-50' : 'border-blue-400 bg-blue-50'
+                          ? t === 'STARTUP' ? 'border-orange-400 bg-orange-50' : 'border-[#c2c2c2] bg-[#f7f7f7]'
                           : 'border-border hover:border-muted-foreground/40'
                       }`}
                     >
                       {t === 'STARTUP'
                         ? <Rocket className="h-5 w-5 text-orange-500 shrink-0" />
-                        : <BookOpen className="h-5 w-5 text-blue-500 shrink-0" />}
+                        : <BookOpen className="h-5 w-5 text-[#009474] shrink-0" />}
                       <div>
                         <div className="font-semibold text-sm">{t === 'STARTUP' ? 'Startup' : 'Classique'}</div>
                         <div className="text-xs text-muted-foreground">
@@ -409,7 +409,7 @@ function AdminThemeFormDialog({
                     key={st} type="button" onClick={() => toggleSousType(st)}
                     className={`rounded-lg border px-3 py-2 text-sm font-medium transition-all ${
                       sousTypes.includes(st)
-                        ? 'border-blue-400 bg-blue-50 text-blue-700'
+                        ? 'border-[#c2c2c2] bg-[#f7f7f7] text-[#1a1a1a]'
                         : 'border-border hover:border-muted-foreground/40'
                     }`}
                   >
@@ -603,11 +603,11 @@ function ThemeRow({
     <div className="flex flex-col sm:flex-row sm:items-start gap-4 rounded-xl border bg-card px-5 py-4 hover:shadow-sm transition-shadow">
       {/* Icône type */}
       <div className={`rounded-lg p-2 shrink-0 mt-0.5 ${
-        theme.type_pfe === 'STARTUP' ? 'bg-orange-100' : 'bg-blue-100'
+        theme.type_pfe === 'STARTUP' ? 'bg-orange-100' : 'bg-[#e8e8e8]'
       }`}>
         {theme.type_pfe === 'STARTUP'
           ? <Rocket className="h-4 w-4 text-orange-600" />
-          : <BookOpen className="h-4 w-4 text-blue-600" />}
+          : <BookOpen className="h-4 w-4 text-[#1a1a1a]" />}
       </div>
 
       {/* Contenu principal */}
@@ -645,7 +645,7 @@ function ThemeRow({
         {/* Flags */}
         <div className="flex gap-3 text-xs flex-wrap">
           {theme.necessite_stage && <span className="text-amber-600 font-medium">Stage requis</span>}
-          {theme.besoin_encadrant && <span className="text-blue-600 font-medium">Cherche encadrant</span>}
+          {theme.besoin_encadrant && <span className="text-[#1a1a1a] font-medium">Cherche encadrant</span>}
           {theme.cherche_binome && <span className="text-purple-600 font-medium">Cherche binôme</span>}
         </div>
       </div>
@@ -786,12 +786,12 @@ function DemandesModificationSection() {
         <MessageSquarePlus className="h-5 w-5 text-amber-600" />
         <h2 className="font-semibold text-amber-800">
           Demandes de modification en attente
-          <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
+          <span className="ml-2 rounded-full bg-[#e8e8e8] px-2 py-0.5 text-xs font-bold text-amber-700">
             {demandes.length}
           </span>
         </h2>
       </div>
-      <div className="divide-y rounded-xl border border-amber-200 bg-amber-50/50 overflow-hidden">
+      <div className="divide-y rounded-xl border border-[#e8e8e8] bg-[#f7f7f7]/50 overflow-hidden">
         {demandes.map((d) => (
           <div key={d.id} className="flex items-start gap-4 p-4">
             <div className="flex-1 min-w-0 space-y-1">
@@ -934,7 +934,7 @@ export default function GestionThemes() {
                 onClick={() => { setQuickFilter(key); resetFiltersAndPage(); }}
                 className={`rounded-full border px-3 py-1 text-xs font-medium transition-all ${
                   quickFilter === key
-                    ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                    ? 'border-emerald-600 bg-[#f7f7f7] text-emerald-700'
                     : 'border-border hover:border-muted-foreground/40 hover:bg-muted/50'
                 }`}
               >

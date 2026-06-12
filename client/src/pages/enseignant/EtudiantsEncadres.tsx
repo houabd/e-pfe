@@ -1,4 +1,5 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
+import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -25,6 +26,7 @@ import {
 } from '@/hooks/useAffectations';
 import { useMyThemes } from '@/hooks/useThemes';
 import { useUsers } from '@/hooks/useUsers';
+import { useCurrentUser } from '@/stores/authStore';
 import type { EtudiantEncadre, StartupEquipe, PropositionMembre } from '@/services/affectations.api';
 
 // ─── Popup contact ──────────────────────────────────────────────────────────
@@ -235,7 +237,7 @@ function EtudiantCard({
                   <Rocket className="h-3 w-3" />Startup
                 </Badge>
               ) : affectation.theme ? (
-                <Badge className="text-xs bg-blue-100 text-blue-700 border-blue-200 gap-1">
+                <Badge className="text-xs bg-[#e8e8e8] text-[#1a1a1a] border-[#e8e8e8] gap-1">
                   <BookOpen className="h-3 w-3" />Classique
                 </Badge>
               ) : (
@@ -354,7 +356,7 @@ function BinomeCard({
                 <Rocket className="h-3 w-3" />Startup
               </Badge>
             ) : theme ? (
-              <Badge className="text-xs bg-blue-100 text-blue-700 border-blue-200 gap-1">
+              <Badge className="text-xs bg-[#e8e8e8] text-[#1a1a1a] border-[#e8e8e8] gap-1">
                 <BookOpen className="h-3 w-3" />Classique
               </Badge>
             ) : (
@@ -406,7 +408,10 @@ function AjouterMembreDialog({ startup, onClose }: { startup: StartupEquipe; onC
 
   const onSubmitInterne = () => {
     if (!selectedEtudiant) return;
-    addInterne.mutate({ affectationId: startup.id, dto: { etudiant_id: selectedEtudiant } }, { onSuccess: onClose });
+    addInterne.mutate(
+      { affectationId: startup.id, dto: { etudiant_id: selectedEtudiant } },
+      { onSuccess: () => { toast.success("Invitation envoyée — l'étudiant doit accepter pour rejoindre l'équipe"); onClose(); } },
+    );
   };
 
   const onSubmitExterne = (values: z.infer<typeof schemaExterne>) => {
@@ -493,34 +498,55 @@ function AjouterMembreDialog({ startup, onClose }: { startup: StartupEquipe; onC
 function PropositionRow({ prop, affectationId }: { prop: PropositionMembre; affectationId: string }) {
   const accepter = useAccepterProposition();
   const refuser = useRefuserProposition();
+  const currentUser = useCurrentUser();
   const ext = prop.candidat_externe;
   const nom = prop.candidat_interne
     ? `${prop.candidat_interne.prenom} ${prop.candidat_interne.nom}`
     : ext ? `${ext.prenom} ${ext.nom} (externe)` : '—';
 
+  // Invitation envoyée par l'encadrant (moi), en attente de réponse de l'étudiant
+  const isMyInvitation = prop.proposeur_id === currentUser?.id && !prop.etudiant_accepte;
+
   return (
     <div className="flex items-center justify-between py-2 gap-4">
       <div className="min-w-0">
         <p className="text-sm font-medium truncate">{nom}</p>
-        <p className="text-xs text-muted-foreground">
-          Proposé par {prop.proposeur.prenom} {prop.proposeur.nom}
-        </p>
+        {isMyInvitation ? (
+          <p className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
+            <Clock className="h-3 w-3" />En attente de réponse de l'étudiant
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Proposé par {prop.proposeur.prenom} {prop.proposeur.nom}
+          </p>
+        )}
         {prop.candidat_interne?.email && <p className="text-xs text-muted-foreground">{prop.candidat_interne.email}</p>}
         {ext?.universite && <p className="text-xs text-muted-foreground">{ext.universite}</p>}
       </div>
       <div className="flex gap-1.5 shrink-0">
-        <Button size="sm" variant="outline"
-          className="h-7 text-xs border-green-600 text-green-700 hover:bg-green-50"
-          disabled={accepter.isPending}
-          onClick={() => accepter.mutate({ affectationId, propId: prop.id })}>
-          <CheckCircle2 className="h-3.5 w-3.5 mr-1" />Accepter
-        </Button>
-        <Button size="sm" variant="ghost"
-          className="h-7 text-xs text-muted-foreground"
-          disabled={refuser.isPending}
-          onClick={() => refuser.mutate({ affectationId, propId: prop.id })}>
-          <XCircle className="h-3.5 w-3.5 mr-1" />Refuser
-        </Button>
+        {isMyInvitation ? (
+          <Button size="sm" variant="ghost"
+            className="h-7 text-xs text-muted-foreground"
+            disabled={refuser.isPending}
+            onClick={() => refuser.mutate({ affectationId, propId: prop.id })}>
+            <XCircle className="h-3.5 w-3.5 mr-1" />Annuler
+          </Button>
+        ) : (
+          <>
+            <Button size="sm" variant="outline"
+              className="h-7 text-xs border-green-600 text-green-700 hover:bg-green-50"
+              disabled={accepter.isPending}
+              onClick={() => accepter.mutate({ affectationId, propId: prop.id })}>
+              <CheckCircle2 className="h-3.5 w-3.5 mr-1" />Accepter
+            </Button>
+            <Button size="sm" variant="ghost"
+              className="h-7 text-xs text-muted-foreground"
+              disabled={refuser.isPending}
+              onClick={() => refuser.mutate({ affectationId, propId: prop.id })}>
+              <XCircle className="h-3.5 w-3.5 mr-1" />Refuser
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -620,7 +646,7 @@ function StartupCard({ startup }: { startup: StartupEquipe }) {
                   <div className="divide-y">
                     {startup.membres_externes.map((m) => (
                       <div key={m.id} className="flex items-center gap-3 py-2.5">
-                        <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                        <div className="h-8 w-8 rounded-full bg-[#e8e8e8] flex items-center justify-center shrink-0">
                           <Globe className="h-4 w-4 text-amber-600" />
                         </div>
                         <div className="flex-1 min-w-0">
